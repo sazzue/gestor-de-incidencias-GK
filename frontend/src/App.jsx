@@ -1,46 +1,36 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import MainLayout from "./layouts/MainLayout";
+import MainLayout from "./layouts/MainLayout.jsx";
 
-import Dashboard from "./pages/Dashboard";
-import Incidents from "./pages/Incidents";
-import CreateIncidencia from "./pages/CreateIncidencia";
-import Login from "./pages/Login";
-import CreateUser from "./pages/CreateUser";
-import MaintenanceCalendar from "./pages/MaintenanceCalendar";
-import Info from "./pages/Info";
+import Dashboard from "./pages/Dashboard.jsx";
+import Incidents from "./pages/Incidents.jsx";
+import CreateIncidencia from "./pages/CreateIncidencia.jsx";
+import Login from "./pages/Login.jsx";
+import CreateUser from "./pages/CreateUser.jsx";
+import MaintenanceCalendar from "./pages/MaintenanceCalendar.jsx";
+import Info from "./pages/Info.jsx";
 
-import PrivateRoute from "./components/PrivateRoute";
+import PrivateRoute from "./components/PrivateRoute.jsx";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* REDIRECCIÓN */}
         <Route path="/" element={<Navigate to="/login" />} />
-
-        {/* LOGIN */}
         <Route path="/login" element={<Login />} />
 
-        {/* RUTA DASHBOARD */}
         <Route
-        path="/dashboard"
-        element={
-       <PrivateRoute>
-       <Dashboard />
-       </PrivateRoute>
-      }
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <Dashboard />
+            </PrivateRoute>
+          }
         />
-         {/*Ruta de Info*/}
-   <Route path="/info" element={<Info />} 
-   
-   />
 
-        {/* RUTAS CON LAYOUT */}
         <Route element={<MainLayout />}>
           <Route path="/incidents" element={<Incidents />} />
 
-          {/* PROTEGIDA POR ROLES */}
           <Route
             path="/create"
             element={
@@ -48,22 +38,24 @@ function App() {
                 <CreateIncidencia />
               </PrivateRoute>
             }
-            
           />
-          <Route path="/users" element={<CreateUser />} />  
+
+          <Route path="/users" element={<CreateUser />} />
+          <Route path="/info" element={<Info />} />
         </Route>
-<Route
-  path="/maintenance"
-  element={
-    <PrivateRoute>
-      <MaintenanceCalendar />
-    </PrivateRoute>
-  }
-   />
+
+        <Route
+          path="/maintenance"
+          element={
+            <PrivateRoute>
+              <MaintenanceCalendar />
+            </PrivateRoute>
+          }
+        />
+
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
-
