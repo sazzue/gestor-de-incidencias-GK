@@ -4,7 +4,7 @@ import MainLayout from "./layouts/MainLayout.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Incidents from "./pages/Incidents.jsx";
 import CreateIncidencia from "./pages/CreateIncidencia.jsx";
-import Login from "./pages/Login.jsx";
+import Login from "./pages/login.jsx";
 import CreateUser from "./pages/CreateUser.jsx";
 import MaintenanceCalendar from "./pages/MaintenanceCalendar.jsx";
 import Info from "./pages/Info.jsx";
