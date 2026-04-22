@@ -2,28 +2,26 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const app = require('./app');
 const cors = require('cors');
-const express = require('express');
-const roleRoutes = require("./routes/roleRoutes");
+
 const Role = require("./models/Role");
-const departmentRoutes = require("./routes/departments");
 
-
+// Middleware global
 app.use(cors());
-app.use(express.json());
 
-app.use("/api/roles", roleRoutes);
+// 📦 ROUTES
+app.use("/api/roles", require("./routes/roleRoutes"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/branches", require("./routes/branches"));
 app.use("/api/incidents", require("./routes/incidents"));
 app.use("/api/maintenance", require("./routes/maintenance"));
 app.use("/api/departments", require("./routes/departments"));
 
+// 🔌 CONEXIÓN A MONGO
 mongoose.connect(process.env.MONGODB_URI)
 .then(async () => {
-  console.log('URI:', process.env.MONGODB_URI);
-  console.log('CONECTADO');
+  console.log('CONECTADO A MONGODB');
 
-   // 🔥 SEED DE ROLES AQUÍ
+  // 🔥 SEED ROLES
   const roles = ["admin", "gerencia", "direccion", "departamento"];
 
   for (let role of roles) {
@@ -35,23 +33,13 @@ mongoose.connect(process.env.MONGODB_URI)
     }
   }
 
-  // 🔥 SEED DE DEPARTAMENTOS AQUÍ
-  const departamentos = ["sistemas", "marketing", "mantenimiento", "costos"];
+  // 🚀 SERVER START
+  const PORT = process.env.PORT || 3000;
 
-  for (let depto of departamentos) {
-    const exists = await mongoose.connection.db.collection('departments').findOne({ name: depto });
+  app.listen(PORT, () => {
+    console.log(`Servidor escuchando en puerto ${PORT}`);
+  });
 
-    if (!exists) {
-      await mongoose.connection.db.collection('departments').insertOne({ name: depto });
-      console.log("✅ Departamento creado:", depto);
-    }
-  }
-
-
- // 🚀 levantar servidor
-app.listen(process.env.PORT, () => {
-  console.log(`Servidor escuchando en el puerto ${process.env.PORT}`);
-});
 })
 .catch((error) => {
   console.error('Error al conectar a MongoDB:', error);
