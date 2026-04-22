@@ -1,4 +1,4 @@
-const Incident = require("../models/Incident");
+const Incident = require("../models/incident");
 const ROLES = require("../config/roles");
 
 
