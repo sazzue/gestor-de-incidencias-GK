@@ -9,6 +9,7 @@ const Role = require("./models/Role");
 app.use(cors());
 
 // 📦 ROUTES
+app.use("/api/auth", require("./routes/auth"));
 app.use("/api/roles", require("./routes/roleRoutes"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/branches", require("./routes/branches"));
