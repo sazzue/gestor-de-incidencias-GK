@@ -1,3 +1,4 @@
+import Navbar from "../components/Navbar.jsx";
 function Info() {
   return (
     <>
