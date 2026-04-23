@@ -5,10 +5,10 @@ import logo from "../assets/logo.png";
 const API_URL = import.meta.env.VITE_API_URL;
 
 function Login() {
-  const [email, setEmail] = useState("");
+  const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
 
   const navigate = useNavigate();
 
@@ -17,12 +17,10 @@ function Login() {
       setError("Todos los campos son obligatorios");
       return false;
     }
-
     if (!email.includes("@")) {
       setError("Correo inválido");
       return false;
     }
-
     return true;
   };
 
@@ -34,12 +32,10 @@ function Login() {
 
     try {
       setLoading(true);
-console.log("URL:", `${API_URL}/api/auth/login`);
+
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
@@ -47,16 +43,20 @@ console.log("URL:", `${API_URL}/api/auth/login`);
 
       if (!res.ok) {
         setError(data.msg || "Error al iniciar sesión");
-        setLoading(false);
         return;
       }
 
+      // Guardar token y datos del usuario
       localStorage.setItem("token", data.token);
+      localStorage.setItem("user",  JSON.stringify(data.user));
 
-      // pequeña animación antes de redirigir
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
+      // 🔐 Si es primer inicio de sesión, forzar cambio de contraseña
+      if (data.user.mustChangePassword) {
+        navigate("/change-password");
+        return;
+      }
+
+      setTimeout(() => navigate("/dashboard"), 300);
 
     } catch (err) {
       console.error(err);
@@ -68,14 +68,12 @@ console.log("URL:", `${API_URL}/api/auth/login`);
 
   return (
     <div className="container">
-
       <div className="card">
-<img src={logo} alt="Logo" className="logo" />
+        <img src={logo} alt="Logo" className="logo" />
         <h2>🔐 Iniciar sesión</h2>
         <p className="subtitle">Accede al sistema de incidencias</p>
 
         <form onSubmit={handleSubmit}>
-
           <input
             type="email"
             placeholder="Correo"
@@ -95,35 +93,22 @@ console.log("URL:", `${API_URL}/api/auth/login`);
           <button type="submit" disabled={loading}>
             {loading ? "Ingresando..." : "Entrar"}
           </button>
-
         </form>
 
+        {/* 🔑 Link de recuperación */}
+        <p className="forgot">
+          <a href="/forgot-password">¿Olvidaste tu contraseña?</a>
+        </p>
       </div>
 
-      {/* 🎨 CSS PRO */}
       <style>{`
+        .logo {
+          width: 80px;
+          margin: 0 auto 10px;
+          display: block;
+          filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
+        }
 
-      /* LOGO */
-.logo {
-  width: 80px;
-  margin: 0 auto 10px;
-  display: block;
-  filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
-}
-
-.logo-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.logo-container img {
-  width: 35px;
-  height: 35px;
-  object-fit: contain;
-}
-  
         .container {
           min-height: 100vh;
           display: flex;
@@ -148,6 +133,7 @@ console.log("URL:", `${API_URL}/api/auth/login`);
         h2 {
           text-align: center;
           margin-bottom: 5px;
+          color: white;
         }
 
         .subtitle {
@@ -198,6 +184,7 @@ console.log("URL:", `${API_URL}/api/auth/login`);
         button:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+          transform: none;
         }
 
         .error {
@@ -206,26 +193,33 @@ console.log("URL:", `${API_URL}/api/auth/login`);
           text-align: center;
         }
 
-        /* ✨ Animación */
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(15px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        /* 🔑 Olvidé contraseña */
+        .forgot {
+          text-align: center;
+          margin-top: 16px;
+          font-size: 13px;
         }
 
-        /* 📱 Responsive */
+        .forgot a {
+          color: #60a5fa;
+          text-decoration: none;
+          transition: color 0.2s;
+        }
+
+        .forgot a:hover {
+          color: #93c5fd;
+          text-decoration: underline;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(15px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
         @media (max-width: 500px) {
-          .card {
-            padding: 25px;
-          }
+          .card { padding: 25px; }
         }
       `}</style>
-
     </div>
   );
 }
