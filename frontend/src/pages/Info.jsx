@@ -1,6 +1,3 @@
-// src/pages/Info.jsx
-import Navbar from "../components/Navbar";
-
 function Info() {
   return (
     <>
