@@ -181,19 +181,34 @@ const exportByBranch = () => {
 
   const filterByDate = (data, selectedDate) => {
   let result = [...data];
-
-  // 🔹 filtro por status
-  if (filterStatus !== "all") {
-    result = result.filter((m) => m.status === filterStatus);
+  const selected = toLocalDate(selectedDate);
+  switch (filterStatus) {
+    case "day":
+      // Solo del día seleccionado (todos los status)
+      result = result.filter((m) => toLocalDate(m.date) === selected);
+      break;
+    case "day-programado":
+      // Solo programados del día
+      result = result.filter(
+        (m) => toLocalDate(m.date) === selected && m.status === "programado"
+      );
+      break;
+    case "day-finalizado":
+      // Solo finalizados del día
+      result = result.filter(
+        (m) => toLocalDate(m.date) === selected && m.status === "finalizado"
+      );
+      break;
+    case "programado":
+    case "finalizado":
+      // Todos los del status (sin filtrar fecha)
+      result = result.filter((m) => m.status === filterStatus);
+      break;
+    // "all" no filtra nada
   }
-
-  // 🔹 filtro por sucursal
   if (selectedBranch) {
-    result = result.filter(
-      (m) => m.branch?._id === selectedBranch
-    );
+    result = result.filter((m) => m.branch?._id === selectedBranch);
   }
-
   setFiltered(result);
 };
 
@@ -228,36 +243,29 @@ const exportByBranch = () => {
 
           <Calendar onChange={setDate} value={date} />
 
-          <div className="filters">
-           <button onClick={() => setFilterStatus("all")}>
-  Todos (historial)
-</button>
+ <div className="filters">
+  <button onClick={() => setFilterStatus("all")}>Todos (historial)</button>
+  <button onClick={() => setFilterStatus("programado")}>Programados</button>
+  <button onClick={() => setFilterStatus("finalizado")}>Finalizados</button>
+  <button onClick={() => setFilterStatus("day")}>📅 Este día (todos)</button>
+  <button onClick={() => setFilterStatus("day-programado")}>📅 Programados hoy</button>
+  <button onClick={() => setFilterStatus("day-finalizado")}>📅 Finalizados hoy</button>
 
-<button onClick={() => setFilterStatus("programado")}>
-  Programados
-</button>
+  <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+    <option value="">Todas las sucursales</option>
+    {branches.map((b) => (
+      <option key={b._id} value={b._id}>{b.name}</option>
+    ))}
+  </select>
+</div>
 
-<button onClick={() => setFilterStatus("finalizado")}>
-  Finalizados
-</button>
-
-<button onClick={() => setFilterStatus("day")}>
-  📅 Solo este día
-</button>
-
-<select
-  value={selectedBranch}
-  onChange={(e) => setSelectedBranch(e.target.value)}
+<button
+  className={filterStatus === "all" ? "active" : ""}
+  onClick={() => setFilterStatus("all")}
 >
-  <option value="">Todas las sucursales</option>
+  Todos
+</button>
 
-  {branches.map((b) => (
-    <option key={b._id} value={b._id}>
-      {b.name}
-    </option>
-  ))}
-</select>
-          </div>
 
           <button
   disabled={!canCreate}
@@ -404,6 +412,12 @@ const exportByBranch = () => {
           flex-wrap: wrap;
           margin-top: 10px;
         }
+
+        .filters button.active {
+  background: #3b82f6;
+  color: white;
+}
+
 
         .export-btn {
   margin-top: 10px;
