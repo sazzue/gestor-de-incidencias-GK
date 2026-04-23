@@ -18,6 +18,7 @@ function App() {
 
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/users" element={<CreateUser />} />
 
         <Route
           path="/dashboard"
@@ -30,6 +31,7 @@ function App() {
 
         <Route element={<MainLayout />}>
           <Route path="/incidents" element={<Incidents />} />
+          <Route path="/info" element={<Info />} />
 
           <Route
             path="/create"
@@ -40,8 +42,6 @@ function App() {
             }
           />
 
-          <Route path="/users" element={<CreateUser />} />
-          <Route path="/info" element={<Info />} />
         </Route>
 
         <Route

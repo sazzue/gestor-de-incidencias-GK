@@ -1,9 +1,8 @@
-import Navbar from "../components/Navbar.jsx";
+
 function Info() {
   return (
     <>
-      <Navbar />
-
+      
       <div style={styles.container}>
         <h1 style={styles.title}>📘 Información del Sistema</h1>
 
