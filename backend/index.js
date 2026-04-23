@@ -16,6 +16,20 @@ app.use("/api/incidents", require("./routes/incidents"));
 app.use("/api/maintenance", require("./routes/maintenance"));
 app.use("/api/departments", require("./routes/departments"));
 
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    `
+    default-src 'self';
+    img-src 'self' data:;
+    style-src 'self' 'unsafe-inline' https://www.gstatic.com;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval';
+    connect-src *;
+    `
+  );
+  next();
+});
+
 // 🔌 CONEXIÓN A MONGO
 mongoose.connect(process.env.MONGODB_URI)
 .then(async () => {
