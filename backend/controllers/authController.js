@@ -136,6 +136,16 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
+    // 🔍 LOG TEMPORAL
+    console.log("SMTP CONFIG:", {
+      host:       process.env.SMTP_HOST,
+      port:       process.env.SMTP_PORT,
+      user:       process.env.SMTP_USER,
+      passExists: !!process.env.SMTP_PASS,
+      frontend:   process.env.FRONTEND_URL,
+    });
+
+
     const genericMsg = "Si el correo está registrado, recibirás un enlace en breve.";
 
     const user = await User.findOne({ email: email.toLowerCase() });
