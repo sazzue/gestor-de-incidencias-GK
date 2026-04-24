@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import MainLayout from "./layouts/MainLayout.jsx";
+import Layout from "./components/Layout";
 
 import Login           from "./pages/Login.jsx";
 import Dashboard       from "./pages/Dashboard.jsx";
@@ -63,6 +63,25 @@ function App() {
             </PrivateRoute>
           }
         />
+        // Dentro de tus rutas:
+<Route path="/dashboard" element={
+  <Layout><Dashboard /></Layout>
+} />
+<Route path="/incidents" element={
+  <Layout><Incidents /></Layout>
+} />
+<Route path="/create" element={
+  <Layout><CreateIncidencia /></Layout>
+} />
+<Route path="/maintenance" element={
+  <Layout><MaintenanceCalendar /></Layout>
+} />
+<Route path="/users" element={
+  <Layout><CreateUser /></Layout>
+} />
+<Route path="/info" element={
+  <Layout><Info /></Layout>
+} />
 
       </Routes>
     </BrowserRouter>
