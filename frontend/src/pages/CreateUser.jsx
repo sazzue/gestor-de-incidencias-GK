@@ -1,11 +1,23 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
+import { ROLES } from "../config/roles";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const USER_PERMISSIONS = [
+  { value: "CREATE_USERS", label: "Crear usuarios" },
+  { value: "CREATE_INCIDENT", label: "Crear solicitud" },
+  { value: "VIEW_INCIDENTS_ALL", label: "Ver incidencias: todas" },
+  { value: "VIEW_INCIDENTS_DEPARTMENT", label: "Ver incidencias: su departamento" },
+  { value: "VIEW_INCIDENTS_BRANCH", label: "Ver incidencias: su sucursal" },
+  { value: "CREATE_MAINTENANCE", label: "Crear mantenimientos" },
+  { value: "CONFIRM_MAINTENANCE", label: "Confirmar mantenimientos" },
+];
 
 function CreateUser() {
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [users, setUsers] = useState([]);
 
   const [nombre, setNombre] = useState("");
@@ -13,36 +25,164 @@ function CreateUser() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
   const [department, setDepartment] = useState("");
+  const [branch, setBranch] = useState("");
+  const [permissions, setPermissions] = useState([]);
+  const [newDepartment, setNewDepartment] = useState("");
+  const [message, setMessage] = useState(null);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [editPermissions, setEditPermissions] = useState([]);
 
   const navigate = useNavigate();
-  const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+  const token = localStorage.getItem("token");
+  const currentUser = token ? jwtDecode(token) : null;
+  const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
     fetch(`${API_URL}/api/roles`, { headers })
       .then((r) => r.json()).then((d) => setRoles(Array.isArray(d) ? d : [])).catch(() => setRoles([]));
 
-    fetch(`${API_URL}/api/departments`, { headers })
-      .then((r) => r.json()).then((d) => setDepartments(Array.isArray(d) ? d : [])).catch(() => setDepartments([]));
+    fetchDepartments();
 
-    fetch(`${API_URL}/api/users`, { headers })
-      .then((r) => r.json()).then((d) => setUsers(Array.isArray(d) ? d : [])).catch(() => setUsers([]));
+    fetch(`${API_URL}/api/branches`, { headers })
+      .then((r) => r.json()).then((d) => setBranches(Array.isArray(d) ? d : [])).catch(() => setBranches([]));
+
+    fetchUsers();
   }, []);
 
-  const handleSubmit = async () => {
-    const res = await fetch(`${API_URL}/api/users`, {
+  const fetchDepartments = () => {
+    fetch(`${API_URL}/api/departments`, { headers })
+      .then((r) => r.json())
+      .then((d) => setDepartments(Array.isArray(d) ? d : []))
+      .catch(() => setDepartments([]));
+  };
+
+  const fetchUsers = () => {
+    fetch(`${API_URL}/api/users`, { headers })
+      .then((r) => r.json())
+      .then((d) => setUsers(Array.isArray(d) ? d : []))
+      .catch(() => setUsers([]));
+  };
+
+  const togglePermission = (permissions, permission) => {
+    return permissions.includes(permission)
+      ? permissions.filter((item) => item !== permission)
+      : [...permissions, permission];
+  };
+
+  const getRolePermissions = (roleName) => {
+    return roleName === "admin" && Array.isArray(ROLES[roleName])
+      ? ROLES[roleName]
+      : [];
+  };
+
+  const getEffectivePermissions = (user) => {
+    if (user?.role === "admin") {
+      return getRolePermissions(user.role);
+    }
+
+    return Array.isArray(user?.permissions) ? user.permissions : [];
+  };
+
+  const openEditModal = (user) => {
+    const directPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
+    setEditingUser({ ...user, permissions: directPermissions });
+    setEditPermissions(directPermissions);
+    setShowEditModal(true);
+  };
+
+  const handleCreateDepartment = async () => {
+    setMessage(null);
+    if (!newDepartment.trim()) {
+      setMessage({
+        type: "error",
+        title: "Falta nombre del departamento",
+        detail: "El campo Nuevo departamento es obligatorio."
+      });
+      return;
+    }
+
+    const res = await fetch(`${API_URL}/api/departments`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ nombre, email, password, role, department }),
+      body: JSON.stringify({
+        name: newDepartment,
+        permissions: []
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setMessage({
+        type: "error",
+        title: data.msg || "No se pudo crear el departamento",
+        detail: data.error || `Error ${res.status}`
+      });
+      return;
+    }
+    setDepartments((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewDepartment("");
+    setMessage({
+      type: "success",
+      title: "Departamento creado correctamente",
+      detail: `Se agregó ${data.name}.`
+    });
+  };
+
+  const handleDeleteDepartment = async (item) => {
+    if (!confirm(`Eliminar departamento "${item.name}"?`)) return;
+    const res = await fetch(`${API_URL}/api/departments/${item._id}`, {
+      method: "DELETE",
+      headers,
     });
     const data = await res.json();
     if (!res.ok) return alert(data.msg || "Error");
+    setDepartments((prev) => prev.filter((d) => d._id !== item._id));
+  };
+
+  const handleSubmit = async () => {
+    setMessage(null);
+    if (!nombre.trim() || !email.trim() || !password || !role) {
+      setMessage({
+        type: "error",
+        title: "Faltan campos obligatorios",
+        detail: "Nombre, email, contraseña y rol son obligatorios."
+      });
+      return;
+    }
+
+    if (role === "departamento" && !department) {
+      setMessage({
+        type: "error",
+        title: "Falta departamento",
+        detail: "Para el rol departamento debes seleccionar un departamento."
+      });
+      return;
+    }
+
+    const res = await fetch(`${API_URL}/api/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ nombre, email, password, role, department, branch, permissions }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setMessage({
+        type: "error",
+        title: data.msg || "No se pudo crear el usuario",
+        detail: data.error || `Error ${res.status}`
+      });
+      return;
+    }
     setUsers((prev) => [data, ...prev]);
-    setNombre(""); setEmail(""); setPassword(""); setRole(""); setDepartment("");
+    setNombre(""); setEmail(""); setPassword(""); setRole(""); setDepartment(""); setBranch(""); setPermissions([]);
+    setMessage({
+      type: "success",
+      title: "Usuario creado correctamente",
+      detail: `${data.nombre} ya puede iniciar sesión.`
+    });
   };
 
   const confirmDelete = async () => {
@@ -55,16 +195,58 @@ function CreateUser() {
 
   const handleUpdateUser = async () => {
     if (!editingUser?._id) return;
+    setMessage(null);
+    const payload = {
+      nombre: editingUser.nombre || "",
+      email: editingUser.email || "",
+      role: editingUser.role || "",
+      department: editingUser.department || "",
+      branch: editingUser.branch?._id || editingUser.branch || null,
+      permissions:
+        editingUser.role === "admin"
+          ? []
+          : editPermissions,
+    };
+
     const res = await fetch(`${API_URL}/api/users/${editingUser._id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify(editingUser),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
+    if (!res.ok) {
+      setMessage({
+        type: "error",
+        title: data.msg || "No se pudo actualizar el usuario",
+        detail: data.error || `Error ${res.status}`
+      });
+      return;
+    }
     setUsers((prev) => prev.map((u) => (u?._id === data?._id ? data : u)));
+    await fetchUsers();
     setEditingUser(null);
+    setEditPermissions([]);
     setShowEditModal(false);
+    setMessage({
+      type: "success",
+      title: "Usuario actualizado correctamente",
+      detail: "Los permisos se actualizarán automáticamente en la sesión activa."
+    });
   };
+
+  if (
+    currentUser?.role !== "admin" &&
+    !currentUser?.permissions?.includes("CREATE_USERS")
+  ) {
+    return (
+      <div className="page">
+        <div className="form-card">
+          <h3>Sin acceso</h3>
+          <p>No tienes permisos para crear usuarios.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -78,6 +260,13 @@ function CreateUser() {
           ← Volver
         </button>
       </div>
+
+      {message && (
+        <div className={`notice ${message.type}`}>
+          <b>{message.title}</b>
+          <span>{message.detail}</span>
+        </div>
+      )}
 
       <div className="layout-two-col">
 
@@ -122,7 +311,62 @@ function CreateUser() {
             </div>
           )}
 
+          <div className="form-group">
+            <label>Sucursal asignada</label>
+            <select value={branch} onChange={(e) => setBranch(e.target.value)}>
+              <option value="">Sin sucursal</option>
+              {branches.map((b, i) => (
+                <option key={b?._id || i} value={b?._id}>{b?.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="permissions-list">
+            <label>Permisos del usuario</label>
+            {USER_PERMISSIONS.map((permission) => (
+              <label key={permission.value} className="check-row">
+                <input
+                  type="checkbox"
+                  checked={permissions.includes(permission.value)}
+                  onChange={() =>
+                    setPermissions((prev) => togglePermission(prev, permission.value))
+                  }
+                />
+                {permission.label}
+              </label>
+            ))}
+          </div>
+
           <button className="btn-submit" onClick={handleSubmit}>Crear usuario</button>
+
+          <div className="department-admin">
+            <h3>Departamentos</h3>
+            <div className="form-group">
+              <label>Nuevo departamento</label>
+              <input
+                placeholder="ej. compras"
+                value={newDepartment}
+                onChange={(e) => setNewDepartment(e.target.value)}
+              />
+            </div>
+
+            <button className="btn-submit" onClick={handleCreateDepartment}>
+              Crear departamento
+            </button>
+
+            <div className="departments-list">
+              {departments.map((item, i) => (
+                <div className="department-row" key={item?._id || i}>
+                  <div>
+                    <b>{item?.name}</b>
+                  </div>
+                  <button className="btn-icon delete" onClick={() => handleDeleteDepartment(item)}>
+                    🗑
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* LISTA */}
@@ -137,11 +381,14 @@ function CreateUser() {
                   <div>
                     <b>{u?.nombre}</b>
                     <p>{u?.email}</p>
+                    <small className="permission-summary">
+                      {(u?.permissions || []).length} permisos directos
+                    </small>
                   </div>
                 </div>
                 <div className="user-actions">
                   <span className="role-badge">{u?.role}</span>
-                  <button className="btn-icon edit" onClick={() => { setEditingUser(u); setShowEditModal(true); }}>✏</button>
+                  <button className="btn-icon edit" onClick={() => openEditModal(u)}>✏</button>
                   <button className="btn-icon delete" onClick={() => { setUserToDelete(u); setShowDeleteModal(true); }}>🗑</button>
                 </div>
               </div>
@@ -177,9 +424,76 @@ function CreateUser() {
               <label>Email</label>
               <input value={editingUser.email || ""} onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })} />
             </div>
+            <div className="form-group">
+              <label>Rol</label>
+              <select value={editingUser.role || ""} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}>
+                <option value="">Selecciona rol</option>
+                {roles.map((r, i) => (
+                  <option key={r?._id || i} value={r?.name}>{r?.name}</option>
+                ))}
+              </select>
+            </div>
+            {editingUser.role === "departamento" && (
+              <div className="form-group">
+                <label>Departamento</label>
+                <select
+                  value={editingUser.department || ""}
+                  onChange={(e) => setEditingUser({ ...editingUser, department: e.target.value })}
+                >
+                  <option value="">Seleccionar departamento</option>
+                  {departments.map((d, i) => (
+                    <option key={d?._id || i} value={d?.name}>{d?.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="form-group">
+              <label>Sucursal asignada</label>
+              <select
+                value={editingUser.branch?._id || editingUser.branch || ""}
+                onChange={(e) => setEditingUser({ ...editingUser, branch: e.target.value })}
+              >
+                <option value="">Sin sucursal</option>
+                {branches.map((b, i) => (
+                  <option key={b?._id || i} value={b?._id}>{b?.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="permissions-list">
+              <label>
+                Permisos del usuario
+                {editingUser.role === "admin" && (
+                  <span className="hint-text">El rol admin siempre tiene todos los permisos.</span>
+                )}
+              </label>
+              {USER_PERMISSIONS.map((permission) => (
+                <label key={permission.value} className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={
+                      editingUser.role === "admin"
+                        ? getEffectivePermissions(editingUser).includes(permission.value)
+                        : editPermissions.includes(permission.value)
+                    }
+                    disabled={
+                      editingUser.role === "admin" &&
+                      getRolePermissions(editingUser.role).includes(permission.value)
+                    }
+                    onChange={() =>
+                      setEditPermissions((prev) => togglePermission(prev, permission.value))
+                    }
+                  />
+                  {permission.label}
+                  {editingUser.role === "admin" &&
+                    getRolePermissions(editingUser.role).includes(permission.value) && (
+                    <span className="inherited-tag">Rol</span>
+                  )}
+                </label>
+              ))}
+            </div>
             <div className="modal-actions">
               <button className="btn-submit" onClick={handleUpdateUser}>Guardar</button>
-              <button className="btn-cancel" onClick={() => setShowEditModal(false)}>Cancelar</button>
+              <button className="btn-cancel" onClick={() => { setShowEditModal(false); setEditingUser(null); setEditPermissions([]); }}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -210,6 +524,20 @@ function CreateUser() {
           transition: 0.2s;
         }
         .btn-back:hover { border-color: #3b82f6; color: white; }
+
+        .notice {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-bottom: 18px;
+          padding: 12px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          border: 1px solid transparent;
+        }
+        .notice.success { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #86efac; }
+        .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
+        .notice span { color: #cbd5e1; }
 
         .layout-two-col {
           display: grid;
@@ -275,6 +603,84 @@ function CreateUser() {
         }
         .btn-submit:hover { background: #2563eb; }
 
+        .department-admin {
+          margin-top: 24px;
+          padding-top: 20px;
+          border-top: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .permissions-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 14px;
+        }
+
+        .permissions-list.compact {
+          margin: 8px 0 0;
+          gap: 6px;
+        }
+
+        .check-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #94a3b8;
+          font-size: 12px;
+        }
+
+        .check-row input {
+          width: auto;
+          accent-color: #3b82f6;
+        }
+
+        .hint-text {
+          display: block;
+          margin-top: 4px;
+          color: #64748b;
+          font-size: 11px;
+          font-weight: 400;
+        }
+
+        .check-row input:disabled {
+          cursor: not-allowed;
+          opacity: 0.75;
+        }
+
+        .inherited-tag {
+          margin-left: auto;
+          padding: 2px 6px;
+          border-radius: 999px;
+          background: rgba(59,130,246,0.16);
+          color: #93c5fd;
+          font-size: 10px;
+          font-weight: 600;
+        }
+
+        .departments-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 16px;
+        }
+
+        .department-row {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.05);
+          border-radius: 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          padding: 12px;
+        }
+
+        .department-row b {
+          color: #e2e8f0;
+          font-size: 13px;
+          text-transform: capitalize;
+        }
+
         .users-list { display: flex; flex-direction: column; gap: 10px; }
 
         .user-card {
@@ -307,6 +713,12 @@ function CreateUser() {
 
         .user-info b { font-size: 14px; display: block; }
         .user-info p { font-size: 12px; color: #64748b; margin: 0; }
+        .permission-summary {
+          display: block;
+          margin-top: 3px;
+          color: #60a5fa;
+          font-size: 11px;
+        }
 
         .user-actions { display: flex; align-items: center; gap: 8px; }
 

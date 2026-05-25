@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { getPermissionsForUser } = require("../utils/permissions");
 
 exports.register = async (req, res) => {
   res.json({ msg: "register ok" });
@@ -17,23 +18,7 @@ exports.login = async (req, res) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(400).json({ message: "Invalid" });
 
-    // =========================
-    // 🔥 PERMISOS (CORRECTO)
-    // =========================
-    let permissions = [];
-
-    const departmentName = user.department?.trim(); // 👈 ahora es string
-
-    if (
-      user.role === "departamento" &&
-      departmentName === "sistemas"
-    ) {
-      permissions.push("CREATE_MAINTENANCE");
-    }
-
-    if (["admin", "gerencia", "direccion"].includes(user.role)) {
-      permissions.push("CONFIRM_MAINTENANCE");
-    }
+    const permissions = await getPermissionsForUser(user);
 
     // =========================
     // 🎟 TOKEN FINAL
@@ -44,6 +29,7 @@ exports.login = async (req, res) => {
         nombre: user.nombre,
         role: user.role,
         department: user.department || null,
+        branch: user.branch || null,
         permissions,
       },
       process.env.JWT_SECRET,

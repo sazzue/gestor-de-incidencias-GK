@@ -9,6 +9,7 @@ router.post("/forgot-password", controllers.forgotPassword);
 router.post("/reset-password",  controllers.resetPassword);
 
 // ── Protegida (requiere JWT válido) ───────────────────
+router.get("/me", authMiddleware, controllers.me);
 router.post("/change-password", authMiddleware, controllers.changePassword);
 
 module.exports = router;

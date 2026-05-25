@@ -1,150 +1,149 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const Role = require("../models/Role");
+const { hasPermission, normalizePermissions } = require("../utils/permissions");
 
-// 🗑 DELETE
+const canManageUsers = (req, res) => {
+  if (!req.user) {
+    res.status(401).json({ msg: "No autenticado" });
+    return false;
+  }
+
+  if (!hasPermission(req.user, "CREATE_USERS")) {
+    res.status(403).json({ msg: "No autorizado" });
+    return false;
+  }
+
+  return true;
+};
+
+const normalizeUserInput = (body) => {
+  const role = body.role?.trim();
+  const department = body.department?.trim().toLowerCase();
+  const branch = typeof body.branch === "object" ? body.branch?._id || null : body.branch || null;
+
+  return {
+    nombre: body.nombre?.trim(),
+    email: body.email?.toLowerCase().trim(),
+    password: body.password,
+    role,
+    department: role === "departamento" ? department : null,
+    branch,
+    permissions: normalizePermissions(Array.isArray(body.permissions) ? body.permissions : []),
+  };
+};
+
 const deleteUser = async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ msg: "No autorizado" });
-    }
+    if (!canManageUsers(req, res)) return;
 
     await User.findByIdAndDelete(req.params.id);
-
     res.json({ msg: "Usuario eliminado" });
-
   } catch (error) {
-    res.status(500).json({ msg: "Error al eliminar usuario" });
+    res.status(500).json({ msg: "Error al eliminar usuario", error: error.message });
   }
 };
 
-// ✏️ ACTUALIZAR USUARIO
 const updateUser = async (req, res) => {
   try {
-    const { nombre, email, password, role, department } = req.body;
+    if (!canManageUsers(req, res)) return;
 
-    const user = await User.findById(req.params.id);
+    const input = normalizeUserInput(req.body);
 
-    if (!user) {
-      return res.status(404).json({ msg: "Usuario no encontrado" });
-    }
-
-    // 🧹 NORMALIZAR
-    const nombreTrim = nombre?.trim();
-    const emailNormalized = email?.toLowerCase().trim();
-    const departmentTrim = department?.trim().toLowerCase();
-
-    // 🔥 VALIDACIÓN POR ROL
-    if (role === "departamento" && !departmentTrim) {
-      return res.status(400).json({
-        msg: "El departamento es obligatorio para este rol",
-      });
-    }
-
-    // actualizar campos
-    user.nombre = nombreTrim || user.nombre;
-    user.email = emailNormalized || user.email;
-    user.role = role || user.role;
-
-    // 🔥 department como STRING consistente
-    user.department =
-      (role || user.role) === "departamento"
-        ? departmentTrim
-        : null;
-
-    // 🔐 si viene contraseña nueva
-    if (password && password.trim() !== "") {
-      const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(password, salt);
-    }
-
-    const updatedUser = await user.save();
-
-    res.json(updatedUser);
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: "Error al actualizar usuario" });
-  }
-};
-
-// 📥 GET USERS
-const getUsers = async (req, res) => {
-  try {
-    // 🔒 solo admin
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ msg: "No autorizado" });
-    }
-
-    const users = await User.find().select("-password");
-    res.json(users);
-
-  } catch (error) {
-    res.status(500).json({ msg: "Error al obtener usuarios" });
-  }
-};
-
-// ➕ CREAR USUARIO
-const createUser = async (req, res) => {
-  try {
-    // 🔒 seguridad
-    if (!req.user) {
-      return res.status(401).json({ msg: "No autenticado" });
-    }
-
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ msg: "No autorizado" });
-    }
-
-    let { nombre, email, password, role, department } = req.body;
-
-    // 🧹 NORMALIZAR
-    const nombreTrim = nombre?.trim();
-    const emailNormalized = email?.toLowerCase().trim();
-    const departmentTrim = department?.trim().toLowerCase();
-
-    // ✅ VALIDACIONES BÁSICAS
-    if (!nombreTrim || !emailNormalized || !password || !role) {
+    if (!input.nombre || !input.email || !input.role) {
       return res.status(400).json({ msg: "Datos incompletos" });
     }
 
-    // 🔍 VALIDAR ROL (DINÁMICO DESDE DB)
-    const roleExists = await Role.findOne({ name: role });
+    if (input.role === "departamento" && !input.department) {
+      return res.status(400).json({ msg: "El departamento es obligatorio para este rol" });
+    }
+
+    const update = {
+      nombre: input.nombre,
+      email: input.email,
+      role: input.role,
+      department: input.department,
+      branch: input.branch,
+      permissions: input.permissions,
+    };
+
+    if (input.password && input.password.trim() !== "") {
+      update.password = await bcrypt.hash(input.password, 10);
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { $set: update },
+      { new: true, runValidators: true }
+    )
+      .select("-password")
+      .populate("branch", "name");
+
+    if (!updatedUser) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error("ERROR UPDATE USER:", error);
+    res.status(500).json({ msg: "Error al actualizar usuario", error: error.message });
+  }
+};
+
+const getUsers = async (req, res) => {
+  try {
+    if (!canManageUsers(req, res)) return;
+
+    const users = await User.find().select("-password").populate("branch", "name");
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ msg: "Error al obtener usuarios", error: error.message });
+  }
+};
+
+const createUser = async (req, res) => {
+  try {
+    if (!canManageUsers(req, res)) return;
+
+    const input = normalizeUserInput(req.body);
+
+    if (!input.nombre || !input.email || !input.password || !input.role) {
+      return res.status(400).json({ msg: "Datos incompletos" });
+    }
+
+    const roleExists = await Role.findOne({ name: input.role });
     if (!roleExists) {
-      return res.status(400).json({ msg: "Rol no válido" });
+      return res.status(400).json({ msg: "Rol no valido" });
     }
 
-    // 🔥 VALIDACIÓN POR ROL
-    if (role === "departamento" && !departmentTrim) {
-      return res.status(400).json({
-        msg: "El departamento es obligatorio para este rol",
-      });
+    if (input.role === "departamento" && !input.department) {
+      return res.status(400).json({ msg: "El departamento es obligatorio para este rol" });
     }
 
-    // 🔍 EVITAR DUPLICADOS
-    const userExists = await User.findOne({ email: emailNormalized });
+    const userExists = await User.findOne({ email: input.email });
     if (userExists) {
       return res.status(400).json({ msg: "El usuario ya existe" });
     }
 
-    // 🔐 HASH PASSWORD
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // 🚀 CREACIÓN FINAL
+    const hashedPassword = await bcrypt.hash(input.password, 10);
     const user = await User.create({
-      nombre: nombreTrim,
-      email: emailNormalized,
+      nombre: input.nombre,
+      email: input.email,
       password: hashedPassword,
-      role,
-      department: role === "departamento" ? departmentTrim : null, // 🔥 STRING limpio
+      role: input.role,
+      department: input.department,
+      branch: input.branch,
+      permissions: input.permissions,
     });
 
-    res.status(201).json(user);
+    const createdUser = await User.findById(user._id)
+      .select("-password")
+      .populate("branch", "name");
 
+    res.status(201).json(createdUser);
   } catch (error) {
     console.error("ERROR CREATE USER:", error);
-    res.status(500).json({ msg: "Error al crear usuario" });
+    res.status(500).json({ msg: "Error al crear usuario", error: error.message });
   }
 };
 

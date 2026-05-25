@@ -3,6 +3,8 @@ import { jwtDecode } from "jwt-decode";
 import { useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function Sidebar() {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
@@ -10,7 +12,32 @@ function Sidebar() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) setUser(jwtDecode(token));
+    if (!token) return;
+
+    const refreshUser = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setUser(jwtDecode(localStorage.getItem("token")));
+          return;
+        }
+
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        setUser(jwtDecode(data.token));
+        window.dispatchEvent(new Event("auth-updated"));
+      } catch (error) {
+        setUser(jwtDecode(localStorage.getItem("token")));
+      }
+    };
+
+    refreshUser();
+    const interval = setInterval(refreshUser, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
@@ -18,12 +45,18 @@ function Sidebar() {
     navigate("/");
   };
 
-  const canCreateIncidents = ["admin", "gerencia", "direccion"].includes(user?.role);
-  const canAccessUsers = user?.role === "admin";
+  const hasPermission = (permission) =>
+    user?.role === "admin" || user?.permissions?.includes(permission);
+
+  const canCreateIncidents = hasPermission("CREATE_INCIDENT");
+  const canViewIncidents =
+    hasPermission("VIEW_INCIDENTS_ALL") ||
+    hasPermission("VIEW_INCIDENTS_DEPARTMENT") ||
+    hasPermission("VIEW_INCIDENTS_BRANCH");
+  const canAccessUsers = hasPermission("CREATE_USERS");
   const canViewMaintenance =
-    ["admin", "gerencia", "direccion"].includes(user?.role) ||
-    (user?.role === "departamento" &&
-      user?.department?.toLowerCase().trim() === "sistemas");
+    hasPermission("CREATE_MAINTENANCE") ||
+    hasPermission("CONFIRM_MAINTENANCE");
 
   const isActive = (path) => location.pathname === path;
 
@@ -54,8 +87,9 @@ function Sidebar() {
             </button>
 
             <button
+              disabled={!canViewIncidents}
               onClick={() => navigate("/incidents")}
-              className={`sidebar-btn ${isActive("/incidents") ? "active" : ""}`}
+              className={`sidebar-btn ${isActive("/incidents") ? "active" : ""} ${!canViewIncidents ? "disabled" : ""}`}
             >
               📌 Incidencias
             </button>

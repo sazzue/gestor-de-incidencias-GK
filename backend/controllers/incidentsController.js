@@ -1,60 +1,66 @@
 const Incident = require("../models/incident");
-const ROLES = require("../config/roles");
-
+const { hasPermission } = require("../utils/permissions");
 
 const getIncidents = async (req, res) => {
   try {
-    const role = req.user?.role;
     const department = req.user?.department;
+    const branch = req.user?.branch;
+    let query = null;
 
-    console.log("REQ.USER:", req.user);
-    console.log("DEPARTMENT:", department);
-
-    let query = {};
-
-    // 👑 admin / gerencia / direccion ven todo
-    if (["admin", "gerencia", "direccion"].includes(role)) {
+    if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
       query = {};
-    }
+    } else {
+      const filters = [];
 
-    // 🧑‍💼 departamento solo ve lo suyo
-    else if (role === "departamento") {
-      if (!department) {
-        return res.status(400).json({ msg: "Department requerido" });
+      if (hasPermission(req.user, "VIEW_INCIDENTS_DEPARTMENT")) {
+        if (!department) {
+          return res.status(400).json({ msg: "Departamento requerido" });
+        }
+
+        filters.push({
+          department: Array.isArray(department) ? { $in: department } : department
+        });
       }
 
-      query = {
-  department: Array.isArray(department)
-    ? { $in: department }
-    : department
-};
+      if (hasPermission(req.user, "VIEW_INCIDENTS_BRANCH")) {
+        if (!branch) {
+          return res.status(400).json({ msg: "Sucursal requerida" });
+        }
+
+        filters.push({ branch });
+      }
+
+      if (filters.length === 0) {
+        return res.status(403).json({ msg: "No tienes permisos para ver incidencias" });
+      }
+
+      query = filters.length === 1 ? filters[0] : { $or: filters };
     }
+
     const incidents = await Incident.find(query)
-      .populate("createdBy", "nombre email") // usuario
-      .populate("branch", "name") // sucursal
+      .populate("createdBy", "nombre email")
+      .populate("branch", "name")
       .sort({ createdAt: -1 });
 
     res.json(incidents);
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al obtener incidencias" });
   }
 };
 
-
-// ➕ CREAR
 const createIncident = async (req, res) => {
   try {
     const { title, description, branch, department } = req.body;
 
-    const role = req.user.role;
-
-    // 🔒 SOLO admin, gerencia y direccion pueden crear
-    if (!["admin", "gerencia", "direccion"].includes(role)) {
+    if (!hasPermission(req.user, "CREATE_INCIDENT")) {
       return res.status(403).json({
         msg: "No tienes permisos para crear incidencias",
       });
+    }
+
+    if (!title || !description || !branch || !department) {
+      return res.status(400).json({ msg: "Datos incompletos" });
     }
 
     const incident = await Incident.create({
@@ -66,7 +72,6 @@ const createIncident = async (req, res) => {
     });
 
     res.status(201).json(incident);
-
   } catch (error) {
     console.error("ERROR CREATE INCIDENT:", error);
 
@@ -80,7 +85,7 @@ const createIncident = async (req, res) => {
 const updateStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const { role, department } = req.user;
+    const { department } = req.user;
 
     if (!status) {
       return res.status(400).json({ msg: "Status requerido" });
@@ -92,31 +97,26 @@ const updateStatus = async (req, res) => {
       return res.status(404).json({ msg: "Incidencia no encontrada" });
     }
 
-    // 🔥 ADMIN / GERENCIA / DIRECCION → TODO
-    if (["admin", "gerencia", "direccion"].includes(role)) {
+    if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
       incident.status = status;
       await incident.save();
       return res.json(incident);
     }
 
-    // 🔥 DEPARTAMENTO → SOLO SU ÁREA
     if (
-      role === "departamento" &&
+      hasPermission(req.user, "VIEW_INCIDENTS_DEPARTMENT") &&
       incident.department &&
       department &&
-      incident.department.toLowerCase().trim() ===
-        department.toLowerCase().trim()
+      incident.department.toLowerCase().trim() === department.toLowerCase().trim()
     ) {
       incident.status = status;
       await incident.save();
       return res.json(incident);
     }
 
-    // 🚫 NO AUTORIZADO
     return res.status(403).json({
       msg: "No autorizado para cambiar este estatus",
     });
-
   } catch (error) {
     console.error("ERROR UPDATE STATUS:", error);
 

@@ -8,8 +8,6 @@ const {
 } = require("../controllers/incidentsController");
 
 const authMiddleware = require("../middleware/authMiddleware");
-const authorize = require("../middleware/authorize");
-const ROLES = require("../config/roles");
 
 
 // 📥 ver incidencias
@@ -22,15 +20,13 @@ router.get(
 router.post(
   "/",
   authMiddleware,
-  authorize(ROLES.ADMIN, ROLES.GERENCIA, ROLES.DIRECCION),
   createIncident
 );
 
 // 🔄 cambiar estatus
 router.put(
   "/:id/status",
-  authMiddleware, // 🔥 FALTABA ESTO
-  authorize(ROLES.ADMIN, ROLES.DEPARTAMENTO),
+  authMiddleware,
   updateStatus
 );
 

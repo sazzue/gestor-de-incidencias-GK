@@ -27,6 +27,12 @@ const userSchema = new mongoose.Schema({
     default: null
   },
 
+  branch: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Branch",
+    default: null
+  },
+
   permissions: [String],
 
   // 🔐 Forzar cambio de contraseña en primer inicio de sesión

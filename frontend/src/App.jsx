@@ -40,7 +40,7 @@ function App() {
         } />
 
         <Route path="/create" element={
-          <PrivateRoute roles={["admin", "gerencia", "direccion"]}>
+          <PrivateRoute>
             <Layout><CreateIncidencia /></Layout>
           </PrivateRoute>
         } />
@@ -52,7 +52,7 @@ function App() {
         } />
 
         <Route path="/users" element={
-          <PrivateRoute roles={["admin"]}>
+          <PrivateRoute>
             <Layout><CreateUser /></Layout>
           </PrivateRoute>
         } />

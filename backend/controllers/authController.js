@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const { getPermissionsForUser } = require("../utils/permissions");
 
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST,
@@ -58,18 +59,7 @@ exports.login = async (req, res) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(400).json({ msg: "Credenciales incorrectas" });
 
-    // ── Permisos ──────────────────────────────
-    let permissions = [];
-
-    const departmentName = user.department?.trim();
-
-    if (user.role === "departamento" && departmentName === "sistemas") {
-      permissions.push("CREATE_MAINTENANCE");
-    }
-
-    if (["admin", "gerencia", "direccion"].includes(user.role)) {
-      permissions.push("CONFIRM_MAINTENANCE");
-    }
+    const permissions = await getPermissionsForUser(user);
 
     // ── Token ─────────────────────────────────
     const token = jwt.sign(
@@ -78,6 +68,7 @@ exports.login = async (req, res) => {
         nombre:             user.nombre,
         role:               user.role,
         department:         user.department || null,
+        branch:             user.branch || null,
         permissions,
         mustChangePassword: user.mustChangePassword, // 🔐
       },
@@ -93,12 +84,56 @@ exports.login = async (req, res) => {
         email:              user.email,
         role:               user.role,
         department:         user.department || null,
+        branch:             user.branch || null,
+        permissions,
         mustChangePassword: user.mustChangePassword, // 🔐 frontend lo necesita
       },
     });
   } catch (error) {
     console.error("login error:", error);
     res.status(500).json({ msg: "Error en login" });
+  }
+};
+
+exports.me = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
+    const permissions = await getPermissionsForUser(user);
+    const token = jwt.sign(
+      {
+        id:                 user._id,
+        nombre:             user.nombre,
+        role:               user.role,
+        department:         user.department || null,
+        branch:             user.branch || null,
+        permissions,
+        mustChangePassword: user.mustChangePassword,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.json({
+      token,
+      user: {
+        id:                 user._id,
+        nombre:             user.nombre,
+        email:              user.email,
+        role:               user.role,
+        department:         user.department || null,
+        branch:             user.branch || null,
+        permissions,
+        mustChangePassword: user.mustChangePassword,
+      },
+    });
+  } catch (error) {
+    console.error("me error:", error);
+    res.status(500).json({ msg: "Error al obtener usuario" });
   }
 };
 

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
-import { jwtDecode } from "jwt-decode";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -12,7 +12,6 @@ function MaintenanceCalendar() {
   const [maintenances, setMaintenances] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [user, setUser] = useState(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState("");
@@ -21,17 +20,18 @@ function MaintenanceCalendar() {
   const [description, setDescription] = useState("");
   const [branch, setBranch] = useState("");
   const [dateInput, setDateInput] = useState("");
+  const [message, setMessage] = useState(null);
+  const [modalMessage, setModalMessage] = useState(null);
 
   const token = localStorage.getItem("token");
+  const user = useAuthUser();
 
   const canCreate =
-    user?.permissions?.includes("CREATE_MAINTENANCE") ||
-    (user?.role === "departamento" &&
-      user?.department?.toLowerCase().trim() === "sistemas");
+    user?.role === "admin" || user?.permissions?.includes("CREATE_MAINTENANCE");
 
   const canConfirm =
-    user?.permissions?.includes("CONFIRM_MAINTENANCE") ||
-    ["admin", "gerencia", "direccion"].includes(user?.role);
+    user?.role === "admin" ||
+    user?.permissions?.includes("CONFIRM_MAINTENANCE");
 
   const toLocalDate = (d) => new Date(d).toLocaleDateString("sv-SE");
 
@@ -69,7 +69,16 @@ function MaintenanceCalendar() {
   };
 
   const createMaintenance = async () => {
-    if (!title || !description || !branch || !dateInput) { alert("Todos los campos son obligatorios"); return; }
+    setModalMessage(null);
+    setMessage(null);
+    if (!title || !description || !branch || !dateInput) {
+      setModalMessage({
+        type: "error",
+        title: "Faltan campos obligatorios",
+        detail: "Título, descripción, sucursal y fecha son obligatorios."
+      });
+      return;
+    }
     try {
       const res = await fetch(`${API_URL}/api/maintenance`, {
         method: "POST",
@@ -77,16 +86,33 @@ function MaintenanceCalendar() {
         body: JSON.stringify({ title, description, branch, date: dateInput + "T12:00:00", status: "programado" }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        setModalMessage({
+          type: "error",
+          title: data.msg || "No se pudo crear el mantenimiento",
+          detail: data.error || `Error ${res.status}`
+        });
+        return;
+      }
       setMaintenances((prev) => { const updated = [...prev, data]; filterByDate(updated, date); return updated; });
       setShowModal(false);
+      setMessage({
+        type: "success",
+        title: "Mantenimiento creado correctamente",
+        detail: "El mantenimiento quedó programado."
+      });
       setTitle(""); setDescription(""); setBranch(""); setDateInput("");
     } catch (error) {
       console.error("Error creando mantenimiento:", error);
+      setModalMessage({
+        type: "error",
+        title: "Error de conexión",
+        detail: "No se pudo conectar con el servidor."
+      });
     }
   };
 
   useEffect(() => {
-    if (token) setUser(jwtDecode(token));
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
@@ -132,9 +158,27 @@ function MaintenanceCalendar() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const updated = await res.json();
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: updated.msg || "No se pudo confirmar el mantenimiento",
+          detail: updated.error || `Error ${res.status}`
+        });
+        return;
+      }
       setMaintenances((prev) => prev.map((m) => (m._id === updated._id ? updated : m)));
+      setMessage({
+        type: "success",
+        title: "Mantenimiento confirmado",
+        detail: "El estado cambió a finalizado."
+      });
     } catch (error) {
       console.error("Error confirmando:", error);
+      setMessage({
+        type: "error",
+        title: "Error de conexión",
+        detail: "No se pudo conectar con el servidor."
+      });
     }
   };
 
@@ -144,6 +188,12 @@ function MaintenanceCalendar() {
         {/* IZQUIERDA */}
         <div className="calendar-panel">
           <h2>📅 Mantenimientos</h2>
+          {message && (
+            <div className={`notice ${message.type}`}>
+              <b>{message.title}</b>
+              <span>{message.detail}</span>
+            </div>
+          )}
           <Calendar onChange={setDate} value={date} />
 
           <div className="filters">
@@ -202,6 +252,12 @@ function MaintenanceCalendar() {
         <div className="modal">
           <div className="modal-content">
             <h3>Nuevo mantenimiento</h3>
+            {modalMessage && (
+              <div className={`notice ${modalMessage.type}`}>
+                <b>{modalMessage.title}</b>
+                <span>{modalMessage.detail}</span>
+              </div>
+            )}
             <input type="text" placeholder="Título" value={title} onChange={(e) => setTitle(e.target.value)} />
             <select value={branch} onChange={(e) => setBranch(e.target.value)}>
               <option value="">Sucursal</option>
@@ -232,6 +288,20 @@ function MaintenanceCalendar() {
           padding: 20px;
           border-radius: 16px;
         }
+
+        .notice {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin: 10px 0;
+          padding: 12px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          border: 1px solid transparent;
+        }
+        .notice.success { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #86efac; }
+        .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
+        .notice span { color: #cbd5e1; }
 
         .filters {
           display: flex;

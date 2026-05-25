@@ -1,8 +1,7 @@
 
 import { useState, useEffect } from "react";
-import { jwtDecode } from "jwt-decode";
-import { ROLES } from "../config/roles";
 import { useNavigate } from "react-router-dom";
+import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -13,10 +12,11 @@ function CreateIncidencia() {
   const [branch, setBranch] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [message, setMessage] = useState(null);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
-  const user = token ? jwtDecode(token) : null;
+  const user = useAuthUser();
 
   useEffect(() => {
     fetchData();
@@ -36,8 +36,13 @@ function CreateIncidencia() {
   };
 
   const handleSubmit = async () => {
-    if (!title || !description || !branch) {
-      alert("Todos los campos son obligatorios");
+    setMessage(null);
+    if (!title || !description || !branch || !department) {
+      setMessage({
+        type: "error",
+        title: "Faltan campos obligatorios",
+        detail: "Título, descripción, departamento y sucursal son obligatorios."
+      });
       return;
     }
     try {
@@ -50,15 +55,34 @@ function CreateIncidencia() {
         body: JSON.stringify({ title, description, branch, department }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.msg || "Error al crear incidencia"); return; }
-      alert("Incidencia creada ✅");
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: data.msg || "No se pudo crear la solicitud",
+          detail: data.error || `Error ${res.status}`
+        });
+        return;
+      }
+      setMessage({
+        type: "success",
+        title: "Solicitud creada correctamente",
+        detail: "La incidencia ya quedó registrada."
+      });
       setTitle(""); setDescription(""); setBranch(""); setDepartment("");
     } catch (error) {
       console.error("Error conexión:", error);
+      setMessage({
+        type: "error",
+        title: "Error de conexión",
+        detail: "No se pudo conectar con el servidor."
+      });
     }
   };
 
-  if (!user || ![ROLES.ADMIN, ROLES.GERENCIA, ROLES.DIRECCION].includes(user.role)) {
+  if (
+    !user ||
+    (user.role !== "admin" && !user.permissions?.includes("CREATE_INCIDENT"))
+  ) {
     return (
       <div className="page center">
         <div className="form-card">
@@ -83,6 +107,13 @@ function CreateIncidencia() {
       </div>
 
       <div className="form-card">
+        {message && (
+          <div className={`notice ${message.type}`}>
+            <b>{message.title}</b>
+            <span>{message.detail}</span>
+          </div>
+        )}
+
         <div className="form-group">
           <label>Título</label>
           <input
@@ -173,6 +204,19 @@ function CreateIncidencia() {
           flex-direction: column;
           gap: 20px;
         }
+
+        .notice {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          padding: 12px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          border: 1px solid transparent;
+        }
+        .notice.success { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #86efac; }
+        .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
+        .notice span { color: #cbd5e1; }
 
         .form-group {
           display: flex;

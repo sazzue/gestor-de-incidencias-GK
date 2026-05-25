@@ -4,6 +4,8 @@ const app = require('./app');
 const cors = require('cors');
 
 const Role = require("./models/Role");
+const Department = require("./models/Department");
+const User = require("./models/User");
 
 // Middleware global
 app.use(cors());

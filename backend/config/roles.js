@@ -4,22 +4,21 @@ const ROLES = {
   GERENCIA: "gerencia",
   DEPARTAMENTO: "departamento",
   admin: [
+    "CREATE_USERS",
+    "CREATE_INCIDENT",
+    "VIEW_INCIDENTS_ALL",
+    "VIEW_INCIDENTS_DEPARTMENT",
+    "VIEW_INCIDENTS_BRANCH",
     "CREATE_MAINTENANCE",
     "CONFIRM_MAINTENANCE",
     "DELETE_MAINTENANCE"
   ],
 
-  gerencia: [
-    "CONFIRM_MAINTENANCE"
-  ],
+  gerencia: [],
 
-  direccion: [
-    "CONFIRM_MAINTENANCE"
-  ],
+  direccion: [],
 
-  departamento: [
-    "CREATE_MAINTENANCE"
-  ]
+  departamento: []
 };
 
 

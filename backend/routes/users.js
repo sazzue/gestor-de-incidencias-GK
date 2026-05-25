@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
-const checkRole = require("../middleware/roleMiddleware");
 const {getUsers,createUser,deleteUser,updateUser} = require("../controllers/userController");
 
 
@@ -9,7 +8,6 @@ const {getUsers,createUser,deleteUser,updateUser} = require("../controllers/user
 router.post(
   "/",
   authMiddleware,
-  checkRole("admin"),
   createUser
 );
 

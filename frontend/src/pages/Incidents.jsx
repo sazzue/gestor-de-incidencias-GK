@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { jwtDecode } from "jwt-decode";
-import { ROLES } from "../config/roles";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -19,24 +18,28 @@ function Incidents() {
   const [endDate, setEndDate] = useState("");
 
   const navigate = useNavigate();
-  const token = localStorage.getItem("token");
-  const user = token ? jwtDecode(token) : null;
+  const user = useAuthUser();
 
   const formatDate = (date) =>
     new Date(date).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" });
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
     if (!token) return;
     fetchIncidents();
     fetchBranches();
     fetchDepartments();
-  }, [token]);
+  }, [user]);
 
   useEffect(() => {
-    if (user?.role === "departamento") {
+    if (
+      user?.permissions?.includes("VIEW_INCIDENTS_DEPARTMENT") &&
+      !user?.permissions?.includes("VIEW_INCIDENTS_ALL") &&
+      !user?.permissions?.includes("VIEW_INCIDENTS_BRANCH")
+    ) {
       setFilterDept(user.department?.toLowerCase().trim());
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     filterIncidents();
@@ -44,6 +47,7 @@ function Incidents() {
 
   const fetchIncidents = async () => {
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/api/incidents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -56,6 +60,7 @@ function Incidents() {
 
   const fetchBranches = async () => {
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/api/branches`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -68,6 +73,7 @@ function Incidents() {
 
   const fetchDepartments = async () => {
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/api/departments`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -128,6 +134,7 @@ function Incidents() {
 
   const updateStatus = async (id, status) => {
     try {
+      const token = localStorage.getItem("token");
       await fetch(`${API_URL}/api/incidents/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -139,8 +146,12 @@ function Incidents() {
     }
   };
 
-  const canUpdate = user?.role === ROLES.ADMIN || user?.role === ROLES.DEPARTAMENTO;
-  const canCreate = [ROLES.ADMIN, ROLES.GERENCIA, ROLES.DIRECCION].includes(user?.role);
+  const canUpdate =
+    user?.role === "admin" ||
+    user?.permissions?.includes("VIEW_INCIDENTS_ALL") ||
+    user?.permissions?.includes("VIEW_INCIDENTS_DEPARTMENT");
+  const canCreate =
+    user?.role === "admin" || user?.permissions?.includes("CREATE_INCIDENT");
 
   return (
     <div className="page">
