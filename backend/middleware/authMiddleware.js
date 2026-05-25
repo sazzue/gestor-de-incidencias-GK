@@ -26,6 +26,7 @@ const authMiddleware = async (req, res, next) => {
       role: user.role,
       department: user.department || null,
       branch: user.branch || null,
+      branches: Array.isArray(user.branches) ? user.branches : [],
       permissions: await getPermissionsForUser(user),
       mustChangePassword: user.mustChangePassword,
     };

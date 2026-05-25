@@ -69,6 +69,7 @@ exports.login = async (req, res) => {
         role:               user.role,
         department:         user.department || null,
         branch:             user.branch || null,
+        branches:           user.branches || [],
         permissions,
         mustChangePassword: user.mustChangePassword, // 🔐
       },
@@ -85,6 +86,7 @@ exports.login = async (req, res) => {
         role:               user.role,
         department:         user.department || null,
         branch:             user.branch || null,
+        branches:           user.branches || [],
         permissions,
         mustChangePassword: user.mustChangePassword, // 🔐 frontend lo necesita
       },
@@ -111,6 +113,7 @@ exports.me = async (req, res) => {
         role:               user.role,
         department:         user.department || null,
         branch:             user.branch || null,
+        branches:           user.branches || [],
         permissions,
         mustChangePassword: user.mustChangePassword,
       },
@@ -127,6 +130,7 @@ exports.me = async (req, res) => {
         role:               user.role,
         department:         user.department || null,
         branch:             user.branch || null,
+        branches:           user.branches || [],
         permissions,
         mustChangePassword: user.mustChangePassword,
       },

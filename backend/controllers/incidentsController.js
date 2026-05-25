@@ -5,6 +5,7 @@ const getIncidents = async (req, res) => {
   try {
     const department = req.user?.department;
     const branch = req.user?.branch;
+    const branches = Array.isArray(req.user?.branches) ? req.user.branches : [];
     let query = null;
 
     if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
@@ -23,11 +24,13 @@ const getIncidents = async (req, res) => {
       }
 
       if (hasPermission(req.user, "VIEW_INCIDENTS_BRANCH")) {
-        if (!branch) {
+        const branchIds = branches.length > 0 ? branches : branch ? [branch] : [];
+
+        if (branchIds.length === 0) {
           return res.status(400).json({ msg: "Sucursal requerida" });
         }
 
-        filters.push({ branch });
+        filters.push({ branch: { $in: branchIds } });
       }
 
       if (filters.length === 0) {

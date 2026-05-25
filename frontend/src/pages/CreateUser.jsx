@@ -9,7 +9,7 @@ const USER_PERMISSIONS = [
   { value: "CREATE_INCIDENT", label: "Crear solicitud" },
   { value: "VIEW_INCIDENTS_ALL", label: "Ver incidencias: todas" },
   { value: "VIEW_INCIDENTS_DEPARTMENT", label: "Ver incidencias: su departamento" },
-  { value: "VIEW_INCIDENTS_BRANCH", label: "Ver incidencias: su sucursal" },
+  { value: "VIEW_INCIDENTS_BRANCH", label: "Ver incidencias: sus sucursales" },
   { value: "CREATE_MAINTENANCE", label: "Crear mantenimientos" },
   { value: "CONFIRM_MAINTENANCE", label: "Confirmar mantenimientos" },
 ];
@@ -25,7 +25,7 @@ function CreateUser() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
   const [department, setDepartment] = useState("");
-  const [branch, setBranch] = useState("");
+  const [selectedBranches, setSelectedBranches] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [newDepartment, setNewDepartment] = useState("");
   const [message, setMessage] = useState(null);
@@ -35,6 +35,7 @@ function CreateUser() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editPermissions, setEditPermissions] = useState([]);
+  const [editBranches, setEditBranches] = useState([]);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -73,6 +74,23 @@ function CreateUser() {
       : [...permissions, permission];
   };
 
+  const toggleListItem = (items, item) => {
+    return items.includes(item)
+      ? items.filter((value) => value !== item)
+      : [...items, item];
+  };
+
+  const getUserBranches = (user) => {
+    if (Array.isArray(user?.branches) && user.branches.length > 0) {
+      return user.branches
+        .map((item) => item?._id || item)
+        .filter(Boolean);
+    }
+
+    const singleBranch = user?.branch?._id || user?.branch;
+    return singleBranch ? [singleBranch] : [];
+  };
+
   const getRolePermissions = (roleName) => {
     return roleName === "admin" && Array.isArray(ROLES[roleName])
       ? ROLES[roleName]
@@ -91,6 +109,7 @@ function CreateUser() {
     const directPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
     setEditingUser({ ...user, permissions: directPermissions });
     setEditPermissions(directPermissions);
+    setEditBranches(getUserBranches(user));
     setShowEditModal(true);
   };
 
@@ -165,7 +184,7 @@ function CreateUser() {
     const res = await fetch(`${API_URL}/api/users`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ nombre, email, password, role, department, branch, permissions }),
+      body: JSON.stringify({ nombre, email, password, role, department, branches: selectedBranches, permissions }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -177,7 +196,7 @@ function CreateUser() {
       return;
     }
     setUsers((prev) => [data, ...prev]);
-    setNombre(""); setEmail(""); setPassword(""); setRole(""); setDepartment(""); setBranch(""); setPermissions([]);
+    setNombre(""); setEmail(""); setPassword(""); setRole(""); setDepartment(""); setSelectedBranches([]); setPermissions([]);
     setMessage({
       type: "success",
       title: "Usuario creado correctamente",
@@ -201,7 +220,8 @@ function CreateUser() {
       email: editingUser.email || "",
       role: editingUser.role || "",
       department: editingUser.department || "",
-      branch: editingUser.branch?._id || editingUser.branch || null,
+      branch: editBranches[0] || null,
+      branches: editBranches,
       permissions:
         editingUser.role === "admin"
           ? []
@@ -226,6 +246,7 @@ function CreateUser() {
     await fetchUsers();
     setEditingUser(null);
     setEditPermissions([]);
+    setEditBranches([]);
     setShowEditModal(false);
     setMessage({
       type: "success",
@@ -312,13 +333,21 @@ function CreateUser() {
           )}
 
           <div className="form-group">
-            <label>Sucursal asignada</label>
-            <select value={branch} onChange={(e) => setBranch(e.target.value)}>
-              <option value="">Sin sucursal</option>
+            <label>Sucursales asignadas</label>
+            <div className="checkbox-grid">
               {branches.map((b, i) => (
-                <option key={b?._id || i} value={b?._id}>{b?.name}</option>
+                <label key={b?._id || i} className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={selectedBranches.includes(b?._id)}
+                    onChange={() =>
+                      setSelectedBranches((prev) => toggleListItem(prev, b?._id))
+                    }
+                  />
+                  {b?.name}
+                </label>
               ))}
-            </select>
+            </div>
           </div>
 
           <div className="permissions-list">
@@ -448,16 +477,21 @@ function CreateUser() {
               </div>
             )}
             <div className="form-group">
-              <label>Sucursal asignada</label>
-              <select
-                value={editingUser.branch?._id || editingUser.branch || ""}
-                onChange={(e) => setEditingUser({ ...editingUser, branch: e.target.value })}
-              >
-                <option value="">Sin sucursal</option>
+              <label>Sucursales asignadas</label>
+              <div className="checkbox-grid">
                 {branches.map((b, i) => (
-                  <option key={b?._id || i} value={b?._id}>{b?.name}</option>
+                  <label key={b?._id || i} className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={editBranches.includes(b?._id)}
+                      onChange={() =>
+                        setEditBranches((prev) => toggleListItem(prev, b?._id))
+                      }
+                    />
+                    {b?.name}
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
             <div className="permissions-list">
               <label>
@@ -493,7 +527,7 @@ function CreateUser() {
             </div>
             <div className="modal-actions">
               <button className="btn-submit" onClick={handleUpdateUser}>Guardar</button>
-              <button className="btn-cancel" onClick={() => { setShowEditModal(false); setEditingUser(null); setEditPermissions([]); }}>Cancelar</button>
+              <button className="btn-cancel" onClick={() => { setShowEditModal(false); setEditingUser(null); setEditPermissions([]); setEditBranches([]); }}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -619,6 +653,18 @@ function CreateUser() {
         .permissions-list.compact {
           margin: 8px 0 0;
           gap: 6px;
+        }
+
+        .checkbox-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 8px;
+          max-height: 150px;
+          overflow: auto;
+          padding: 10px;
+          border: 1px solid #1e293b;
+          border-radius: 8px;
+          background: #0b1220;
         }
 
         .check-row {

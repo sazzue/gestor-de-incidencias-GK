@@ -21,6 +21,13 @@ const normalizeUserInput = (body) => {
   const role = body.role?.trim();
   const department = body.department?.trim().toLowerCase();
   const branch = typeof body.branch === "object" ? body.branch?._id || null : body.branch || null;
+  const branches = Array.isArray(body.branches)
+    ? body.branches
+        .map((item) => (typeof item === "object" ? item?._id : item))
+        .filter(Boolean)
+    : branch
+      ? [branch]
+      : [];
 
   return {
     nombre: body.nombre?.trim(),
@@ -29,6 +36,7 @@ const normalizeUserInput = (body) => {
     role,
     department: role === "departamento" ? department : null,
     branch,
+    branches,
     permissions: normalizePermissions(Array.isArray(body.permissions) ? body.permissions : []),
   };
 };
@@ -64,6 +72,7 @@ const updateUser = async (req, res) => {
       role: input.role,
       department: input.department,
       branch: input.branch,
+      branches: input.branches,
       permissions: input.permissions,
     };
 
@@ -77,7 +86,8 @@ const updateUser = async (req, res) => {
       { new: true, runValidators: true }
     )
       .select("-password")
-      .populate("branch", "name");
+      .populate("branch", "name")
+      .populate("branches", "name");
 
     if (!updatedUser) {
       return res.status(404).json({ msg: "Usuario no encontrado" });
@@ -94,7 +104,10 @@ const getUsers = async (req, res) => {
   try {
     if (!canManageUsers(req, res)) return;
 
-    const users = await User.find().select("-password").populate("branch", "name");
+    const users = await User.find()
+      .select("-password")
+      .populate("branch", "name")
+      .populate("branches", "name");
     res.json(users);
   } catch (error) {
     res.status(500).json({ msg: "Error al obtener usuarios", error: error.message });
@@ -133,12 +146,14 @@ const createUser = async (req, res) => {
       role: input.role,
       department: input.department,
       branch: input.branch,
+      branches: input.branches,
       permissions: input.permissions,
     });
 
     const createdUser = await User.findById(user._id)
       .select("-password")
-      .populate("branch", "name");
+      .populate("branch", "name")
+      .populate("branches", "name");
 
     res.status(201).json(createdUser);
   } catch (error) {
