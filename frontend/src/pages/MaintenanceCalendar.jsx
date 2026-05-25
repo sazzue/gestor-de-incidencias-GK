@@ -33,6 +33,24 @@ function MaintenanceCalendar() {
     user?.role === "admin" ||
     user?.permissions?.includes("CONFIRM_MAINTENANCE");
 
+  const getUserBranchIds = () => {
+    const userBranches = Array.isArray(user?.branches) ? user.branches : [];
+    if (userBranches.length > 0) {
+      return userBranches.map((item) => item?._id || item).filter(Boolean);
+    }
+
+    const singleBranch = user?.branch?._id || user?.branch;
+    return singleBranch ? [singleBranch] : [];
+  };
+
+  const canConfirmMaintenance = (maintenance) => {
+    if (!canConfirm) return false;
+    if (user?.role === "admin") return true;
+
+    const maintenanceBranch = maintenance?.branch?._id || maintenance?.branch;
+    return getUserBranchIds().includes(maintenanceBranch);
+  };
+
   const toLocalDate = (d) => new Date(d).toLocaleDateString("sv-SE");
 
   const exportFilteredToExcel = () => {
@@ -237,7 +255,7 @@ function MaintenanceCalendar() {
                   {m.status === "finalizado" && m.confirmedBy && (
                     <small className="confirmed-text">✔ Confirmado por: {m.confirmedBy.nombre || m.confirmedBy.email}</small>
                   )}
-                  {canConfirm && m.status === "programado" && (
+                  {canConfirmMaintenance(m) && m.status === "programado" && (
                     <button className="confirm-btn" onClick={() => confirmMaintenance(m._id)}>✔ Confirmar</button>
                   )}
                 </div>
