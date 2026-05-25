@@ -21,6 +21,7 @@ const normalizeUserInput = (body) => {
   const role = body.role?.trim();
   const department = body.department?.trim().toLowerCase();
   const branch = typeof body.branch === "object" ? body.branch?._id || null : body.branch || null;
+  const username = body.username?.toLowerCase().trim();
   const branches = Array.isArray(body.branches)
     ? body.branches
         .map((item) => (typeof item === "object" ? item?._id : item))
@@ -31,6 +32,7 @@ const normalizeUserInput = (body) => {
 
   return {
     nombre: body.nombre?.trim(),
+    username: username || undefined,
     email: body.email?.toLowerCase().trim(),
     password: body.password,
     role,
@@ -66,6 +68,22 @@ const updateUser = async (req, res) => {
       return res.status(400).json({ msg: "El departamento es obligatorio para este rol" });
     }
 
+    const duplicate = await User.findOne({
+      _id: { $ne: req.params.id },
+      $or: [
+        { email: input.email },
+        ...(input.username ? [{ username: input.username }] : [])
+      ]
+    });
+
+    if (duplicate) {
+      return res.status(400).json({
+        msg: duplicate.email === input.email
+          ? "El correo ya esta registrado"
+          : "El nombre de usuario ya existe"
+      });
+    }
+
     const update = {
       nombre: input.nombre,
       email: input.email,
@@ -75,6 +93,13 @@ const updateUser = async (req, res) => {
       branches: input.branches,
       permissions: input.permissions,
     };
+    const unset = {};
+
+    if (input.username) {
+      update.username = input.username;
+    } else {
+      unset.username = "";
+    }
 
     if (input.password && input.password.trim() !== "") {
       update.password = await bcrypt.hash(input.password, 10);
@@ -82,7 +107,7 @@ const updateUser = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
-      { $set: update },
+      { $set: update, ...(Object.keys(unset).length ? { $unset: unset } : {}) },
       { new: true, runValidators: true }
     )
       .select("-password")
@@ -138,8 +163,15 @@ const createUser = async (req, res) => {
       return res.status(400).json({ msg: "El usuario ya existe" });
     }
 
+    if (input.username) {
+      const usernameExists = await User.findOne({ username: input.username });
+      if (usernameExists) {
+        return res.status(400).json({ msg: "El nombre de usuario ya existe" });
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(input.password, 10);
-    const user = await User.create({
+    const userPayload = {
       nombre: input.nombre,
       email: input.email,
       password: hashedPassword,
@@ -148,7 +180,13 @@ const createUser = async (req, res) => {
       branch: input.branch,
       branches: input.branches,
       permissions: input.permissions,
-    });
+    };
+
+    if (input.username) {
+      userPayload.username = input.username;
+    }
+
+    const user = await User.create(userPayload);
 
     const createdUser = await User.findById(user._id)
       .select("-password")

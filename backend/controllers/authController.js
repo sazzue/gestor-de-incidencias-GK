@@ -51,9 +51,17 @@ exports.register = async (req, res) => {
 // ─────────────────────────────────────────────
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const identifier = (req.body.email || req.body.username || req.body.identifier || "")
+      .toLowerCase()
+      .trim();
+    const { password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+      $or: [
+        { email: identifier },
+        { username: identifier }
+      ]
+    });
     if (!user) return res.status(400).json({ msg: "Credenciales incorrectas" });
 
     const valid = await bcrypt.compare(password, user.password);
@@ -66,6 +74,7 @@ exports.login = async (req, res) => {
       {
         id:                 user._id,
         nombre:             user.nombre,
+        username:           user.username || null,
         role:               user.role,
         department:         user.department || null,
         branch:             user.branch || null,
@@ -82,6 +91,7 @@ exports.login = async (req, res) => {
       user: {
         id:                 user._id,
         nombre:             user.nombre,
+        username:           user.username || null,
         email:              user.email,
         role:               user.role,
         department:         user.department || null,
@@ -110,6 +120,7 @@ exports.me = async (req, res) => {
       {
         id:                 user._id,
         nombre:             user.nombre,
+        username:           user.username || null,
         role:               user.role,
         department:         user.department || null,
         branch:             user.branch || null,
@@ -126,6 +137,7 @@ exports.me = async (req, res) => {
       user: {
         id:                 user._id,
         nombre:             user.nombre,
+        username:           user.username || null,
         email:              user.email,
         role:               user.role,
         department:         user.department || null,

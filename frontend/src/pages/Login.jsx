@@ -5,7 +5,7 @@ import logo from "../assets/logo.png";
 const API_URL = import.meta.env.VITE_API_URL;
 
 function Login() {
-  const [email,    setEmail]    = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
@@ -13,12 +13,8 @@ function Login() {
   const navigate = useNavigate();
 
   const validate = () => {
-    if (!email || !password) {
+    if (!identifier || !password) {
       setError("Todos los campos son obligatorios");
-      return false;
-    }
-    if (!email.includes("@")) {
-      setError("Correo inválido");
       return false;
     }
     return true;
@@ -36,7 +32,7 @@ function Login() {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: identifier, username: identifier, password }),
       });
 
       const data = await res.json();
@@ -75,10 +71,10 @@ function Login() {
 
         <form onSubmit={handleSubmit}>
           <input
-            type="email"
-            placeholder="Correo"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="text"
+            placeholder="Correo o usuario"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
           />
 
           <input

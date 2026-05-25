@@ -21,6 +21,7 @@ function CreateUser() {
   const [users, setUsers] = useState([]);
 
   const [nombre, setNombre] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
@@ -184,7 +185,7 @@ function CreateUser() {
     const res = await fetch(`${API_URL}/api/users`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ nombre, email, password, role, department, branches: selectedBranches, permissions }),
+      body: JSON.stringify({ nombre, username, email, password, role, department, branches: selectedBranches, permissions }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -196,7 +197,7 @@ function CreateUser() {
       return;
     }
     setUsers((prev) => [data, ...prev]);
-    setNombre(""); setEmail(""); setPassword(""); setRole(""); setDepartment(""); setSelectedBranches([]); setPermissions([]);
+    setNombre(""); setUsername(""); setEmail(""); setPassword(""); setRole(""); setDepartment(""); setSelectedBranches([]); setPermissions([]);
     setMessage({
       type: "success",
       title: "Usuario creado correctamente",
@@ -217,6 +218,7 @@ function CreateUser() {
     setMessage(null);
     const payload = {
       nombre: editingUser.nombre || "",
+      username: editingUser.username || "",
       email: editingUser.email || "",
       role: editingUser.role || "",
       department: editingUser.department || "",
@@ -298,6 +300,11 @@ function CreateUser() {
           <div className="form-group">
             <label>Nombre</label>
             <input placeholder="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          </div>
+
+          <div className="form-group">
+            <label>Usuario</label>
+            <input placeholder="usuario" value={username} onChange={(e) => setUsername(e.target.value)} />
           </div>
 
           <div className="form-group">
@@ -409,7 +416,7 @@ function CreateUser() {
                   <div className="user-avatar">{u?.nombre?.[0]?.toUpperCase() || "?"}</div>
                   <div>
                     <b>{u?.nombre}</b>
-                    <p>{u?.email}</p>
+                    <p>{u?.username ? `${u.username} | ${u.email}` : u?.email}</p>
                     <small className="permission-summary">
                       {(u?.permissions || []).length} permisos directos
                     </small>
@@ -448,6 +455,10 @@ function CreateUser() {
             <div className="form-group">
               <label>Nombre</label>
               <input value={editingUser.nombre || ""} onChange={(e) => setEditingUser({ ...editingUser, nombre: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label>Usuario</label>
+              <input value={editingUser.username || ""} onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })} />
             </div>
             <div className="form-group">
               <label>Email</label>
