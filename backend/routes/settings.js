@@ -32,6 +32,7 @@ const editableFields = [
   "titleColor",
   "backgroundColor",
   "cardColor",
+  "inputColor",
   "accentColor",
   "loginImageUrl",
   "sidebarImageUrl",

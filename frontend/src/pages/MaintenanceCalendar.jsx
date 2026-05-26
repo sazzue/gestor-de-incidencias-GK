@@ -349,7 +349,7 @@ function MaintenanceCalendar() {
           padding: 6px 10px;
           border-radius: 6px;
           border: 1px solid rgba(255,255,255,0.1);
-          background: #0b1220;
+          background: var(--app-input);
           color: #e2e8f0;
           font-size: 12px;
         }
@@ -454,7 +454,7 @@ function MaintenanceCalendar() {
           padding: 10px;
           border-radius: 8px;
           border: 1px solid #334155;
-          background: #0b1220;
+          background: var(--app-input);
           color: white;
           font-size: 14px;
         }

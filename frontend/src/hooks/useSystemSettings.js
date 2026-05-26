@@ -15,7 +15,8 @@ export const DEFAULT_SETTINGS = {
   textColor: "#e2e8f0",
   titleColor: "#ffffff",
   backgroundColor: "#0b1220",
-  cardColor: "rgba(255,255,255,0.05)",
+  cardColor: "#111827",
+  inputColor: "#020617",
   accentColor: "#3b82f6",
   loginImageUrl: "",
   sidebarImageUrl: "",
@@ -27,6 +28,7 @@ export const applySystemTheme = (settings = DEFAULT_SETTINGS) => {
   root.style.setProperty("--app-text", settings.textColor || DEFAULT_SETTINGS.textColor);
   root.style.setProperty("--app-title", settings.titleColor || DEFAULT_SETTINGS.titleColor);
   root.style.setProperty("--app-card", settings.cardColor || DEFAULT_SETTINGS.cardColor);
+  root.style.setProperty("--app-input", settings.inputColor || DEFAULT_SETTINGS.inputColor);
   root.style.setProperty("--app-accent", settings.accentColor || DEFAULT_SETTINGS.accentColor);
 };
 

@@ -17,6 +17,8 @@ const colors = [
   { name: "backgroundColor", label: "Color de fondo" },
   { name: "textColor", label: "Color de texto" },
   { name: "titleColor", label: "Color de títulos" },
+  { name: "cardColor", label: "Color de tarjetas" },
+  { name: "inputColor", label: "Color de cuadros de texto" },
   { name: "accentColor", label: "Color principal" },
 ];
 
@@ -190,18 +192,10 @@ function SystemSettings() {
             </div>
           ))}
 
-          <div className="form-group">
-            <label>Color de tarjetas</label>
-            <input
-              placeholder="rgba(255,255,255,0.05) o #111827"
-              value={form.cardColor || ""}
-              onChange={(e) => updateField("cardColor", e.target.value)}
-            />
-          </div>
-
           <div className="preview">
             <h4>{form.systemTitle}</h4>
             <p>{form.systemDescription}</p>
+            <input value="Vista previa de cuadro de texto" readOnly />
           </div>
         </section>
 
@@ -290,7 +284,7 @@ function SystemSettings() {
           padding: 10px 12px;
           border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.12);
-          background: rgba(2,6,23,0.9);
+          background: var(--app-input);
           color: var(--app-text);
           outline: none;
         }
@@ -301,6 +295,7 @@ function SystemSettings() {
         .preview { background: var(--app-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 16px; margin-top: 16px; text-align: left; }
         .preview h4 { color: var(--app-title); margin-bottom: 8px; }
         .preview p { color: var(--app-text); font-size: 13px; line-height: 1.5; }
+        .preview input { margin-top: 12px; }
         .textarea-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
         .image-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
         .image-picker { display: flex; flex-direction: column; gap: 10px; text-align: left; }

@@ -276,7 +276,7 @@ function Incidents() {
           padding: 9px 12px;
           border-radius: 8px;
           border: 1px solid #1e293b;
-          background: #0b1220;
+          background: var(--app-input);
           color: #e2e8f0;
           font-size: 13px;
           transition: 0.2s;

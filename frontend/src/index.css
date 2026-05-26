@@ -13,7 +13,8 @@
   --app-bg: #0b1220;
   --app-text: #e2e8f0;
   --app-title: #ffffff;
-  --app-card: rgba(255,255,255,0.05);
+  --app-card: #111827;
+  --app-input: #020617;
   --app-accent: #3b82f6;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;

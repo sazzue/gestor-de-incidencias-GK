@@ -6,8 +6,8 @@
 }
 
 body {
-  background: #0b1220;
-  color: white;
+  background: var(--app-bg);
+  color: var(--app-text);
   font-family: 'Inter', sans-serif;
 }
 
@@ -19,7 +19,7 @@ body {
 
 /* CARDS PRO */
 .card {
-  background: rgba(255,255,255,0.05);
+  background: var(--app-card);
   border-radius: 14px;
   padding: 20px;
   border: 1px solid rgba(255,255,255,0.08);
@@ -52,14 +52,14 @@ body {
   padding: 12px;
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.1);
-  background: #020617;
-  color: white;
+  background: var(--app-input);
+  color: var(--app-text);
   outline: none;
 }
 
 .input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.3);
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 30%, transparent);
 }
 
 /* STATUS */

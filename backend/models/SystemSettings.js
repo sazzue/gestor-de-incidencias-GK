@@ -56,7 +56,11 @@ const systemSettingsSchema = new mongoose.Schema({
   },
   cardColor: {
     type: String,
-    default: "rgba(255,255,255,0.05)",
+    default: "#111827",
+  },
+  inputColor: {
+    type: String,
+    default: "#020617",
   },
   accentColor: {
     type: String,
