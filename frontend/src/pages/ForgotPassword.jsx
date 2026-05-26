@@ -20,6 +20,13 @@ function ForgotPassword() {
         body:    JSON.stringify({ email }),
       });
       const data = await res.json();
+
+      if (!res.ok) {
+        setMessage(data.msg || "No se pudo enviar el enlace.");
+        setStatus("error");
+        return;
+      }
+
       setMessage(data.msg);
       setStatus("done");
     } catch {
