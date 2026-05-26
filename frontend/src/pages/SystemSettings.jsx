@@ -11,8 +11,6 @@ const fields = [
   { name: "developer", label: "Desarrollador", type: "text" },
   { name: "contactEmail", label: "Contacto", type: "email" },
   { name: "version", label: "Versión", type: "text" },
-  { name: "loginImageUrl", label: "URL imagen de login", type: "url" },
-  { name: "sidebarImageUrl", label: "URL imagen de sidebar", type: "url" },
 ];
 
 const colors = [
@@ -46,6 +44,50 @@ function SystemSettings() {
   const resetDefaults = () => {
     setForm(DEFAULT_SETTINGS);
     applySystemTheme(DEFAULT_SETTINGS);
+  };
+
+  const uploadImage = async (field, file) => {
+    if (!file) return;
+
+    setMessage(null);
+
+    if (!file.type.startsWith("image/")) {
+      setMessage({
+        type: "error",
+        title: "Archivo inválido",
+        detail: "Selecciona una imagen válida."
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const res = await fetch(`${API_URL}/api/settings/image/${field}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setMessage({
+        type: "error",
+        title: data.msg || "No se pudo subir la imagen",
+        detail: data.error || `Error ${res.status}`,
+      });
+      return;
+    }
+
+    const nextSettings = { ...DEFAULT_SETTINGS, ...data };
+    setForm(nextSettings);
+    applySystemTheme(nextSettings);
+    window.dispatchEvent(new Event("system-settings-updated"));
+    setMessage({
+      type: "success",
+      title: "Imagen actualizada correctamente",
+      detail: "La imagen ya se refleja en la sesión actual."
+    });
   };
 
   const saveSettings = async () => {
@@ -164,6 +206,47 @@ function SystemSettings() {
         </section>
 
         <section className="panel wide">
+          <h3>Imágenes</h3>
+          <div className="image-grid">
+            <div className="image-picker">
+              <label>Imagen de login</label>
+              <div className="image-preview">
+                {form.loginImageUrl ? <img src={form.loginImageUrl} alt="Login" /> : <span>Sin imagen personalizada</span>}
+              </div>
+              <label className="file-button">
+                Seleccionar imagen
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => uploadImage("loginImageUrl", e.target.files?.[0])}
+                />
+              </label>
+              <button className="btn-cancel small" onClick={() => updateField("loginImageUrl", "")}>
+                Quitar imagen
+              </button>
+            </div>
+
+            <div className="image-picker">
+              <label>Imagen de sidebar</label>
+              <div className="image-preview">
+                {form.sidebarImageUrl ? <img src={form.sidebarImageUrl} alt="Sidebar" /> : <span>Sin imagen personalizada</span>}
+              </div>
+              <label className="file-button">
+                Seleccionar imagen
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => uploadImage("sidebarImageUrl", e.target.files?.[0])}
+                />
+              </label>
+              <button className="btn-cancel small" onClick={() => updateField("sidebarImageUrl", "")}>
+                Quitar imagen
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel wide">
           <h3>Información del sistema</h3>
           <div className="textarea-grid">
             <div className="form-group">
@@ -219,6 +302,35 @@ function SystemSettings() {
         .preview h4 { color: var(--app-title); margin-bottom: 8px; }
         .preview p { color: var(--app-text); font-size: 13px; line-height: 1.5; }
         .textarea-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .image-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+        .image-picker { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+        .image-picker > label { font-size: 12px; color: var(--app-text); opacity: 0.75; }
+        .image-preview {
+          height: 150px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px dashed rgba(255,255,255,0.18);
+          border-radius: 10px;
+          background: rgba(2,6,23,0.55);
+          color: var(--app-text);
+          overflow: hidden;
+        }
+        .image-preview img { width: 100%; height: 100%; object-fit: contain; }
+        .file-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 10px 14px;
+          border-radius: 8px;
+          background: var(--app-accent);
+          color: white !important;
+          font-size: 14px !important;
+          font-weight: 600;
+          cursor: pointer;
+          opacity: 1 !important;
+        }
+        .file-button input { display: none; }
         .actions-bar { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
         .btn-submit, .btn-cancel, .btn-back {
           padding: 10px 14px;
@@ -228,12 +340,13 @@ function SystemSettings() {
         }
         .btn-submit { border: none; background: var(--app-accent); color: white; font-weight: 600; }
         .btn-cancel, .btn-back { border: 1px solid rgba(255,255,255,0.12); background: transparent; color: var(--app-text); }
+        .btn-cancel.small { width: 100%; }
         .notice { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; padding: 12px 14px; border-radius: 8px; font-size: 13px; border: 1px solid transparent; text-align: left; }
         .notice.success { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #86efac; }
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
         .notice span { color: var(--app-text); }
         @media (max-width: 900px) {
-          .settings-grid, .textarea-grid { grid-template-columns: 1fr; }
+          .settings-grid, .textarea-grid, .image-grid { grid-template-columns: 1fr; }
           .color-row { grid-template-columns: 1fr; }
           .actions-bar { flex-direction: column; }
         }
