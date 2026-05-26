@@ -26,10 +26,19 @@ function Dashboard() {
     }
   };
 
+  const getDaysWithoutResolution = (incident) => {
+    const lastChange = new Date(incident.updatedAt || incident.createdAt);
+    const diff = Date.now() - lastChange.getTime();
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
+  };
+
   const total = incidents.length;
   const pendientes = incidents.filter(i => i.status === "pendiente").length;
   const proceso = incidents.filter(i => i.status === "en_proceso").length;
   const resueltas = incidents.filter(i => i.status === "resuelto").length;
+  const urgentes = incidents
+    .filter((i) => i.status !== "resuelto" && getDaysWithoutResolution(i) > 3)
+    .sort((a, b) => getDaysWithoutResolution(b) - getDaysWithoutResolution(a));
 
   return (
     <div className="dashboard">
@@ -61,6 +70,10 @@ function Dashboard() {
           <h4>Resueltas</h4>
           <p>{resueltas}</p>
         </div>
+        <div className="card urgent">
+          <h4>Urgentes</h4>
+          <p>{urgentes.length}</p>
+        </div>
       </div>
 
       {/* CONTENT */}
@@ -83,9 +96,28 @@ function Dashboard() {
         </div>
 
         <div className="panel">
-          <h3>Resumen</h3>
-          <p><b>Departamento:</b> {user?.department}</p>
-          <p><b>Rol:</b> {user?.role}</p>
+          <h3>Incidencias urgentes</h3>
+          <p className="panel-note">Mas de 3 dias sin resolverse.</p>
+
+          {urgentes.length === 0 ? (
+            <div className="empty-state">
+              No hay incidencias urgentes.
+            </div>
+          ) : (
+            urgentes.slice(0, 6).map((inc) => (
+              <button
+                key={inc._id}
+                className="urgent-item"
+                onClick={() => navigate("/incidents")}
+              >
+                <div>
+                  <h4>{inc.title}</h4>
+                  <span>{inc.department || "Sin departamento"}</span>
+                </div>
+                <strong>{getDaysWithoutResolution(inc)} dias</strong>
+              </button>
+            ))
+          )}
         </div>
       </div>
 
@@ -115,7 +147,7 @@ function Dashboard() {
 
         .kpis {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
           gap: 15px;
         }
 
@@ -137,6 +169,7 @@ function Dashboard() {
         .red p { color: #ef4444; }
         .yellow p { color: #f59e0b; }
         .green p { color: #22c55e; }
+        .urgent p { color: #fb7185; }
 
         .content {
           display: grid;
@@ -152,6 +185,7 @@ function Dashboard() {
         }
 
         .panel h3 { margin-bottom: 15px; font-size: 15px; }
+        .panel-note { color: #94a3b8; font-size: 12px; margin-bottom: 12px; }
 
         .incident-item {
           display: flex;
@@ -181,6 +215,45 @@ function Dashboard() {
         .pendiente { background: rgba(239,68,68,0.2); color: #ef4444; }
         .en_proceso { background: rgba(245,158,11,0.2); color: #f59e0b; }
         .resuelto { background: rgba(34,197,94,0.2); color: #22c55e; }
+
+        .urgent-item {
+          width: 100%;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 10px;
+          margin-bottom: 10px;
+          border: 1px solid rgba(251,113,133,0.22);
+          border-radius: 10px;
+          background: rgba(251,113,133,0.08);
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition: 0.2s;
+        }
+
+        .urgent-item:hover {
+          transform: translateY(-1px);
+          border-color: rgba(251,113,133,0.45);
+          background: rgba(251,113,133,0.13);
+        }
+
+        .urgent-item h4 { font-size: 13px; margin-bottom: 4px; }
+        .urgent-item span { color: #94a3b8; font-size: 12px; }
+        .urgent-item strong {
+          flex-shrink: 0;
+          color: #fb7185;
+          font-size: 12px;
+        }
+
+        .empty-state {
+          color: #94a3b8;
+          font-size: 13px;
+          padding: 14px;
+          border: 1px dashed rgba(255,255,255,0.12);
+          border-radius: 10px;
+        }
 
         @media (max-width: 1024px) {
           .content { grid-template-columns: 1fr; }
