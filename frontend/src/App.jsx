@@ -8,6 +8,7 @@ import Incidents           from "./pages/Incidents.jsx";
 import MaintenanceCalendar from "./pages/MaintenanceCalendar.jsx";
 import CreateUser          from "./pages/CreateUser.jsx";
 import Info                from "./pages/Info.jsx";
+import SystemSettings      from "./pages/SystemSettings.jsx";
 import ForgotPassword      from "./pages/ForgotPassword.jsx";
 import ResetPassword       from "./pages/ResetPassword.jsx";
 import ChangePassword      from "./pages/ChangePassword.jsx";
@@ -60,6 +61,12 @@ function App() {
         <Route path="/info" element={
           <PrivateRoute>
             <Layout><Info /></Layout>
+          </PrivateRoute>
+        } />
+
+        <Route path="/settings" element={
+          <PrivateRoute>
+            <Layout><SystemSettings /></Layout>
           </PrivateRoute>
         } />
 

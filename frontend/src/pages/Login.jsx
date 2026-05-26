@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
+import { useSystemSettings } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 function Login() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { settings } = useSystemSettings();
 
   const navigate = useNavigate();
 
@@ -38,25 +40,22 @@ function Login() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.msg || "Error al iniciar sesión");
+        setError(data.msg || "Error al iniciar sesion");
         return;
       }
 
-      // Guardar token y datos del usuario
       localStorage.setItem("token", data.token);
-      localStorage.setItem("user",  JSON.stringify(data.user));
+      localStorage.setItem("user", JSON.stringify(data.user));
 
-      // 🔐 Si es primer inicio de sesión, forzar cambio de contraseña
       if (data.user.mustChangePassword) {
         navigate("/change-password");
         return;
       }
 
       setTimeout(() => navigate("/dashboard"), 300);
-
     } catch (err) {
       console.error(err);
-      setError("Error de conexión con el servidor");
+      setError("Error de conexion con el servidor");
     } finally {
       setLoading(false);
     }
@@ -65,9 +64,9 @@ function Login() {
   return (
     <div className="container">
       <div className="card">
-        <img src={logo} alt="Logo" className="logo" />
-        <h2>🔐 Iniciar sesión</h2>
-        <p className="subtitle">Accede al sistema de incidencias</p>
+        <img src={settings.loginImageUrl || logo} alt="Logo" className="logo" />
+        <h2>Iniciar sesion</h2>
+        <p className="subtitle">Accede a {settings.systemName}</p>
 
         <form onSubmit={handleSubmit}>
           <input
@@ -79,7 +78,7 @@ function Login() {
 
           <input
             type="password"
-            placeholder="Contraseña"
+            placeholder="Contrasena"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -91,17 +90,18 @@ function Login() {
           </button>
         </form>
 
-        {/* 🔑 Link de recuperación */}
         <p className="forgot">
-          <a href="/forgot-password">¿Olvidaste tu contraseña?</a>
+          <a href="/forgot-password">Olvidaste tu contrasena?</a>
         </p>
       </div>
 
       <style>{`
         .logo {
           width: 80px;
+          max-height: 90px;
           margin: 0 auto 10px;
           display: block;
+          object-fit: contain;
           filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
         }
 
@@ -110,8 +110,9 @@ function Login() {
           display: flex;
           justify-content: center;
           align-items: center;
-          background: radial-gradient(circle at top, #0f172a, #020617);
+          background: var(--app-bg);
           font-family: 'Inter', sans-serif;
+          padding: 20px;
         }
 
         .card {
@@ -119,7 +120,7 @@ function Login() {
           max-width: 400px;
           padding: 35px;
           border-radius: 16px;
-          background: rgba(255,255,255,0.05);
+          background: var(--app-card);
           backdrop-filter: blur(12px);
           border: 1px solid rgba(255,255,255,0.08);
           box-shadow: 0 20px 60px rgba(0,0,0,0.6);
@@ -129,13 +130,13 @@ function Login() {
         h2 {
           text-align: center;
           margin-bottom: 5px;
-          color: white;
+          color: var(--app-title);
         }
 
         .subtitle {
           text-align: center;
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--app-text);
           margin-bottom: 20px;
         }
 
@@ -150,14 +151,14 @@ function Login() {
           border-radius: 10px;
           border: 1px solid rgba(255,255,255,0.1);
           background: #020617;
-          color: white;
+          color: var(--app-text);
           outline: none;
           transition: 0.2s;
         }
 
         input:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 2px rgba(59,130,246,0.3);
+          border-color: var(--app-accent);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 30%, transparent);
         }
 
         button {
@@ -165,7 +166,7 @@ function Login() {
           padding: 12px;
           border-radius: 10px;
           border: none;
-          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          background: var(--app-accent);
           color: white;
           font-weight: 600;
           cursor: pointer;
@@ -189,7 +190,6 @@ function Login() {
           text-align: center;
         }
 
-        /* 🔑 Olvidé contraseña */
         .forgot {
           text-align: center;
           margin-top: 16px;
@@ -197,19 +197,19 @@ function Login() {
         }
 
         .forgot a {
-          color: #60a5fa;
+          color: var(--app-accent);
           text-decoration: none;
           transition: color 0.2s;
         }
 
         .forgot a:hover {
-          color: #93c5fd;
+          color: var(--app-title);
           text-decoration: underline;
         }
 
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(15px); }
-          to   { opacity: 1; transform: translateY(0); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         @media (max-width: 500px) {

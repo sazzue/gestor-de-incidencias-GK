@@ -18,6 +18,7 @@ app.use("/api/branches", require("./routes/branches"));
 app.use("/api/incidents", require("./routes/incidents"));
 app.use("/api/maintenance", require("./routes/maintenance"));
 app.use("/api/departments", require("./routes/departments"));
+app.use("/api/settings", require("./routes/settings"));
 
 app.use((req, res, next) => {
   res.setHeader(

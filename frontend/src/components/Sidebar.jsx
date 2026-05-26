@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 import { useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
+import { useSystemSettings } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 function Sidebar() {
   const [user, setUser] = useState(null);
+  const { settings } = useSystemSettings();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -58,6 +60,7 @@ function Sidebar() {
     hasPermission("VIEW_INCIDENTS_DEPARTMENT") ||
     hasPermission("VIEW_INCIDENTS_BRANCH");
   const canAccessUsers = hasPermission("CREATE_USERS");
+  const canAccessSettings = user?.role === "admin";
   const canViewMaintenance =
     hasPermission("CREATE_MAINTENANCE") ||
     hasPermission("CONFIRM_MAINTENANCE");
@@ -68,18 +71,18 @@ function Sidebar() {
     <>
       <aside className="sidebar">
         <div>
-          <p className="version-tag"><b>v1.0.0</b></p>
+          <p className="version-tag"><b>v{settings.version}</b></p>
 
           <div className="logo-container">
-            <img src={logo} alt="Logo" />
-            <h2>Gestor de reportes</h2>
+            <img src={settings.sidebarImageUrl || logo} alt="Logo" />
+            <h2>{settings.systemName}</h2>
           </div>
 
           <button
             onClick={() => navigate("/info")}
             className={`sidebar-btn info-btn ${isActive("/info") ? "active" : ""}`}
           >
-            ℹ️ Información del sistema
+            Informacion del sistema
           </button>
 
           <nav>
@@ -87,7 +90,7 @@ function Sidebar() {
               onClick={() => navigate("/dashboard")}
               className={`sidebar-btn ${isActive("/dashboard") ? "active" : ""}`}
             >
-              📊 Dashboard
+              Dashboard
             </button>
 
             <button
@@ -95,7 +98,7 @@ function Sidebar() {
               onClick={() => navigate("/incidents")}
               className={`sidebar-btn ${isActive("/incidents") ? "active" : ""} ${!canViewIncidents ? "disabled" : ""}`}
             >
-              📌 Incidencias
+              Incidencias
             </button>
 
             <button
@@ -103,7 +106,7 @@ function Sidebar() {
               onClick={() => navigate("/create")}
               className={`sidebar-btn ${isActive("/create") ? "active" : ""} ${!canCreateIncidents ? "disabled" : ""}`}
             >
-              ➕ Crear solicitud
+              Crear solicitud
             </button>
 
             <button
@@ -111,7 +114,7 @@ function Sidebar() {
               onClick={() => navigate("/maintenance")}
               className={`sidebar-btn ${isActive("/maintenance") ? "active" : ""} ${!canViewMaintenance ? "disabled" : ""}`}
             >
-              🛠 Mantenimientos
+              Mantenimientos
             </button>
 
             <button
@@ -119,7 +122,15 @@ function Sidebar() {
               onClick={() => navigate("/users")}
               className={`sidebar-btn ${isActive("/users") ? "active" : ""} ${!canAccessUsers ? "disabled" : ""}`}
             >
-              👥 Usuarios
+              Usuarios
+            </button>
+
+            <button
+              disabled={!canAccessSettings}
+              onClick={() => navigate("/settings")}
+              className={`sidebar-btn ${isActive("/settings") ? "active" : ""} ${!canAccessSettings ? "disabled" : ""}`}
+            >
+              Configuracion
             </button>
           </nav>
         </div>
@@ -133,7 +144,7 @@ function Sidebar() {
             | {user?.role}
           </span>
           <button className="logout-btn" onClick={handleLogout}>
-            🚪 Salir
+            Salir
           </button>
         </div>
       </aside>
@@ -146,7 +157,7 @@ function Sidebar() {
           position: sticky;
           top: 0;
           padding: 20px;
-          background: rgba(255,255,255,0.04);
+          background: color-mix(in srgb, var(--app-card) 86%, transparent);
           backdrop-filter: blur(10px);
           border-right: 1px solid rgba(255,255,255,0.08);
           display: flex;
@@ -157,7 +168,8 @@ function Sidebar() {
 
         .version-tag {
           font-size: 11px;
-          color: #475569;
+          color: var(--app-text);
+          opacity: 0.55;
           margin-bottom: 12px;
         }
 
@@ -176,7 +188,7 @@ function Sidebar() {
 
         .logo-container h2 {
           font-size: 14px;
-          color: #e2e8f0;
+          color: var(--app-title);
           line-height: 1.3;
         }
 
@@ -193,7 +205,7 @@ function Sidebar() {
           border-radius: 8px;
           border: none;
           background: transparent;
-          color: #94a3b8;
+          color: var(--app-text);
           cursor: pointer;
           transition: 0.2s;
           text-align: left;
@@ -202,18 +214,18 @@ function Sidebar() {
 
         .sidebar-btn:hover:not(.disabled) {
           background: rgba(255,255,255,0.08);
-          color: white;
+          color: var(--app-title);
         }
 
         .sidebar-btn.active {
-          background: rgba(59,130,246,0.15);
-          color: #60a5fa;
+          background: color-mix(in srgb, var(--app-accent) 18%, transparent);
+          color: var(--app-accent);
           font-weight: 500;
         }
 
         .info-btn {
           margin-bottom: 8px;
-          color: #93c5fd;
+          color: var(--app-accent);
         }
 
         .disabled {
@@ -226,19 +238,20 @@ function Sidebar() {
           padding-top: 16px;
           border-top: 1px solid rgba(255,255,255,0.06);
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--app-text);
         }
 
         .user-name {
           font-weight: 600;
-          color: #e2e8f0;
+          color: var(--app-title);
           margin-bottom: 4px;
         }
 
         .user-meta {
           display: block;
           font-size: 11px;
-          color: #64748b;
+          color: var(--app-text);
+          opacity: 0.65;
           margin-bottom: 10px;
           text-transform: capitalize;
         }

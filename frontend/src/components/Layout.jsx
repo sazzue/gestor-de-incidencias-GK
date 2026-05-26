@@ -1,6 +1,9 @@
 import Sidebar from "./Sidebar";
+import { useSystemSettings } from "../hooks/useSystemSettings";
 
 function Layout({ children }) {
+  useSystemSettings();
+
   return (
     <>
       <div className="app-layout">
@@ -18,16 +21,16 @@ function Layout({ children }) {
         }
 
         body {
-          background: #0b1220;
-          color: white;
+          background: var(--app-bg);
+          color: var(--app-text);
           font-family: 'Inter', sans-serif;
         }
 
         .app-layout {
           display: flex;
           min-height: 100vh;
-          background: #0b1220;
-          color: white;
+          background: var(--app-bg);
+          color: var(--app-text);
           font-family: 'Inter', sans-serif;
         }
 
