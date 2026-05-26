@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const { getPermissionsForUser } = require("../utils/permissions");
 
 const getMailTransporter = () => {
@@ -30,6 +31,58 @@ const isMailConfigured = () =>
     process.env.SMTP_PASS &&
     process.env.FRONTEND_URL
   );
+
+const isResendConfigured = () =>
+  Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM && process.env.FRONTEND_URL);
+
+const isPasswordResetDeliveryConfigured = () => isResendConfigured() || isMailConfigured();
+
+const buildPasswordResetHtml = (user, resetLink) => `
+  <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;background:#f8fafc;border-radius:12px;">
+    <h2 style="color:#1e293b;">Restablecer contrasena</h2>
+    <p style="color:#475569;">Hola <strong>${user.nombre || user.email}</strong>,</p>
+    <p style="color:#475569;">
+      Recibimos una solicitud para restablecer tu contrasena.<br/>
+      Este enlace es valido por <strong>1 hora</strong>.
+    </p>
+    <a href="${resetLink}"
+       style="display:inline-block;margin:16px 0;padding:12px 28px;
+              background:#2563eb;color:#fff;border-radius:8px;
+              text-decoration:none;font-weight:600;font-size:15px;">
+      Cambiar contrasena
+    </a>
+    <p style="color:#94a3b8;font-size:12px;margin-top:24px;">
+      Si no solicitaste esto, puedes ignorar este correo.
+    </p>
+  </div>
+`;
+
+const sendPasswordResetEmail = async ({ user, resetLink }) => {
+  const message = {
+    to: user.email,
+    subject: "Restablecer contrasena - Sistema de Incidencias",
+    html: buildPasswordResetHtml(user, resetLink),
+  };
+
+  if (isResendConfigured()) {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const result = await resend.emails.send({
+      from: process.env.MAIL_FROM,
+      ...message,
+    });
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    return result;
+  }
+
+  return getMailTransporter().sendMail({
+    from: `"Sistema de Incidencias" <${process.env.SMTP_USER}>`,
+    ...message,
+  });
+};
 
 const buildUserPayload = async (user) => {
   const permissions = await getPermissionsForUser(user);
@@ -174,8 +227,8 @@ exports.forgotPassword = async (req, res) => {
 
     if (!user) return res.json({ msg: genericMsg });
 
-    if (!isMailConfigured()) {
-      console.error("forgot-password error: SMTP configuration is incomplete");
+    if (!isPasswordResetDeliveryConfigured()) {
+      console.error("forgot-password error: email delivery configuration is incomplete");
       return res.status(503).json({
         msg: "El servicio de correo no esta configurado. Intenta mas tarde.",
       });
@@ -192,30 +245,7 @@ exports.forgotPassword = async (req, res) => {
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
 
     try {
-      await getMailTransporter().sendMail({
-        from: `"Sistema de Incidencias" <${process.env.SMTP_USER}>`,
-        to: user.email,
-        subject: "Restablecer contrasena - Sistema de Incidencias",
-        html: `
-          <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;background:#f8fafc;border-radius:12px;">
-            <h2 style="color:#1e293b;">Restablecer contrasena</h2>
-            <p style="color:#475569;">Hola <strong>${user.nombre || user.email}</strong>,</p>
-            <p style="color:#475569;">
-              Recibimos una solicitud para restablecer tu contrasena.<br/>
-              Este enlace es valido por <strong>1 hora</strong>.
-            </p>
-            <a href="${resetLink}"
-               style="display:inline-block;margin:16px 0;padding:12px 28px;
-                      background:#2563eb;color:#fff;border-radius:8px;
-                      text-decoration:none;font-weight:600;font-size:15px;">
-              Cambiar contrasena
-            </a>
-            <p style="color:#94a3b8;font-size:12px;margin-top:24px;">
-              Si no solicitaste esto, puedes ignorar este correo.
-            </p>
-          </div>
-        `,
-      });
+      await sendPasswordResetEmail({ user, resetLink });
     } catch (mailError) {
       await User.findByIdAndUpdate(user._id, {
         resetPasswordToken: null,
@@ -224,7 +254,7 @@ exports.forgotPassword = async (req, res) => {
 
       console.error("forgot-password mail error:", mailError);
       return res.status(503).json({
-        msg: "No se pudo enviar el correo de recuperacion. Revisa la configuracion SMTP.",
+        msg: "No se pudo enviar el correo de recuperacion. Revisa la configuracion de correo.",
       });
     }
 
