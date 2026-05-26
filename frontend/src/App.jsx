@@ -14,8 +14,11 @@ import ResetPassword       from "./pages/ResetPassword.jsx";
 import ChangePassword      from "./pages/ChangePassword.jsx";
 
 import PrivateRoute        from "./components/PrivateRoute.jsx";
+import { useNoAutoTranslate } from "./hooks/useNoAutoTranslate.js";
 
 function App() {
+  useNoAutoTranslate();
+
   return (
     <BrowserRouter>
       <Routes>
