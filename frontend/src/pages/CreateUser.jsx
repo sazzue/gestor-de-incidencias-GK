@@ -69,6 +69,24 @@ function CreateUser() {
       .catch(() => setUsers([]));
   };
 
+  const refreshSession = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json();
+
+      if (!res.ok) return;
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("auth-updated"));
+      window.dispatchEvent(new Event("auth-refresh"));
+    } catch (error) {
+      console.error("Error actualizando sesión:", error);
+    }
+  };
+
   const togglePermission = (permissions, permission) => {
     return permissions.includes(permission)
       ? permissions.filter((item) => item !== permission)
@@ -144,6 +162,7 @@ function CreateUser() {
     }
     setDepartments((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
     setNewDepartment("");
+    await refreshSession();
     setMessage({
       type: "success",
       title: "Departamento creado correctamente",
@@ -160,6 +179,7 @@ function CreateUser() {
     const data = await res.json();
     if (!res.ok) return alert(data.msg || "Error");
     setDepartments((prev) => prev.filter((d) => d._id !== item._id));
+    await refreshSession();
   };
 
   const handleSubmit = async () => {
@@ -198,6 +218,7 @@ function CreateUser() {
     }
     setUsers((prev) => [data, ...prev]);
     setNombre(""); setUsername(""); setEmail(""); setPassword(""); setRole(""); setDepartment(""); setSelectedBranches([]); setPermissions([]);
+    await refreshSession();
     setMessage({
       type: "success",
       title: "Usuario creado correctamente",
@@ -207,10 +228,20 @@ function CreateUser() {
 
   const confirmDelete = async () => {
     if (!userToDelete?._id) return;
-    await fetch(`${API_URL}/api/users/${userToDelete._id}`, { method: "DELETE", headers });
+    const res = await fetch(`${API_URL}/api/users/${userToDelete._id}`, { method: "DELETE", headers });
+    const data = await res.json();
+    if (!res.ok) {
+      setMessage({
+        type: "error",
+        title: data.msg || "No se pudo eliminar el usuario",
+        detail: data.error || `Error ${res.status}`
+      });
+      return;
+    }
     setUsers((prev) => prev.filter((u) => u?._id !== userToDelete._id));
     setUserToDelete(null);
     setShowDeleteModal(false);
+    await refreshSession();
   };
 
   const handleUpdateUser = async () => {
@@ -245,11 +276,12 @@ function CreateUser() {
       return;
     }
     setUsers((prev) => prev.map((u) => (u?._id === data?._id ? data : u)));
-    await fetchUsers();
+    fetchUsers();
     setEditingUser(null);
     setEditPermissions([]);
     setEditBranches([]);
     setShowEditModal(false);
+    await refreshSession();
     setMessage({
       type: "success",
       title: "Usuario actualizado correctamente",

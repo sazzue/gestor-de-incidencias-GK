@@ -36,8 +36,12 @@ function Sidebar() {
     };
 
     refreshUser();
+    window.addEventListener("auth-refresh", refreshUser);
     const interval = setInterval(refreshUser, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("auth-refresh", refreshUser);
+    };
   }, []);
 
   const handleLogout = () => {
