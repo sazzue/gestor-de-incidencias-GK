@@ -29,6 +29,7 @@ function CreateUser() {
   const [selectedBranches, setSelectedBranches] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [newDepartment, setNewDepartment] = useState("");
+  const [newBranch, setNewBranch] = useState("");
   const [message, setMessage] = useState(null);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -49,8 +50,7 @@ function CreateUser() {
 
     fetchDepartments();
 
-    fetch(`${API_URL}/api/branches`, { headers })
-      .then((r) => r.json()).then((d) => setBranches(Array.isArray(d) ? d : [])).catch(() => setBranches([]));
+    fetchBranches();
 
     fetchUsers();
   }, []);
@@ -60,6 +60,13 @@ function CreateUser() {
       .then((r) => r.json())
       .then((d) => setDepartments(Array.isArray(d) ? d : []))
       .catch(() => setDepartments([]));
+  };
+
+  const fetchBranches = () => {
+    fetch(`${API_URL}/api/branches`, { headers })
+      .then((r) => r.json())
+      .then((d) => setBranches(Array.isArray(d) ? d : []))
+      .catch(() => setBranches([]));
   };
 
   const fetchUsers = () => {
@@ -180,6 +187,69 @@ function CreateUser() {
     if (!res.ok) return alert(data.msg || "Error");
     setDepartments((prev) => prev.filter((d) => d._id !== item._id));
     await refreshSession();
+  };
+
+  const handleCreateBranch = async () => {
+    setMessage(null);
+    if (!newBranch.trim()) {
+      setMessage({
+        type: "error",
+        title: "Falta nombre de la sucursal",
+        detail: "El campo Nueva sucursal es obligatorio."
+      });
+      return;
+    }
+
+    const res = await fetch(`${API_URL}/api/branches`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ name: newBranch }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setMessage({
+        type: "error",
+        title: data.msg || "No se pudo crear la sucursal",
+        detail: data.error || `Error ${res.status}`
+      });
+      return;
+    }
+    setBranches((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewBranch("");
+    await refreshSession();
+    setMessage({
+      type: "success",
+      title: "Sucursal creada correctamente",
+      detail: `Se agregó ${data.name}.`
+    });
+  };
+
+  const handleDeleteBranch = async (item) => {
+    if (!confirm(`Eliminar sucursal "${item.name}"?`)) return;
+
+    const res = await fetch(`${API_URL}/api/branches/${item._id}`, {
+      method: "DELETE",
+      headers,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setMessage({
+        type: "error",
+        title: data.msg || "No se pudo eliminar la sucursal",
+        detail: data.error || `Error ${res.status}`
+      });
+      return;
+    }
+    setBranches((prev) => prev.filter((b) => b._id !== item._id));
+    setSelectedBranches((prev) => prev.filter((id) => id !== item._id));
+    setEditBranches((prev) => prev.filter((id) => id !== item._id));
+    fetchUsers();
+    await refreshSession();
+    setMessage({
+      type: "success",
+      title: "Sucursal eliminada correctamente",
+      detail: `${item.name} ya no aparece en las listas de selección.`
+    });
   };
 
   const handleSubmit = async () => {
@@ -429,6 +499,35 @@ function CreateUser() {
                     <b>{item?.name}</b>
                   </div>
                   <button className="btn-icon delete" onClick={() => handleDeleteDepartment(item)}>
+                    🗑
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="department-admin">
+            <h3>Sucursales</h3>
+            <div className="form-group">
+              <label>Nueva sucursal</label>
+              <input
+                placeholder="ej. monterrey"
+                value={newBranch}
+                onChange={(e) => setNewBranch(e.target.value)}
+              />
+            </div>
+
+            <button className="btn-submit" onClick={handleCreateBranch}>
+              Crear sucursal
+            </button>
+
+            <div className="departments-list">
+              {branches.map((item, i) => (
+                <div className="department-row" key={item?._id || i}>
+                  <div>
+                    <b>{item?.name}</b>
+                  </div>
+                  <button className="btn-icon delete" onClick={() => handleDeleteBranch(item)}>
                     🗑
                   </button>
                 </div>
