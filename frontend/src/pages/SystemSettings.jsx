@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { DEFAULT_SETTINGS, applySystemTheme, useSystemSettings } from "../hooks/useSystemSettings";
+import { DEFAULT_SETTINGS, applySystemTheme, cacheSystemSettings, useSystemSettings } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -83,8 +83,8 @@ function SystemSettings() {
 
     const nextSettings = { ...DEFAULT_SETTINGS, ...data };
     setForm(nextSettings);
-    applySystemTheme(nextSettings);
-    window.dispatchEvent(new Event("system-settings-updated"));
+    cacheSystemSettings(nextSettings);
+    window.dispatchEvent(new CustomEvent("system-settings-updated", { detail: nextSettings }));
     setMessage({
       type: "success",
       title: "Imagen actualizada correctamente",
@@ -123,9 +123,10 @@ function SystemSettings() {
       return;
     }
 
-    setForm({ ...DEFAULT_SETTINGS, ...data });
-    applySystemTheme({ ...DEFAULT_SETTINGS, ...data });
-    window.dispatchEvent(new Event("system-settings-updated"));
+    const nextSettings = { ...DEFAULT_SETTINGS, ...data };
+    setForm(nextSettings);
+    cacheSystemSettings(nextSettings);
+    window.dispatchEvent(new CustomEvent("system-settings-updated", { detail: nextSettings }));
     setMessage({
       type: "success",
       title: "Configuración guardada correctamente",

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const SETTINGS_CACHE_KEY = "systemSettings";
 
 export const DEFAULT_SETTINGS = {
   systemName: "Gestor de reportes",
@@ -32,31 +33,74 @@ export const applySystemTheme = (settings = DEFAULT_SETTINGS) => {
   root.style.setProperty("--app-accent", settings.accentColor || DEFAULT_SETTINGS.accentColor);
 };
 
+const normalizeSettings = (settings) => ({ ...DEFAULT_SETTINGS, ...(settings || {}) });
+
+const getSettingsTime = (settings) => {
+  const value = settings?.updatedAt || settings?.createdAt;
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+};
+
+export const getCachedSystemSettings = () => {
+  try {
+    const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
+    return cached ? normalizeSettings(JSON.parse(cached)) : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+export const cacheSystemSettings = (settings) => {
+  const nextSettings = normalizeSettings(settings);
+  localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(nextSettings));
+  applySystemTheme(nextSettings);
+  return nextSettings;
+};
+
 export function useSystemSettings() {
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(() => getCachedSystemSettings() || DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/settings`);
+      const res = await fetch(`${API_URL}/api/settings`, { cache: "no-store" });
       const data = await res.json();
 
       if (!res.ok) return;
 
-      const nextSettings = { ...DEFAULT_SETTINGS, ...data };
+      const cachedSettings = getCachedSystemSettings();
+      const serverSettings = normalizeSettings(data);
+      const nextSettings =
+        cachedSettings && getSettingsTime(cachedSettings) > getSettingsTime(serverSettings)
+          ? cachedSettings
+          : serverSettings;
+
+      cacheSystemSettings(nextSettings);
+      setSettings(nextSettings);
+    } catch (error) {
+      const cachedSettings = getCachedSystemSettings();
+      const nextSettings = cachedSettings || DEFAULT_SETTINGS;
       setSettings(nextSettings);
       applySystemTheme(nextSettings);
-    } catch (error) {
-      applySystemTheme(DEFAULT_SETTINGS);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    applySystemTheme(settings);
     fetchSettings();
-    window.addEventListener("system-settings-updated", fetchSettings);
-    return () => window.removeEventListener("system-settings-updated", fetchSettings);
+    const handleSettingsUpdated = (event) => {
+      if (event.detail) {
+        const nextSettings = cacheSystemSettings(event.detail);
+        setSettings(nextSettings);
+        return;
+      }
+
+      fetchSettings();
+    };
+    window.addEventListener("system-settings-updated", handleSettingsUpdated);
+    return () => window.removeEventListener("system-settings-updated", handleSettingsUpdated);
   }, []);
 
   return { settings, setSettings, loading, refreshSettings: fetchSettings };

@@ -50,6 +50,7 @@ const getSettings = async () => {
 
 router.get("/", async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const settings = await getSettings();
     res.json(settings);
   } catch (error) {
@@ -59,6 +60,7 @@ router.get("/", async (req, res) => {
 
 router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const payload = {};
 
     editableFields.forEach((field) => {
@@ -91,6 +93,7 @@ router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
 
 router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), upload.single("image"), async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const allowedFields = ["loginImageUrl", "sidebarImageUrl"];
 
     if (!allowedFields.includes(req.params.field)) {
