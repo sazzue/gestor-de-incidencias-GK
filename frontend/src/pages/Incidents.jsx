@@ -146,6 +146,26 @@ function Incidents() {
     }
   };
 
+  const downloadAttachment = async (incidentId, attachmentId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_URL}/api/incidents/${incidentId}/attachments/${attachmentId}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.msg || "No se pudo descargar el archivo");
+        return;
+      }
+
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo generar el enlace de descarga");
+    }
+  };
+
   const canUpdate =
     user?.role === "admin" ||
     user?.permissions?.includes("VIEW_INCIDENTS_ALL") ||
@@ -215,6 +235,21 @@ function Incidents() {
               <span>📅 {formatDate(inc.createdAt)}</span>
               <span>👤 {inc.createdBy?.nombre || inc.createdBy?.email}</span>
             </div>
+
+            {inc.attachments?.length > 0 && (
+              <div className="attachments">
+                <strong>Archivos</strong>
+                {inc.attachments.map((file) => (
+                  <button
+                    key={file._id}
+                    className="attachment-link"
+                    onClick={() => downloadAttachment(inc._id, file._id)}
+                  >
+                    {file.originalName}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="actions">
               {canUpdate ? (
@@ -334,6 +369,28 @@ function Incidents() {
         .desc { font-size: 13px; color: #94a3b8; line-height: 1.5; }
 
         .meta { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #64748b; }
+
+        .attachments {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          font-size: 12px;
+          color: #94a3b8;
+        }
+
+        .attachment-link {
+          width: 100%;
+          padding: 7px 9px;
+          border-radius: 7px;
+          border: 1px solid rgba(96,165,250,0.25);
+          background: rgba(96,165,250,0.08);
+          color: #bfdbfe;
+          cursor: pointer;
+          font-size: 12px;
+          text-align: left;
+          overflow-wrap: anywhere;
+        }
+        .attachment-link:hover { border-color: rgba(96,165,250,0.55); color: #fff; }
 
         .status {
           padding: 4px 10px;

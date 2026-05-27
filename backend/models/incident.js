@@ -1,27 +1,43 @@
 const mongoose = require("mongoose");
 
-const incidentSchema = new mongoose.Schema({
-  title: String,
-  description: String,
-  status: {
-    type: String,
-    default: "pendiente"
-  },
-  branch: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Branch",
-  },
-  department: String,
-
-
-  createdBy: {
+const attachmentSchema = new mongoose.Schema(
+  {
+    key: String,
+    originalName: String,
+    mimeType: String,
+    size: Number,
+    uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User" // 👈 ESTO ES CLAVE
-    }
-},
+      ref: "User",
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }
+);
 
-{ timestamps: true } // es para la hora de creación y actualización automática de los campos createdAt y updatedAt
-
+const incidentSchema = new mongoose.Schema(
+  {
+    title: String,
+    description: String,
+    status: {
+      type: String,
+      default: "pendiente",
+    },
+    branch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+    },
+    department: String,
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    attachments: [attachmentSchema],
+  },
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Incident", incidentSchema);

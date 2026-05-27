@@ -11,6 +11,8 @@
   "author": "Saul Rubalcava",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1054.0",
+    "@aws-sdk/s3-request-presigner": "^3.1054.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",

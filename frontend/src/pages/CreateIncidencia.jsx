@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthUser } from "../hooks/useAuthUser";
 
@@ -12,6 +11,8 @@ function CreateIncidencia() {
   const [branch, setBranch] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [attachments, setAttachments] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
 
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ function CreateIncidencia() {
         fetch(`${API_URL}/api/branches`),
         fetch(`${API_URL}/api/departments`),
       ]);
+
       setBranches(await resBranches.json());
       setDepartments(await resDepartments.json());
     } catch (error) {
@@ -37,45 +39,63 @@ function CreateIncidencia() {
 
   const handleSubmit = async () => {
     setMessage(null);
+    setIsSubmitting(true);
+
     if (!title || !description || !branch || !department) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Título, descripción, departamento y sucursal son obligatorios."
+        detail: "Titulo, descripcion, departamento y sucursal son obligatorios.",
       });
+      setIsSubmitting(false);
       return;
     }
+
     try {
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("description", description);
+      formData.append("branch", branch);
+      formData.append("department", department);
+      attachments.forEach((file) => formData.append("attachments", file));
+
       const res = await fetch(`${API_URL}/api/incidents`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ title, description, branch, department }),
+        body: formData,
       });
       const data = await res.json();
+
       if (!res.ok) {
         setMessage({
           type: "error",
           title: data.msg || "No se pudo crear la solicitud",
-          detail: data.error || `Error ${res.status}`
+          detail: data.error || `Error ${res.status}`,
         });
         return;
       }
+
       setMessage({
         type: "success",
         title: "Solicitud creada correctamente",
-        detail: "La incidencia ya quedó registrada."
+        detail: "La incidencia ya quedo registrada.",
       });
-      setTitle(""); setDescription(""); setBranch(""); setDepartment("");
+      setTitle("");
+      setDescription("");
+      setBranch("");
+      setDepartment("");
+      setAttachments([]);
     } catch (error) {
-      console.error("Error conexión:", error);
+      console.error("Error conexion:", error);
       setMessage({
         type: "error",
-        title: "Error de conexión",
-        detail: "No se pudo conectar con el servidor."
+        title: "Error de conexion",
+        detail: "No se pudo conectar con el servidor.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -86,7 +106,7 @@ function CreateIncidencia() {
     return (
       <div className="page center">
         <div className="form-card">
-          <h2>🔒 Sin acceso</h2>
+          <h2>Sin acceso</h2>
           <p>No tienes permisos para crear solicitudes.</p>
         </div>
       </div>
@@ -95,14 +115,13 @@ function CreateIncidencia() {
 
   return (
     <div className="page">
-
       <div className="page-header">
         <div>
-          <h1>➕ Crear solicitud</h1>
+          <h1>Crear solicitud</h1>
           <p>Registra una nueva incidencia</p>
         </div>
         <button className="btn-back" onClick={() => navigate("/incidents")}>
-          ← Volver
+          Volver
         </button>
       </div>
 
@@ -115,9 +134,9 @@ function CreateIncidencia() {
         )}
 
         <div className="form-group">
-          <label>Título</label>
+          <label>Titulo</label>
           <input
-            placeholder="Ej. Falla en sistema de cómputo"
+            placeholder="Ej. Falla en sistema de computo"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
@@ -134,7 +153,7 @@ function CreateIncidencia() {
         </div>
 
         <div className="form-group">
-          <label>Descripción</label>
+          <label>Descripcion</label>
           <textarea
             placeholder="Describe el problema con detalle..."
             value={description}
@@ -153,8 +172,25 @@ function CreateIncidencia() {
           </select>
         </div>
 
-        <button className="btn-submit" onClick={handleSubmit}>
-          Enviar solicitud
+        <div className="form-group">
+          <label>Archivos adjuntos</label>
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.xls,.xlsx,.csv"
+            onChange={(e) => setAttachments(Array.from(e.target.files || []))}
+          />
+          {attachments.length > 0 && (
+            <div className="file-list">
+              {attachments.map((file) => (
+                <span key={`${file.name}-${file.size}`}>{file.name}</span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button className="btn-submit" onClick={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting ? "Enviando..." : "Enviar solicitud"}
         </button>
       </div>
 
@@ -197,7 +233,7 @@ function CreateIncidencia() {
         .form-card {
           background: rgba(255,255,255,0.04);
           border: 1px solid rgba(255,255,255,0.07);
-          border-radius: 16px;
+          border-radius: 8px;
           padding: 28px;
           max-width: 560px;
           display: flex;
@@ -252,9 +288,17 @@ function CreateIncidencia() {
           box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
         }
 
+        .file-list {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          color: #cbd5e1;
+          font-size: 12px;
+        }
+
         .btn-submit {
           padding: 12px;
-          border-radius: 9px;
+          border-radius: 8px;
           border: none;
           background: #3b82f6;
           color: white;
@@ -265,6 +309,7 @@ function CreateIncidencia() {
           margin-top: 4px;
         }
         .btn-submit:hover { background: #2563eb; transform: translateY(-1px); }
+        .btn-submit:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
 
         @media (max-width: 600px) {
           .page { padding: 16px; }
