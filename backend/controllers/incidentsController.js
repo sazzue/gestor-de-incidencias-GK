@@ -9,6 +9,22 @@ const RESOLVED_STATUS = "resuelto";
 const getTotalAttachmentSize = (attachments = []) =>
   attachments.reduce((total, attachment) => total + (attachment.size || 0), 0);
 
+const getAttachmentErrorStatus = (error) => {
+  if (
+    error.message?.includes("maximo") ||
+    error.message?.includes("Selecciona") ||
+    error.message?.includes("permite")
+  ) {
+    return 400;
+  }
+
+  if (error.message?.includes("Cloudflare R2 no esta configurado")) {
+    return 503;
+  }
+
+  return 500;
+};
+
 const canViewIncident = (user, incident) => {
   if (hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
 
@@ -158,8 +174,9 @@ const createIncident = async (req, res) => {
     res.status(201).json(incident);
   } catch (error) {
     console.error("ERROR CREATE INCIDENT:", error);
+    const status = getAttachmentErrorStatus(error);
 
-    res.status(500).json({
+    res.status(status).json({
       msg: "Error al crear incidencia",
       error: error.message
     });
@@ -194,7 +211,9 @@ const addAttachments = async (req, res) => {
     res.status(201).json(incident);
   } catch (error) {
     console.error("ERROR ADD ATTACHMENTS:", error);
-    res.status(500).json({
+    const status = getAttachmentErrorStatus(error);
+
+    res.status(status).json({
       msg: "Error al cargar archivos",
       error: error.message,
     });

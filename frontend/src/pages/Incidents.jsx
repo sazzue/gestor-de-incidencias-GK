@@ -190,7 +190,7 @@ function Incidents() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.msg || "No se pudieron subir los archivos");
+        alert(data.error || data.msg || "No se pudieron subir los archivos");
         return;
       }
 
