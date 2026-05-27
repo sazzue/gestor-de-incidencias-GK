@@ -4,16 +4,36 @@ const { deleteIncidentFile, getIncidentFileUrl, isR2Configured, uploadIncidentFi
 
 const MAX_ATTACHMENTS_PER_INCIDENT = 10;
 const MAX_TOTAL_ATTACHMENT_SIZE = 30 * 1024 * 1024;
+const DEFAULT_R2_STORAGE_LIMIT_GB = 9;
 const RESOLVED_STATUS = "resuelto";
 
 const getTotalAttachmentSize = (attachments = []) =>
   attachments.reduce((total, attachment) => total + (attachment.size || 0), 0);
 
+const getStorageLimitBytes = () => {
+  const limitGb = Number(process.env.R2_STORAGE_LIMIT_GB || DEFAULT_R2_STORAGE_LIMIT_GB);
+  const safeLimitGb = Number.isFinite(limitGb) && limitGb > 0 ? limitGb : DEFAULT_R2_STORAGE_LIMIT_GB;
+
+  return safeLimitGb * 1024 * 1024 * 1024;
+};
+
+const formatGb = (bytes) => (bytes / 1024 / 1024 / 1024).toFixed(2);
+
+const getCurrentAttachmentStorageBytes = async () => {
+  const [result] = await Incident.aggregate([
+    { $unwind: "$attachments" },
+    { $group: { _id: null, total: { $sum: { $ifNull: ["$attachments.size", 0] } } } },
+  ]);
+
+  return result?.total || 0;
+};
+
 const getAttachmentErrorStatus = (error) => {
   if (
     error.message?.includes("maximo") ||
     error.message?.includes("Selecciona") ||
-    error.message?.includes("permite")
+    error.message?.includes("permite") ||
+    error.message?.includes("limite gratuito")
   ) {
     return 400;
   }
@@ -66,6 +86,15 @@ const uploadFilesForIncident = async ({ incident, files, userId }) => {
 
   if (currentSize + incomingSize > MAX_TOTAL_ATTACHMENT_SIZE) {
     throw new Error("Cada incidencia permite maximo 30 MB en archivos adjuntos");
+  }
+
+  const storageLimit = getStorageLimitBytes();
+  const currentStorage = await getCurrentAttachmentStorageBytes();
+
+  if (currentStorage + incomingSize > storageLimit) {
+    throw new Error(
+      `La carga supera el limite gratuito configurado de R2 (${formatGb(storageLimit)} GB). Uso actual aproximado: ${formatGb(currentStorage)} GB.`
+    );
   }
 
   const uploaded = [];

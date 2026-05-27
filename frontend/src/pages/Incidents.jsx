@@ -302,7 +302,7 @@ function Incidents() {
                 }}
               />
             </label>
-            <span className="upload-hint">Max. 5 MB por archivo, 10 archivos y 30 MB por incidencia.</span>
+            <span className="upload-hint">Max. 5 MB por archivo, 10 archivos, 30 MB por incidencia y limite global R2 configurado.</span>
 
             <div className="actions">
               {inc.status === "resuelto" ? (

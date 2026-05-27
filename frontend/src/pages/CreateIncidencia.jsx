@@ -187,7 +187,7 @@ function CreateIncidencia() {
               ))}
             </div>
           )}
-          <span className="file-hint">Maximo 5 MB por archivo, 10 archivos y 30 MB por incidencia.</span>
+          <span className="file-hint">Maximo 5 MB por archivo, 10 archivos, 30 MB por incidencia y limite global R2 configurado.</span>
         </div>
 
         <button className="btn-submit" onClick={handleSubmit} disabled={isSubmitting}>
