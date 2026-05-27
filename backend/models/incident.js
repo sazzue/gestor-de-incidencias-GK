@@ -26,6 +26,14 @@ const incidentSchema = new mongoose.Schema(
       type: String,
       default: "pendiente",
     },
+    resolvedAt: {
+      type: Date,
+      default: null,
+    },
+    attachmentsPurgedAt: {
+      type: Date,
+      default: null,
+    },
     branch: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",

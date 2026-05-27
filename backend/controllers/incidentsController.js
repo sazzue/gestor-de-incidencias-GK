@@ -4,6 +4,7 @@ const { deleteIncidentFile, getIncidentFileUrl, isR2Configured, uploadIncidentFi
 
 const MAX_ATTACHMENTS_PER_INCIDENT = 10;
 const MAX_TOTAL_ATTACHMENT_SIZE = 30 * 1024 * 1024;
+const RESOLVED_STATUS = "resuelto";
 
 const getTotalAttachmentSize = (attachments = []) =>
   attachments.reduce((total, attachment) => total + (attachment.size || 0), 0);
@@ -251,6 +252,7 @@ const updateStatus = async (req, res) => {
 
     if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
       incident.status = status;
+      incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
       await incident.save();
       return res.json(incident);
     }
@@ -262,6 +264,7 @@ const updateStatus = async (req, res) => {
       incident.department.toLowerCase().trim() === department.toLowerCase().trim()
     ) {
       incident.status = status;
+      incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
       await incident.save();
       return res.json(incident);
     }

@@ -6,6 +6,7 @@ const cors = require('cors');
 const Role = require("./models/Role");
 const Department = require("./models/Department");
 const User = require("./models/User");
+const { startAttachmentCleanupSchedule } = require("./utils/attachmentCleanup");
 
 // Middleware global
 app.use(cors());
@@ -56,6 +57,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
   app.listen(PORT, () => {
     console.log(`Servidor escuchando en puerto ${PORT}`);
+    startAttachmentCleanupSchedule();
   });
 
 })
