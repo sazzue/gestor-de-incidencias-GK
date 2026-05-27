@@ -29,13 +29,25 @@ const isMailConfigured = () =>
     process.env.SMTP_PORT &&
     process.env.SMTP_USER &&
     process.env.SMTP_PASS &&
-    process.env.FRONTEND_URL
+    getFrontendUrl()
   );
 
 const isResendConfigured = () =>
-  Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM && process.env.FRONTEND_URL);
+  Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM && getFrontendUrl());
 
 const isPasswordResetDeliveryConfigured = () => isResendConfigured() || isMailConfigured();
+
+const getFrontendUrl = () => {
+  const frontendUrl = process.env.FRONTEND_URL?.trim().replace(/\/+$/, "");
+
+  if (!frontendUrl) return "";
+
+  try {
+    return new URL(frontendUrl).origin;
+  } catch {
+    return "";
+  }
+};
 
 const buildPasswordResetHtml = (user, resetLink) => `
   <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;background:#f8fafc;border-radius:12px;">
@@ -242,7 +254,8 @@ exports.forgotPassword = async (req, res) => {
       resetPasswordExpires: expires,
     });
 
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    const frontendUrl = getFrontendUrl();
+    const resetLink = `${frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
     try {
       await sendPasswordResetEmail({ user, resetLink });
