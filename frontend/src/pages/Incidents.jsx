@@ -299,7 +299,9 @@ function Incidents() {
             <span className="upload-hint">Max. 5 MB por archivo, 10 archivos y 30 MB por incidencia.</span>
 
             <div className="actions">
-              {canUpdate ? (
+              {inc.status === "resuelto" ? (
+                <span className="closed-status">Cerrada</span>
+              ) : canUpdate ? (
                 <>
                   <button className="btn-process" onClick={() => updateStatus(inc._id, "en_proceso")}>
                     En proceso
@@ -496,6 +498,14 @@ function Incidents() {
         .btn-done:hover { background: #22c55e; color: #000; }
 
         .no-perm { font-size: 12px; color: #475569; }
+        .closed-status {
+          font-size: 12px;
+          color: #86efac;
+          background: rgba(34,197,94,0.12);
+          border: 1px solid rgba(34,197,94,0.25);
+          border-radius: 7px;
+          padding: 6px 10px;
+        }
 
         @media (max-width: 600px) {
           .page { padding: 16px; }

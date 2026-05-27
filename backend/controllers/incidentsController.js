@@ -250,6 +250,12 @@ const updateStatus = async (req, res) => {
       return res.status(404).json({ msg: "Incidencia no encontrada" });
     }
 
+    if (incident.status === RESOLVED_STATUS && status !== RESOLVED_STATUS) {
+      return res.status(400).json({
+        msg: "La incidencia ya esta resuelta y no puede cambiar de estatus",
+      });
+    }
+
     if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
       incident.status = status;
       incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
