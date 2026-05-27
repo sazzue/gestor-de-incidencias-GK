@@ -302,7 +302,7 @@ function Incidents() {
                 }}
               />
             </label>
-            <span className="upload-hint">Max. 5 MB por archivo, 10 archivos, 30 MB por incidencia y limite global R2 configurado.</span>
+            <span className="upload-hint">Max. 5 MB por archivo, 10 archivos, 30 MB por incidencia.</span>
 
             <div className="actions">
               {inc.status === "resuelto" ? (
@@ -325,7 +325,14 @@ function Incidents() {
       </div>
 
       <style>{`
-        .page { padding: 28px; min-height: 100vh; color: #fff; }
+        .page {
+          width: 100%;
+          max-width: 100%;
+          min-height: 100vh;
+          padding: 28px;
+          color: #fff;
+          overflow-x: hidden;
+        }
 
         .page-header {
           display: flex;
@@ -363,6 +370,8 @@ function Incidents() {
         }
         .filters-bar select,
         .filters-bar input {
+          flex: 1 1 180px;
+          min-width: 0;
           padding: 9px 12px;
           border-radius: 8px;
           border: 1px solid #1e293b;
@@ -379,6 +388,8 @@ function Incidents() {
         }
 
         .btn-export {
+          flex: 1 1 160px;
+          min-width: 0;
           padding: 9px 14px;
           border-radius: 8px;
           border: none;
@@ -393,11 +404,16 @@ function Incidents() {
 
         .grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
           gap: 16px;
+          width: 100%;
+          max-width: 100%;
         }
 
         .card {
+          min-width: 0;
+          max-width: 100%;
+          overflow: hidden;
           background: rgba(255,255,255,0.04);
           border: 1px solid rgba(255,255,255,0.06);
           padding: 18px;
@@ -418,14 +434,40 @@ function Incidents() {
           justify-content: space-between;
           align-items: flex-start;
           gap: 10px;
+          min-width: 0;
         }
-        .card-top h3 { font-size: 15px; font-weight: 600; }
+        .card-top h3 {
+          flex: 1 1 auto;
+          min-width: 0;
+          font-size: 15px;
+          font-weight: 600;
+          overflow-wrap: anywhere;
+        }
 
-        .desc { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+        .desc {
+          min-width: 0;
+          font-size: 13px;
+          color: #94a3b8;
+          line-height: 1.5;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
 
-        .meta { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #64748b; }
+        .meta {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 12px;
+          color: #64748b;
+        }
+        .meta span {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
 
         .attachments {
+          min-width: 0;
           display: flex;
           flex-direction: column;
           gap: 6px;
@@ -452,6 +494,8 @@ function Incidents() {
           justify-content: center;
           align-items: center;
           width: 100%;
+          max-width: 100%;
+          min-width: 0;
           min-height: 34px;
           padding: 8px 10px;
           border-radius: 7px;
@@ -461,6 +505,7 @@ function Incidents() {
           cursor: pointer;
           font-size: 12px;
           font-weight: 600;
+          text-align: center;
           transition: 0.2s;
         }
         .upload-files:hover { border-color: rgba(96,165,250,0.6); color: #fff; }
@@ -468,9 +513,12 @@ function Incidents() {
         .upload-files input { display: none; }
 
         .upload-hint {
+          display: block;
+          max-width: 100%;
           color: #64748b;
           font-size: 11px;
           line-height: 1.35;
+          overflow-wrap: anywhere;
         }
 
         .status {
@@ -485,7 +533,13 @@ function Incidents() {
         .en_proceso { background: rgba(245,158,11,0.15); color: #f59e0b; }
         .resuelto   { background: rgba(34,197,94,0.15);  color: #22c55e; }
 
-        .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+        .actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          min-width: 0;
+          margin-top: 4px;
+        }
 
         .btn-process {
           background: rgba(245,158,11,0.12);
@@ -514,9 +568,16 @@ function Incidents() {
         }
 
         @media (max-width: 600px) {
-          .page { padding: 16px; }
-          .grid { grid-template-columns: 1fr; }
+          .page { padding: 14px; }
+          .grid { grid-template-columns: minmax(0, 1fr); }
+          .card { padding: 16px; border-radius: 12px; }
           .filters-bar { flex-direction: column; }
+          .filters-bar select,
+          .filters-bar input,
+          .btn-export {
+            width: 100%;
+            flex-basis: auto;
+          }
         }
       `}</style>
     </div>
