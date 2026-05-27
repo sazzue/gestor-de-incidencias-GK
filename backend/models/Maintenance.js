@@ -11,6 +11,11 @@ const maintenanceSchema = new mongoose.Schema({
   ref: "Branch"
 },
 
+  department: {
+    type: String,
+    enum: ["sistemas", "mantenimiento"],
+  },
+
   status: {
     type: String,
     enum: ["programado", "finalizado"],

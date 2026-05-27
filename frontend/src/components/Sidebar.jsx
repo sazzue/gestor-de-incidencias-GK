@@ -62,6 +62,9 @@ function Sidebar() {
   const canAccessUsers = hasPermission("CREATE_USERS");
   const canAccessSettings = user?.role === "admin";
   const canViewMaintenance =
+    hasPermission("VIEW_MAINTENANCE_ALL") ||
+    hasPermission("VIEW_MAINTENANCE_DEPARTMENT") ||
+    hasPermission("VIEW_MAINTENANCE_BRANCH") ||
     hasPermission("CREATE_MAINTENANCE") ||
     hasPermission("CONFIRM_MAINTENANCE");
 

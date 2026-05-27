@@ -12,6 +12,9 @@ const USER_PERMISSIONS = [
   { value: "VIEW_INCIDENTS_BRANCH", label: "Ver incidencias: sus sucursales" },
   { value: "CREATE_MAINTENANCE", label: "Crear mantenimientos" },
   { value: "CONFIRM_MAINTENANCE", label: "Confirmar mantenimientos" },
+  { value: "VIEW_MAINTENANCE_ALL", label: "Ver mantenimientos: todos" },
+  { value: "VIEW_MAINTENANCE_DEPARTMENT", label: "Ver mantenimientos: su departamento" },
+  { value: "VIEW_MAINTENANCE_BRANCH", label: "Ver mantenimientos: sus sucursales" },
 ];
 
 function CreateUser() {

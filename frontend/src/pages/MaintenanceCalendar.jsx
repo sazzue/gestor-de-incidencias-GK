@@ -6,6 +6,17 @@ import { saveAs } from "file-saver";
 import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const MAINTENANCE_DEPARTMENTS = [
+  { value: "sistemas", label: "Sistemas" },
+  { value: "mantenimiento", label: "Mantenimiento" },
+];
+
+const normalizeDepartment = (department) =>
+  department?.toString().trim().toLowerCase() || "";
+
+const getDepartmentLabel = (department) =>
+  MAINTENANCE_DEPARTMENTS.find((item) => item.value === normalizeDepartment(department))?.label ||
+  "Sin departamento";
 
 function MaintenanceCalendar() {
   const [date, setDate] = useState(new Date());
@@ -15,10 +26,12 @@ function MaintenanceCalendar() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [branch, setBranch] = useState("");
+  const [maintenanceDepartment, setMaintenanceDepartment] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [message, setMessage] = useState(null);
   const [modalMessage, setModalMessage] = useState(null);
@@ -33,6 +46,14 @@ function MaintenanceCalendar() {
     user?.role === "admin" ||
     user?.permissions?.includes("CONFIRM_MAINTENANCE");
 
+  const userDepartment = normalizeDepartment(user?.department);
+  const isDepartmentUser = user?.role === "departamento";
+  const isMaintenanceDepartmentUser =
+    isDepartmentUser &&
+    MAINTENANCE_DEPARTMENTS.some((item) => item.value === userDepartment);
+  const canChooseDepartment = user?.role === "admin" || user?.role === "direccion";
+  const canCreateMaintenance = canCreate && (!isDepartmentUser || isMaintenanceDepartmentUser);
+
   const getUserBranchIds = () => {
     const userBranches = Array.isArray(user?.branches) ? user.branches : [];
     if (userBranches.length > 0) {
@@ -45,7 +66,14 @@ function MaintenanceCalendar() {
 
   const canConfirmMaintenance = (maintenance) => {
     if (!canConfirm) return false;
-    if (user?.role === "admin") return true;
+    if (user?.role === "admin" || user?.role === "direccion") return true;
+
+    if (user?.role === "departamento") {
+      return (
+        isMaintenanceDepartmentUser &&
+        normalizeDepartment(maintenance?.department) === userDepartment
+      );
+    }
 
     const maintenanceBranch = maintenance?.branch?._id || maintenance?.branch;
     return getUserBranchIds().includes(maintenanceBranch);
@@ -59,6 +87,7 @@ function MaintenanceCalendar() {
       Titulo: m.title,
       Descripcion: m.description,
       Sucursal: m.branch?.name || "Sin sucursal",
+      Departamento: getDepartmentLabel(m.department),
       Estado: m.status,
       Fecha: new Date(m.date).toLocaleDateString("es-MX"),
     }));
@@ -75,6 +104,7 @@ function MaintenanceCalendar() {
       Titulo: m.title,
       Descripcion: m.description,
       Sucursal: m.branch?.name,
+      Departamento: getDepartmentLabel(m.department),
       Estado: m.status,
       Fecha: new Date(m.date).toLocaleDateString("es-MX"),
     }));
@@ -89,19 +119,38 @@ function MaintenanceCalendar() {
   const createMaintenance = async () => {
     setModalMessage(null);
     setMessage(null);
-    if (!title || !description || !branch || !dateInput) {
+    const departmentToSave = isDepartmentUser ? userDepartment : maintenanceDepartment;
+
+    if (!title || !description || !branch || !departmentToSave || !dateInput) {
       setModalMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Título, descripción, sucursal y fecha son obligatorios."
+        detail: "Titulo, descripcion, sucursal, departamento y fecha son obligatorios."
       });
       return;
     }
+
+    if (!MAINTENANCE_DEPARTMENTS.some((item) => item.value === departmentToSave)) {
+      setModalMessage({
+        type: "error",
+        title: "Departamento no valido",
+        detail: "Solo se pueden programar mantenimientos para Sistemas o Mantenimiento."
+      });
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/maintenance`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title, description, branch, date: dateInput + "T12:00:00", status: "programado" }),
+        body: JSON.stringify({
+          title,
+          description,
+          branch,
+          department: departmentToSave,
+          date: dateInput + "T12:00:00",
+          status: "programado"
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -117,14 +166,14 @@ function MaintenanceCalendar() {
       setMessage({
         type: "success",
         title: "Mantenimiento creado correctamente",
-        detail: "El mantenimiento quedó programado."
+        detail: "El mantenimiento quedo programado."
       });
-      setTitle(""); setDescription(""); setBranch(""); setDateInput("");
+      setTitle(""); setDescription(""); setBranch(""); setMaintenanceDepartment(""); setDateInput("");
     } catch (error) {
       console.error("Error creando mantenimiento:", error);
       setModalMessage({
         type: "error",
-        title: "Error de conexión",
+        title: "Error de conexion",
         detail: "No se pudo conectar con el servidor."
       });
     }
@@ -136,7 +185,13 @@ function MaintenanceCalendar() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => { filterByDate(maintenances, date); }, [filterStatus, date, maintenances, selectedBranch]);
+  useEffect(() => {
+    if (isMaintenanceDepartmentUser) {
+      setMaintenanceDepartment(userDepartment);
+    }
+  }, [isMaintenanceDepartmentUser, userDepartment]);
+
+  useEffect(() => { filterByDate(maintenances, date); }, [filterStatus, date, maintenances, selectedBranch, selectedDepartment]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/branches`)
@@ -149,7 +204,7 @@ function MaintenanceCalendar() {
     try {
       const res = await fetch(`${API_URL}/api/maintenance`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      setMaintenances(data);
+      setMaintenances(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error cargando mantenimientos:", error);
     }
@@ -166,6 +221,7 @@ function MaintenanceCalendar() {
       case "finalizado": result = result.filter((m) => m.status === filterStatus); break;
     }
     if (selectedBranch) result = result.filter((m) => m.branch?._id === selectedBranch);
+    if (selectedDepartment) result = result.filter((m) => normalizeDepartment(m.department) === selectedDepartment);
     setFiltered(result);
   };
 
@@ -188,13 +244,13 @@ function MaintenanceCalendar() {
       setMessage({
         type: "success",
         title: "Mantenimiento confirmado",
-        detail: "El estado cambió a finalizado."
+        detail: "El estado cambio a finalizado."
       });
     } catch (error) {
       console.error("Error confirmando:", error);
       setMessage({
         type: "error",
-        title: "Error de conexión",
+        title: "Error de conexion",
         detail: "No se pudo conectar con el servidor."
       });
     }
@@ -205,7 +261,7 @@ function MaintenanceCalendar() {
       <div className="layout-calendar">
         {/* IZQUIERDA */}
         <div className="calendar-panel">
-          <h2>📅 Mantenimientos</h2>
+          <h2>Mantenimientos</h2>
           {message && (
             <div className={`notice ${message.type}`}>
               <b>{message.title}</b>
@@ -218,27 +274,36 @@ function MaintenanceCalendar() {
             <button className={filterStatus === "all" ? "active" : ""} onClick={() => setFilterStatus("all")}>Todos</button>
             <button className={filterStatus === "programado" ? "active" : ""} onClick={() => setFilterStatus("programado")}>Programados</button>
             <button className={filterStatus === "finalizado" ? "active" : ""} onClick={() => setFilterStatus("finalizado")}>Finalizados</button>
-            <button className={filterStatus === "day" ? "active" : ""} onClick={() => setFilterStatus("day")}>📅 Este día</button>
-            <button className={filterStatus === "day-programado" ? "active" : ""} onClick={() => setFilterStatus("day-programado")}>📅 Programados hoy</button>
-            <button className={filterStatus === "day-finalizado" ? "active" : ""} onClick={() => setFilterStatus("day-finalizado")}>📅 Finalizados hoy</button>
+            <button className={filterStatus === "day" ? "active" : ""} onClick={() => setFilterStatus("day")}>Este dia</button>
+            <button className={filterStatus === "day-programado" ? "active" : ""} onClick={() => setFilterStatus("day-programado")}>Programados hoy</button>
+            <button className={filterStatus === "day-finalizado" ? "active" : ""} onClick={() => setFilterStatus("day-finalizado")}>Finalizados hoy</button>
 
             <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
               <option value="">Todas las sucursales</option>
               {branches.map((b) => (<option key={b._id} value={b._id}>{b.name}</option>))}
             </select>
+
+            {(canChooseDepartment || user?.role === "gerencia") && (
+              <select value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)}>
+                <option value="">Todos los departamentos</option>
+                {MAINTENANCE_DEPARTMENTS.map((dep) => (
+                  <option key={dep.value} value={dep.value}>{dep.label}</option>
+                ))}
+              </select>
+            )}
           </div>
 
-          <button disabled={!canCreate} className="create-btn" onClick={() => setShowModal(true)}>
-            {canCreate ? "➕ Programar mantenimiento" : "🔒 Solo Sistemas puede crear"}
+          <button disabled={!canCreateMaintenance} className="create-btn" onClick={() => setShowModal(true)}>
+            {canCreateMaintenance ? "Programar mantenimiento" : "Solo Sistemas y Mantenimiento pueden crear"}
           </button>
 
-          <button onClick={exportFilteredToExcel} className="export-btn">📊 Exportar filtrados</button>
-          <button onClick={exportByBranch} className="export-btn">📊 Exportar por sucursal</button>
+          <button onClick={exportFilteredToExcel} className="export-btn">Exportar filtrados</button>
+          <button onClick={exportByBranch} className="export-btn">Exportar por sucursal</button>
         </div>
 
         {/* DERECHA */}
         <div className="events-panel">
-          <h3>Eventos del día</h3>
+          <h3>Eventos del dia</h3>
           {filtered.length === 0 ? (
             <div className="empty"><p>No hay mantenimientos</p></div>
           ) : (
@@ -249,14 +314,15 @@ function MaintenanceCalendar() {
                   <span className={`status ${m.status}`}>{m.status}</span>
                 </div>
                 <p className="branch">{m.branch?.name}</p>
+                <p className="department">{getDepartmentLabel(m.department)}</p>
                 <p className="desc">{m.description}</p>
                 <div className="footer">
                   <small>{new Date(m.date).toLocaleDateString("es-MX")}</small>
                   {m.status === "finalizado" && m.confirmedBy && (
-                    <small className="confirmed-text">✔ Confirmado por: {m.confirmedBy.nombre || m.confirmedBy.email}</small>
+                    <small className="confirmed-text">Confirmado por: {m.confirmedBy.nombre || m.confirmedBy.email}</small>
                   )}
                   {canConfirmMaintenance(m) && m.status === "programado" && (
-                    <button className="confirm-btn" onClick={() => confirmMaintenance(m._id)}>✔ Confirmar</button>
+                    <button className="confirm-btn" onClick={() => confirmMaintenance(m._id)}>Confirmar</button>
                   )}
                 </div>
               </div>
@@ -276,12 +342,22 @@ function MaintenanceCalendar() {
                 <span>{modalMessage.detail}</span>
               </div>
             )}
-            <input type="text" placeholder="Título" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input type="text" placeholder="Titulo" value={title} onChange={(e) => setTitle(e.target.value)} />
             <select value={branch} onChange={(e) => setBranch(e.target.value)}>
               <option value="">Sucursal</option>
               {branches.map((b) => (<option key={b._id} value={b._id}>{b.name}</option>))}
             </select>
-            <textarea placeholder="Descripción" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <select
+              value={isDepartmentUser ? userDepartment : maintenanceDepartment}
+              onChange={(e) => setMaintenanceDepartment(e.target.value)}
+              disabled={isDepartmentUser}
+            >
+              <option value="">Departamento</option>
+              {MAINTENANCE_DEPARTMENTS.map((dep) => (
+                <option key={dep.value} value={dep.value}>{dep.label}</option>
+              ))}
+            </select>
+            <textarea placeholder="Descripcion" value={description} onChange={(e) => setDescription(e.target.value)} />
             <input type="date" value={dateInput} onChange={(e) => setDateInput(e.target.value)} />
             <div className="modal-buttons">
               <button onClick={createMaintenance}>Guardar</button>
@@ -371,6 +447,13 @@ function MaintenanceCalendar() {
           padding: 15px;
           border-radius: 10px;
           margin-bottom: 10px;
+        }
+
+        .department {
+          color: #93c5fd;
+          font-size: 12px;
+          font-weight: 600;
+          margin-top: 3px;
         }
 
         .event-header {

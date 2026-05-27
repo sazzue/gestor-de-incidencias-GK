@@ -5,19 +5,91 @@ const auth = require("../middleware/authMiddleware");
 const Maintenance = require("../models/Maintenance");
 const { hasPermission } = require("../utils/permissions");
 
+const MAINTENANCE_DEPARTMENTS = ["sistemas", "mantenimiento"];
+
+const normalizeDepartment = (department) =>
+  department?.toString().trim().toLowerCase();
+
+const isMaintenanceDepartment = (department) =>
+  MAINTENANCE_DEPARTMENTS.includes(normalizeDepartment(department));
+
 const getAssignedBranchIds = (user) => {
   const branches = Array.isArray(user.branches) ? user.branches : [];
   const ids = branches.length > 0 ? branches : user.branch ? [user.branch] : [];
   return ids.map((branch) => branch?.toString()).filter(Boolean);
 };
 
-router.get("/", auth, async (req, res) => {
-  const data = await Maintenance.find()
-    .populate("confirmedBy", "nombre email")
-    .populate("branch", "name")
-    .sort({ date: 1 });
+const getMaintenanceQueryForUser = (user) => {
+  if (
+    user.role === "admin" ||
+    user.role === "direccion" ||
+    hasPermission(user, "VIEW_MAINTENANCE_ALL")
+  ) {
+    return {};
+  }
 
-  res.json(data);
+  if (user.role === "gerencia" || hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) {
+    const assignedBranchIds = getAssignedBranchIds(user);
+    if (assignedBranchIds.length === 0) {
+      return null;
+    }
+
+    return { branch: { $in: assignedBranchIds } };
+  }
+
+  const department = normalizeDepartment(user.department);
+  if (
+    hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") &&
+    isMaintenanceDepartment(department)
+  ) {
+    return { department };
+  }
+
+  return null;
+};
+
+const canAccessMaintenance = (user, maintenance) => {
+  if (
+    user.role === "admin" ||
+    user.role === "direccion" ||
+    hasPermission(user, "VIEW_MAINTENANCE_ALL")
+  ) return true;
+
+  if (user.role === "gerencia" || hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) {
+    const maintenanceBranch = maintenance.branch?._id || maintenance.branch;
+    return getAssignedBranchIds(user).includes(maintenanceBranch?.toString());
+  }
+
+  if (hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT")) {
+    const userDepartment = normalizeDepartment(user.department);
+    const maintenanceDepartment = normalizeDepartment(maintenance.department);
+
+    return (
+      isMaintenanceDepartment(userDepartment) &&
+      maintenanceDepartment === userDepartment
+    );
+  }
+
+  return false;
+};
+
+router.get("/", auth, async (req, res) => {
+  try {
+    const query = getMaintenanceQueryForUser(req.user);
+
+    if (!query) {
+      return res.status(403).json({ msg: "No tienes permisos para ver mantenimientos" });
+    }
+
+    const data = await Maintenance.find(query)
+      .populate("confirmedBy", "nombre email")
+      .populate("branch", "name")
+      .sort({ date: 1 });
+
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ msg: "Error cargando mantenimientos", error: error.message });
+  }
 });
 
 router.post("/", auth, async (req, res) => {
@@ -27,19 +99,51 @@ router.post("/", auth, async (req, res) => {
     }
 
     const { title, description, branch, date } = req.body;
-    if (!title || !description || !branch || !date) {
+    const department = normalizeDepartment(req.body.department);
+
+    if (!title || !description || !branch || !date || !department) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "title, description, branch y date son obligatorios"
+        error: "title, description, branch, department y date son obligatorios"
       });
+    }
+
+    if (!isMaintenanceDepartment(department)) {
+      return res.status(400).json({
+        msg: "Departamento no valido",
+        error: "Solo se pueden programar mantenimientos para sistemas o mantenimiento"
+      });
+    }
+
+    if (
+      req.user.role === "departamento" &&
+      normalizeDepartment(req.user.department) !== department
+    ) {
+      return res.status(403).json({
+        msg: "No puedes crear mantenimientos para otro departamento"
+      });
+    }
+
+    if (req.user.role === "gerencia") {
+      const assignedBranchIds = getAssignedBranchIds(req.user);
+      if (!assignedBranchIds.includes(branch?.toString())) {
+        return res.status(403).json({
+          msg: "No puedes crear mantenimientos de sucursales no asignadas"
+        });
+      }
     }
 
     const newMaintenance = await Maintenance.create({
       ...req.body,
+      department,
       createdBy: req.user.id,
     });
 
-    res.json(newMaintenance);
+    const populated = await Maintenance.findById(newMaintenance._id)
+      .populate("confirmedBy", "nombre email")
+      .populate("branch", "name");
+
+    res.json(populated);
   } catch (error) {
     res.status(500).json({ msg: "Error creando mantenimiento", error: error.message });
   }
@@ -57,15 +161,10 @@ router.put("/:id/confirm", auth, async (req, res) => {
       return res.status(404).json({ msg: "No encontrado" });
     }
 
-    if (req.user.role !== "admin") {
-      const assignedBranchIds = getAssignedBranchIds(req.user);
-      const maintenanceBranch = maintenance.branch?.toString();
-
-      if (!assignedBranchIds.includes(maintenanceBranch)) {
-        return res.status(403).json({
-          msg: "No puedes confirmar mantenimientos de sucursales no asignadas"
-        });
-      }
+    if (!canAccessMaintenance(req.user, maintenance)) {
+      return res.status(403).json({
+        msg: "No puedes confirmar este mantenimiento"
+      });
     }
 
     maintenance.status = "finalizado";
