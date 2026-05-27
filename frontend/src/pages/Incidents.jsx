@@ -23,6 +23,8 @@ function Incidents() {
 
   const formatDate = (date) =>
     new Date(date).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" });
+  const getResolvedDate = (incident) =>
+    incident.resolvedAt || (incident.status === "resuelto" ? incident.updatedAt : null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -124,6 +126,9 @@ function Incidents() {
       Departamento: i.department?.name || i.department || "Sin departamento",
       Estado: i.status,
       Fecha: new Date(i.createdAt).toLocaleDateString("es-MX"),
+      Resuelto: getResolvedDate(i)
+        ? new Date(getResolvedDate(i)).toLocaleDateString("es-MX")
+        : "",
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -262,6 +267,7 @@ function Incidents() {
             <p className="desc">{inc.description}</p>
 
             <div className="meta">
+              {getResolvedDate(inc) && <span>Resuelto: {formatDate(getResolvedDate(inc))}</span>}
               <span>📍 {inc.branch?.name || inc.branch || "Sin sucursal"}</span>
               <span>🏢 {inc.department || "Sin departamento"}</span>
               <span>📅 {formatDate(inc.createdAt)}</span>
