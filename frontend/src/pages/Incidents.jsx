@@ -16,6 +16,7 @@ function Incidents() {
   const [filterStatus, setFilterStatus] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [uploadingIncidentId, setUploadingIncidentId] = useState(null);
 
   const navigate = useNavigate();
   const user = useAuthUser();
@@ -166,6 +167,37 @@ function Incidents() {
     }
   };
 
+  const uploadAttachments = async (incidentId, files) => {
+    const selectedFiles = Array.from(files || []);
+    if (selectedFiles.length === 0) return;
+
+    try {
+      setUploadingIncidentId(incidentId);
+      const token = localStorage.getItem("token");
+      const formData = new FormData();
+      selectedFiles.forEach((file) => formData.append("attachments", file));
+
+      const res = await fetch(`${API_URL}/api/incidents/${incidentId}/attachments`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.msg || "No se pudieron subir los archivos");
+        return;
+      }
+
+      fetchIncidents();
+    } catch (error) {
+      console.error(error);
+      alert("No se pudieron subir los archivos");
+    } finally {
+      setUploadingIncidentId(null);
+    }
+  };
+
   const canUpdate =
     user?.role === "admin" ||
     user?.permissions?.includes("VIEW_INCIDENTS_ALL") ||
@@ -250,6 +282,20 @@ function Incidents() {
                 ))}
               </div>
             )}
+
+            <label className={`upload-files ${uploadingIncidentId === inc._id ? "loading" : ""}`}>
+              {uploadingIncidentId === inc._id ? "Subiendo..." : "Subir archivos"}
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.xls,.xlsx,.csv"
+                disabled={uploadingIncidentId === inc._id}
+                onChange={(e) => {
+                  uploadAttachments(inc._id, e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
 
             <div className="actions">
               {canUpdate ? (
@@ -391,6 +437,26 @@ function Incidents() {
           overflow-wrap: anywhere;
         }
         .attachment-link:hover { border-color: rgba(96,165,250,0.55); color: #fff; }
+
+        .upload-files {
+          display: inline-flex;
+          justify-content: center;
+          align-items: center;
+          width: 100%;
+          min-height: 34px;
+          padding: 8px 10px;
+          border-radius: 7px;
+          border: 1px dashed rgba(148,163,184,0.35);
+          background: rgba(148,163,184,0.06);
+          color: #cbd5e1;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 600;
+          transition: 0.2s;
+        }
+        .upload-files:hover { border-color: rgba(96,165,250,0.6); color: #fff; }
+        .upload-files.loading { opacity: 0.65; cursor: wait; }
+        .upload-files input { display: none; }
 
         .status {
           padding: 4px 10px;
