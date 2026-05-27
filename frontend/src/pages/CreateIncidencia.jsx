@@ -187,6 +187,7 @@ function CreateIncidencia() {
               ))}
             </div>
           )}
+          <span className="file-hint">Maximo 5 MB por archivo, 10 archivos y 30 MB por incidencia.</span>
         </div>
 
         <button className="btn-submit" onClick={handleSubmit} disabled={isSubmitting}>
@@ -293,6 +294,11 @@ function CreateIncidencia() {
           flex-direction: column;
           gap: 5px;
           color: #cbd5e1;
+          font-size: 12px;
+        }
+
+        .file-hint {
+          color: #64748b;
           font-size: 12px;
         }
 

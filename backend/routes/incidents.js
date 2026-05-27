@@ -25,7 +25,7 @@ const allowedMimeTypes = new Set([
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024,
+    fileSize: 5 * 1024 * 1024,
     files: 5,
   },
   fileFilter: (req, file, cb) => {
@@ -41,7 +41,7 @@ const handleUploadErrors = (err, req, res, next) => {
   if (!err) return next();
 
   if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(400).json({ msg: "Cada archivo debe pesar maximo 10 MB" });
+    return res.status(400).json({ msg: "Cada archivo debe pesar maximo 5 MB" });
   }
 
   if (err.code === "LIMIT_FILE_COUNT") {

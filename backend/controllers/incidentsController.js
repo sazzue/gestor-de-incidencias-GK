@@ -2,6 +2,12 @@ const Incident = require("../models/incident");
 const { hasPermission } = require("../utils/permissions");
 const { deleteIncidentFile, getIncidentFileUrl, isR2Configured, uploadIncidentFile } = require("../utils/r2Storage");
 
+const MAX_ATTACHMENTS_PER_INCIDENT = 10;
+const MAX_TOTAL_ATTACHMENT_SIZE = 30 * 1024 * 1024;
+
+const getTotalAttachmentSize = (attachments = []) =>
+  attachments.reduce((total, attachment) => total + (attachment.size || 0), 0);
+
 const canViewIncident = (user, incident) => {
   if (hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
 
@@ -30,6 +36,19 @@ const uploadFilesForIncident = async ({ incident, files, userId }) => {
 
   if (!isR2Configured()) {
     throw new Error("Cloudflare R2 no esta configurado");
+  }
+
+  const currentCount = incident.attachments?.length || 0;
+  const incomingCount = files.length;
+  const currentSize = getTotalAttachmentSize(incident.attachments);
+  const incomingSize = files.reduce((total, file) => total + (file.size || 0), 0);
+
+  if (currentCount + incomingCount > MAX_ATTACHMENTS_PER_INCIDENT) {
+    throw new Error(`Cada incidencia permite maximo ${MAX_ATTACHMENTS_PER_INCIDENT} archivos`);
+  }
+
+  if (currentSize + incomingSize > MAX_TOTAL_ATTACHMENT_SIZE) {
+    throw new Error("Cada incidencia permite maximo 30 MB en archivos adjuntos");
   }
 
   const uploaded = [];

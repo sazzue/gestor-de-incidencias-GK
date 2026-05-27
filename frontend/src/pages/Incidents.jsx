@@ -296,6 +296,7 @@ function Incidents() {
                 }}
               />
             </label>
+            <span className="upload-hint">Max. 5 MB por archivo, 10 archivos y 30 MB por incidencia.</span>
 
             <div className="actions">
               {canUpdate ? (
@@ -457,6 +458,12 @@ function Incidents() {
         .upload-files:hover { border-color: rgba(96,165,250,0.6); color: #fff; }
         .upload-files.loading { opacity: 0.65; cursor: wait; }
         .upload-files input { display: none; }
+
+        .upload-hint {
+          color: #64748b;
+          font-size: 11px;
+          line-height: 1.35;
+        }
 
         .status {
           padding: 4px 10px;
