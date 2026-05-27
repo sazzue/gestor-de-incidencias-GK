@@ -11,6 +11,11 @@ const isR2Configured = () =>
     process.env.R2_BUCKET_NAME
   );
 
+const getR2Endpoint = () => {
+  const accountId = process.env.R2_ACCOUNT_ID.trim();
+  return `https://${accountId}.r2.cloudflarestorage.com`;
+};
+
 const getR2Client = () => {
   if (!isR2Configured()) {
     throw new Error("Cloudflare R2 no esta configurado");
@@ -18,10 +23,11 @@ const getR2Client = () => {
 
   return new S3Client({
     region: "auto",
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    endpoint: getR2Endpoint(),
+    forcePathStyle: true,
     credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      accessKeyId: process.env.R2_ACCESS_KEY_ID.trim(),
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY.trim(),
     },
   });
 };
@@ -48,7 +54,7 @@ const uploadIncidentFile = async ({ incidentId, file, uploadedBy }) => {
 
   await getR2Client().send(
     new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: process.env.R2_BUCKET_NAME.trim(),
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
@@ -73,7 +79,7 @@ const getIncidentFileUrl = ({ key, expiresIn = 300 }) =>
   getSignedUrl(
     getR2Client(),
     new GetObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: process.env.R2_BUCKET_NAME.trim(),
       Key: key,
     }),
     { expiresIn }
@@ -82,7 +88,7 @@ const getIncidentFileUrl = ({ key, expiresIn = 300 }) =>
 const deleteIncidentFile = ({ key }) =>
   getR2Client().send(
     new DeleteObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: process.env.R2_BUCKET_NAME.trim(),
       Key: key,
     })
   );
