@@ -48,9 +48,9 @@ function Inventory() {
   }, [user]);
 
   const formBranches = useMemo(() => {
-    if (canViewAll) return branches;
+    if (canViewAll || canViewDepartment) return branches;
     return branches.filter((branch) => userBranchIds.includes(branch._id));
-  }, [branches, canViewAll, userBranchIds]);
+  }, [branches, canViewAll, canViewDepartment, userBranchIds]);
 
   const filterBranches = useMemo(() => {
     if (canViewAll || canViewDepartment) return branches;

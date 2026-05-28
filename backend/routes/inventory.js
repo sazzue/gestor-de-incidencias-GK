@@ -82,6 +82,7 @@ const getInventoryQueryForUser = (user) => {
 
 const canUseBranch = (user, branchId) => {
   if (canViewAllInventory(user)) return true;
+  if (hasPermission(user, "VIEW_INVENTORY_DEPARTMENT")) return true;
   return getAssignedBranchIds(user).includes(branchId?.toString());
 };
 
