@@ -32,7 +32,7 @@ function Sidebar() {
         localStorage.setItem("user", JSON.stringify(data.user));
         setUser(jwtDecode(data.token));
         window.dispatchEvent(new Event("auth-updated"));
-      } catch (error) {
+      } catch {
         setUser(jwtDecode(localStorage.getItem("token")));
       }
     };
@@ -69,6 +69,7 @@ function Sidebar() {
     hasPermission("CONFIRM_MAINTENANCE");
   const canViewInventory =
     hasPermission("VIEW_INVENTORY_ALL") ||
+    hasPermission("VIEW_INVENTORY_DEPARTMENT") ||
     hasPermission("VIEW_INVENTORY_BRANCH") ||
     hasPermission("CREATE_INVENTORY") ||
     hasPermission("DISPOSE_INVENTORY");

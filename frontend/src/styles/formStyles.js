@@ -60,48 +60,7 @@ const formStyles = {
     fontSize: "12px",
   },
 
-  usersContainer: {
-    marginTop: "25px",
-    borderTop: "1px solid #1e293b",
-    paddingTop: "15px",
-  },
-
-  subtitle: {
-    color: "#94a3b8",
-    marginBottom: "10px",
-    fontSize: "14px",
-  },
-
-  empty: {
-    color: "#64748b",
-    fontSize: "13px",
-  },
-
-  userCard: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    background: "#020617",
-    border: "1px solid #1e293b",
-    padding: "10px",
-    borderRadius: "8px",
-    marginBottom: "8px",
-  },
-
-  userEmail: {
-    fontSize: "12px",
-    color: "#64748b",
-  },
-
-  badge: {
-    background: "#1e40af",
-    color: "#fff",
-    padding: "4px 8px",
-    borderRadius: "6px",
-    fontSize: "12px",
-  },
-
-  actions: {
+  userActions: {
   display: "flex",
   alignItems: "center",
   gap: "8px",

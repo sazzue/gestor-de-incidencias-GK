@@ -1,19 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 import { useNavigate } from "react-router-dom";
 
 function Dashboard() {
   const [incidents, setIncidents] = useState([]);
-  const [user, setUser] = useState(null);
+  const [user] = useState(() => {
+    const token = localStorage.getItem("token");
+    return token ? jwtDecode(token) : null;
+  });
+  const [now] = useState(() => Date.now());
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) setUser(jwtDecode(token));
-    fetchIncidents();
-  }, []);
-
-  const fetchIncidents = async () => {
+  const fetchIncidents = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/incidents`, {
@@ -24,11 +22,16 @@ function Dashboard() {
     } catch (error) {
       console.error(error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchIncidents();
+  }, [fetchIncidents]);
 
   const getDaysWithoutResolution = (incident) => {
     const lastChange = new Date(incident.updatedAt || incident.createdAt);
-    const diff = Date.now() - lastChange.getTime();
+    const diff = now - lastChange.getTime();
     return Math.floor(diff / (1000 * 60 * 60 * 24));
   };
 

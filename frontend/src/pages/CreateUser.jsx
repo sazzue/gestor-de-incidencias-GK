@@ -17,6 +17,7 @@ const USER_PERMISSIONS = [
   { value: "VIEW_MAINTENANCE_BRANCH", label: "Ver mantenimientos: sus sucursales" },
   { value: "CREATE_INVENTORY", label: "Crear equipos de inventario" },
   { value: "VIEW_INVENTORY_ALL", label: "Ver inventario: todo" },
+  { value: "VIEW_INVENTORY_DEPARTMENT", label: "Ver inventario: su departamento" },
   { value: "VIEW_INVENTORY_BRANCH", label: "Ver inventario: sus sucursales" },
   { value: "DISPOSE_INVENTORY", label: "Dar de baja equipos" },
 ];
@@ -51,6 +52,27 @@ function CreateUser() {
   const currentUser = token ? jwtDecode(token) : null;
   const headers = { Authorization: `Bearer ${token}` };
 
+  function fetchDepartments() {
+    fetch(`${API_URL}/api/departments`, { headers })
+      .then((r) => r.json())
+      .then((d) => setDepartments(Array.isArray(d) ? d : []))
+      .catch(() => setDepartments([]));
+  }
+
+  function fetchBranches() {
+    fetch(`${API_URL}/api/branches`, { headers })
+      .then((r) => r.json())
+      .then((d) => setBranches(Array.isArray(d) ? d : []))
+      .catch(() => setBranches([]));
+  }
+
+  function fetchUsers() {
+    fetch(`${API_URL}/api/users`, { headers })
+      .then((r) => r.json())
+      .then((d) => setUsers(Array.isArray(d) ? d : []))
+      .catch(() => setUsers([]));
+  }
+
   useEffect(() => {
     fetch(`${API_URL}/api/roles`, { headers })
       .then((r) => r.json()).then((d) => setRoles(Array.isArray(d) ? d : [])).catch(() => setRoles([]));
@@ -61,27 +83,6 @@ function CreateUser() {
 
     fetchUsers();
   }, []);
-
-  const fetchDepartments = () => {
-    fetch(`${API_URL}/api/departments`, { headers })
-      .then((r) => r.json())
-      .then((d) => setDepartments(Array.isArray(d) ? d : []))
-      .catch(() => setDepartments([]));
-  };
-
-  const fetchBranches = () => {
-    fetch(`${API_URL}/api/branches`, { headers })
-      .then((r) => r.json())
-      .then((d) => setBranches(Array.isArray(d) ? d : []))
-      .catch(() => setBranches([]));
-  };
-
-  const fetchUsers = () => {
-    fetch(`${API_URL}/api/users`, { headers })
-      .then((r) => r.json())
-      .then((d) => setUsers(Array.isArray(d) ? d : []))
-      .catch(() => setUsers([]));
-  };
 
   const refreshSession = async () => {
     try {

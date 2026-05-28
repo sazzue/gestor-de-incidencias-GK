@@ -10,14 +10,17 @@ const initialForm = {
   provider: "",
   price: "",
   branch: "",
+  department: "",
   invoice: null,
 };
 
 function Inventory() {
   const [items, setItems] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [filterBranch, setFilterBranch] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [message, setMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,9 +34,12 @@ function Inventory() {
     user?.role === "admin" || user?.permissions?.includes(permission);
 
   const canViewAll = user?.role === "direccion" || hasPermission("VIEW_INVENTORY_ALL");
+  const canViewDepartment = hasPermission("VIEW_INVENTORY_DEPARTMENT");
   const canCreate = hasPermission("CREATE_INVENTORY");
   const canDispose = hasPermission("DISPOSE_INVENTORY");
-  const canView = canViewAll || hasPermission("VIEW_INVENTORY_BRANCH") || canCreate || canDispose;
+  const canView = canViewAll || canViewDepartment || hasPermission("VIEW_INVENTORY_BRANCH") || canCreate || canDispose;
+  const userDepartment = user?.department?.toString().trim().toLowerCase() || "";
+  const isDepartmentLocked = !canViewAll && canViewDepartment && Boolean(userDepartment);
 
   const userBranchIds = useMemo(() => {
     const assigned = Array.isArray(user?.branches) ? user.branches : [];
@@ -46,13 +52,22 @@ function Inventory() {
     return branches.filter((branch) => userBranchIds.includes(branch._id));
   }, [branches, canViewAll, userBranchIds]);
 
+  const availableDepartments = useMemo(() => {
+    if (isDepartmentLocked) {
+      return departments.filter((department) => department.name?.toLowerCase() === userDepartment);
+    }
+
+    return departments;
+  }, [departments, isDepartmentLocked, userDepartment]);
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       if (filterBranch && item.branch?._id !== filterBranch) return false;
+      if (filterDepartment && item.department !== filterDepartment) return false;
       if (filterStatus && item.status !== filterStatus) return false;
       return true;
     });
-  }, [items, filterBranch, filterStatus]);
+  }, [items, filterBranch, filterDepartment, filterStatus]);
 
   const inventoryStats = useMemo(() => {
     const total = filteredItems.length;
@@ -93,7 +108,7 @@ function Inventory() {
       }
 
       setItems(Array.isArray(data) ? data : []);
-    } catch (error) {
+    } catch {
       setMessage({
         type: "error",
         title: "Error de conexion",
@@ -109,26 +124,46 @@ function Inventory() {
       });
       const data = await res.json();
       setBranches(Array.isArray(data) ? data : []);
-    } catch (error) {
+    } catch {
       setBranches([]);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/departments`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch {
+      setDepartments([]);
     }
   };
 
   useEffect(() => {
     if (!token) return;
     fetchBranches();
+    fetchDepartments();
     fetchInventory();
   }, [token]);
+
+  useEffect(() => {
+    if (isDepartmentLocked) {
+      updateForm("department", userDepartment);
+      setFilterDepartment(userDepartment);
+    }
+  }, [isDepartmentLocked, userDepartment]);
 
   const createItem = async (event) => {
     event.preventDefault();
     setMessage(null);
 
-    if (!form.model || !form.brand || !form.serialNumber || !form.provider || !form.price || !form.branch) {
+    if (!form.model || !form.brand || !form.serialNumber || !form.provider || !form.price || !form.branch || !form.department) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Modelo, marca, numero de serie, proveedor, precio y sucursal son obligatorios.",
+        detail: "Modelo, marca, numero de serie, proveedor, precio, sucursal y departamento son obligatorios.",
       });
       return;
     }
@@ -142,6 +177,7 @@ function Inventory() {
       formData.append("provider", form.provider);
       formData.append("price", form.price);
       formData.append("branch", form.branch);
+      formData.append("department", form.department);
       if (form.invoice) formData.append("invoice", form.invoice);
 
       const res = await fetch(`${API_URL}/api/inventory`, {
@@ -161,13 +197,13 @@ function Inventory() {
       }
 
       setItems((current) => [data, ...current]);
-      setForm(initialForm);
+      setForm({ ...initialForm, department: isDepartmentLocked ? userDepartment : "" });
       setMessage({
         type: "success",
         title: "Equipo registrado",
         detail: "El equipo quedo agregado al inventario.",
       });
-    } catch (error) {
+    } catch {
       setMessage({
         type: "error",
         title: "Error de conexion",
@@ -191,7 +227,7 @@ function Inventory() {
       }
 
       window.open(data.url, "_blank", "noopener,noreferrer");
-    } catch (error) {
+    } catch {
       alert("No se pudo generar el enlace de factura");
     }
   };
@@ -234,7 +270,7 @@ function Inventory() {
         title: "Equipo dado de baja",
         detail: "El inventario fue actualizado.",
       });
-    } catch (error) {
+    } catch {
       setMessage({
         type: "error",
         title: "Error de conexion",
@@ -322,6 +358,19 @@ function Inventory() {
                 ))}
               </select>
             </div>
+            <div className="form-group">
+              <label>Departamento</label>
+              <select
+                value={form.department}
+                onChange={(e) => updateForm("department", e.target.value)}
+                disabled={isDepartmentLocked}
+              >
+                <option value="">Seleccionar departamento</option>
+                {availableDepartments.map((department) => (
+                  <option key={department._id} value={department.name?.toLowerCase()}>{department.name}</option>
+                ))}
+              </select>
+            </div>
             <div className="form-group wide">
               <label>Factura</label>
               <input
@@ -344,6 +393,16 @@ function Inventory() {
           <option value="">Todas las sucursales</option>
           {availableBranches.map((branch) => (
             <option key={branch._id} value={branch._id}>{branch.name}</option>
+          ))}
+        </select>
+        <select
+          value={filterDepartment}
+          onChange={(e) => setFilterDepartment(e.target.value)}
+          disabled={isDepartmentLocked}
+        >
+          <option value="">Todos los departamentos</option>
+          {availableDepartments.map((department) => (
+            <option key={department._id} value={department.name?.toLowerCase()}>{department.name}</option>
           ))}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
@@ -369,6 +428,7 @@ function Inventory() {
 
               <div className="item-meta">
                 <span>Sucursal: {item.branch?.name || "Sin sucursal"}</span>
+                <span>Departamento: {item.department || "Sin departamento"}</span>
                 <span>Proveedor: {item.provider}</span>
                 <span>Precio: {formatCurrency(item.price)}</span>
                 <span>Compra: {new Date(item.createdAt).toLocaleDateString("es-MX")}</span>

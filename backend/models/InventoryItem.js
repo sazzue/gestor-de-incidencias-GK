@@ -51,6 +51,12 @@ const inventoryItemSchema = new mongoose.Schema(
       ref: "Branch",
       required: true,
     },
+    department: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+    },
     invoice: invoiceSchema,
     status: {
       type: String,

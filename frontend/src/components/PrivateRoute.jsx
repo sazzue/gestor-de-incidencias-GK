@@ -3,24 +3,23 @@ import { jwtDecode } from "jwt-decode";
 
 function PrivateRoute({ children, roles }) {
   const token = localStorage.getItem("token");
+  let user = null;
 
   if (!token) {
     return <Navigate to="/login" />;
   }
 
   try {
-    const user = jwtDecode(token);
-
-    // 🔐 validar roles si se envían
-    if (roles && !roles.includes(user.role)) {
-      return <Navigate to="/incidents" />;
-    }
-
-    return children;
-
-  } catch (error) {
+    user = jwtDecode(token);
+  } catch {
     return <Navigate to="/login" />;
   }
+
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/incidents" />;
+  }
+
+  return children;
 }
 
 export default PrivateRoute;

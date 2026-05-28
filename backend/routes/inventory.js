@@ -49,6 +49,9 @@ const getAssignedBranchIds = (user) => {
   return ids.map((branch) => branch?.toString()).filter(Boolean);
 };
 
+const normalizeDepartment = (department) =>
+  department?.toString().trim().toLowerCase();
+
 const canViewAllInventory = (user) =>
   user.role === "admin" ||
   user.role === "direccion" ||
@@ -68,6 +71,12 @@ const getInventoryQueryForUser = (user) => {
     return { branch: { $in: branchIds } };
   }
 
+  if (hasPermission(user, "VIEW_INVENTORY_DEPARTMENT")) {
+    const department = normalizeDepartment(user.department);
+    if (!department) return null;
+    return { department };
+  }
+
   return null;
 };
 
@@ -76,8 +85,21 @@ const canUseBranch = (user, branchId) => {
   return getAssignedBranchIds(user).includes(branchId?.toString());
 };
 
+const canUseDepartment = (user, department) => {
+  if (canViewAllInventory(user)) return true;
+  if (!hasPermission(user, "VIEW_INVENTORY_DEPARTMENT")) return false;
+  return normalizeDepartment(user.department) === normalizeDepartment(department);
+};
+
 const canAccessItem = (user, item) => {
   if (canViewAllInventory(user)) return true;
+  if (
+    hasPermission(user, "VIEW_INVENTORY_DEPARTMENT") &&
+    canUseDepartment(user, item.department)
+  ) {
+    return true;
+  }
+
   if (
     !(
       user.role === "gerencia" ||
@@ -120,17 +142,26 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
     }
 
     const { model, brand, serialNumber, provider, price, branch } = req.body;
+    const department = normalizeDepartment(req.body.department);
     const numericPrice = Number(price);
 
-    if (!model || !brand || !serialNumber || !provider || !branch || !Number.isFinite(numericPrice)) {
+    if (!model || !brand || !serialNumber || !provider || !branch || !department || !Number.isFinite(numericPrice)) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Modelo, marca, numero de serie, proveedor, precio y sucursal son obligatorios",
+        error: "Modelo, marca, numero de serie, proveedor, precio, sucursal y departamento son obligatorios",
       });
     }
 
     if (!canUseBranch(req.user, branch)) {
       return res.status(403).json({ msg: "No puedes registrar equipos para esta sucursal" });
+    }
+
+    if (
+      req.user.role === "departamento" &&
+      hasPermission(req.user, "VIEW_INVENTORY_DEPARTMENT") &&
+      !canUseDepartment(req.user, department)
+    ) {
+      return res.status(403).json({ msg: "No puedes registrar equipos para otro departamento" });
     }
 
     if (req.file && !isR2Configured()) {
@@ -144,6 +175,7 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       provider,
       price: numericPrice,
       branch,
+      department,
       createdBy: req.user.id,
     });
 

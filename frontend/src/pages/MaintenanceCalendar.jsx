@@ -116,6 +116,31 @@ function MaintenanceCalendar() {
     saveAs(new Blob([excelBuffer], { type: "application/octet-stream" }), `mantenimientos_${branchName}.xlsx`);
   };
 
+  async function fetchData() {
+    try {
+      const res = await fetch(`${API_URL}/api/maintenance`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setMaintenances(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error cargando mantenimientos:", error);
+    }
+  }
+
+  function filterByDate(data, selectedDate) {
+    let result = [...data];
+    const selected = toLocalDate(selectedDate);
+    switch (filterStatus) {
+      case "day": result = result.filter((m) => toLocalDate(m.date) === selected); break;
+      case "day-programado": result = result.filter((m) => toLocalDate(m.date) === selected && m.status === "programado"); break;
+      case "day-finalizado": result = result.filter((m) => toLocalDate(m.date) === selected && m.status === "finalizado"); break;
+      case "programado":
+      case "finalizado": result = result.filter((m) => m.status === filterStatus); break;
+    }
+    if (selectedBranch) result = result.filter((m) => m.branch?._id === selectedBranch);
+    if (selectedDepartment) result = result.filter((m) => normalizeDepartment(m.department) === selectedDepartment);
+    setFiltered(result);
+  }
+
   const createMaintenance = async () => {
     setModalMessage(null);
     setMessage(null);
@@ -180,6 +205,7 @@ function MaintenanceCalendar() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
@@ -187,11 +213,15 @@ function MaintenanceCalendar() {
 
   useEffect(() => {
     if (isMaintenanceDepartmentUser) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMaintenanceDepartment(userDepartment);
     }
   }, [isMaintenanceDepartmentUser, userDepartment]);
 
-  useEffect(() => { filterByDate(maintenances, date); }, [filterStatus, date, maintenances, selectedBranch, selectedDepartment]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    filterByDate(maintenances, date);
+  }, [filterStatus, date, maintenances, selectedBranch, selectedDepartment]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/branches`)
@@ -199,31 +229,6 @@ function MaintenanceCalendar() {
       .then(data => setBranches(data))
       .catch(err => console.error(err));
   }, []);
-
-  const fetchData = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/maintenance`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      setMaintenances(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error cargando mantenimientos:", error);
-    }
-  };
-
-  const filterByDate = (data, selectedDate) => {
-    let result = [...data];
-    const selected = toLocalDate(selectedDate);
-    switch (filterStatus) {
-      case "day": result = result.filter((m) => toLocalDate(m.date) === selected); break;
-      case "day-programado": result = result.filter((m) => toLocalDate(m.date) === selected && m.status === "programado"); break;
-      case "day-finalizado": result = result.filter((m) => toLocalDate(m.date) === selected && m.status === "finalizado"); break;
-      case "programado":
-      case "finalizado": result = result.filter((m) => m.status === filterStatus); break;
-    }
-    if (selectedBranch) result = result.filter((m) => m.branch?._id === selectedBranch);
-    if (selectedDepartment) result = result.filter((m) => normalizeDepartment(m.department) === selectedDepartment);
-    setFiltered(result);
-  };
 
   const confirmMaintenance = async (id) => {
     try {

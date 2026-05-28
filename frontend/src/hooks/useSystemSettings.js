@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const SETTINGS_CACHE_KEY = "systemSettings";
@@ -45,7 +45,7 @@ export const getCachedSystemSettings = () => {
   try {
     const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
     return cached ? normalizeSettings(JSON.parse(cached)) : null;
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -61,7 +61,7 @@ export function useSystemSettings() {
   const [settings, setSettings] = useState(() => getCachedSystemSettings() || DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/api/settings`, { cache: "no-store" });
       const data = await res.json();
@@ -77,7 +77,7 @@ export function useSystemSettings() {
 
       cacheSystemSettings(nextSettings);
       setSettings(nextSettings);
-    } catch (error) {
+    } catch {
       const cachedSettings = getCachedSystemSettings();
       const nextSettings = cachedSettings || DEFAULT_SETTINGS;
       setSettings(nextSettings);
@@ -85,7 +85,7 @@ export function useSystemSettings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     applySystemTheme(settings);
@@ -101,7 +101,7 @@ export function useSystemSettings() {
     };
     window.addEventListener("system-settings-updated", handleSettingsUpdated);
     return () => window.removeEventListener("system-settings-updated", handleSettingsUpdated);
-  }, []);
+  }, [fetchSettings, settings]);
 
   return { settings, setSettings, loading, refreshSettings: fetchSettings };
 }
