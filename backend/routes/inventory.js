@@ -142,14 +142,14 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       return res.status(403).json({ msg: "No tienes permisos para registrar equipos" });
     }
 
-    const { model, brand, serialNumber, provider, price, branch } = req.body;
+    const { model, brand, serialNumber, provider, responsible, price, branch } = req.body;
     const department = normalizeDepartment(req.body.department);
     const numericPrice = Number(price);
 
-    if (!model || !brand || !serialNumber || !provider || !branch || !department || !Number.isFinite(numericPrice)) {
+    if (!model || !brand || !serialNumber || !provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Modelo, marca, numero de serie, proveedor, precio, sucursal y departamento son obligatorios",
+        error: "Modelo, marca, numero de serie, proveedor, responsable, precio, sucursal y departamento son obligatorios",
       });
     }
 
@@ -174,6 +174,7 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       brand,
       serialNumber: serialNumber.trim(),
       provider,
+      responsible,
       price: numericPrice,
       branch,
       department,
@@ -201,6 +202,48 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
     }
 
     res.status(500).json({ msg: "Error al registrar equipo", error: error.message });
+  }
+});
+
+router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, async (req, res) => {
+  try {
+    if (!hasPermission(req.user, "CREATE_INVENTORY")) {
+      return res.status(403).json({ msg: "No tienes permisos para cargar facturas" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ msg: "La factura es obligatoria" });
+    }
+
+    if (!isR2Configured()) {
+      return res.status(503).json({ msg: "Cloudflare R2 no esta configurado para cargar facturas" });
+    }
+
+    const item = await InventoryItem.findById(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ msg: "Equipo no encontrado" });
+    }
+
+    if (!canAccessItem(req.user, item)) {
+      return res.status(403).json({ msg: "No autorizado para cargar factura en este equipo" });
+    }
+
+    item.invoice = await uploadInventoryInvoice({
+      inventoryId: item._id,
+      file: req.file,
+      uploadedBy: req.user.id,
+    });
+    await item.save();
+
+    const updated = await InventoryItem.findById(item._id)
+      .populate("branch", "name")
+      .populate("createdBy", "nombre email")
+      .populate("disposedBy", "nombre email");
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ msg: "Error al cargar factura", error: error.message });
   }
 });
 

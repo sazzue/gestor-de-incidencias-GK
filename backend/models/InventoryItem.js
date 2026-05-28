@@ -41,6 +41,11 @@ const inventoryItemSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    responsible: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     price: {
       type: Number,
       required: true,

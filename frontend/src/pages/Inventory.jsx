@@ -8,6 +8,7 @@ const initialForm = {
   brand: "",
   serialNumber: "",
   provider: "",
+  responsible: "",
   price: "",
   branch: "",
   department: "",
@@ -26,6 +27,9 @@ function Inventory() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [disposeItem, setDisposeItem] = useState(null);
   const [disposeReason, setDisposeReason] = useState("");
+  const [invoiceItem, setInvoiceItem] = useState(null);
+  const [invoiceFile, setInvoiceFile] = useState(null);
+  const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
 
   const token = localStorage.getItem("token");
   const user = useAuthUser();
@@ -164,11 +168,11 @@ function Inventory() {
     event.preventDefault();
     setMessage(null);
 
-    if (!form.model || !form.brand || !form.serialNumber || !form.provider || !form.price || !form.branch || !form.department) {
+    if (!form.model || !form.brand || !form.serialNumber || !form.provider || !form.responsible || !form.price || !form.branch || !form.department) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Modelo, marca, numero de serie, proveedor, precio, sucursal y departamento son obligatorios.",
+        detail: "Modelo, marca, numero de serie, proveedor, responsable, precio, sucursal y departamento son obligatorios.",
       });
       return;
     }
@@ -180,6 +184,7 @@ function Inventory() {
       formData.append("brand", form.brand);
       formData.append("serialNumber", form.serialNumber);
       formData.append("provider", form.provider);
+      formData.append("responsible", form.responsible);
       formData.append("price", form.price);
       formData.append("branch", form.branch);
       formData.append("department", form.department);
@@ -234,6 +239,56 @@ function Inventory() {
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch {
       alert("No se pudo generar el enlace de factura");
+    }
+  };
+
+  const submitInvoice = async () => {
+    if (!invoiceFile) {
+      setMessage({
+        type: "error",
+        title: "Factura requerida",
+        detail: "Selecciona un archivo PDF o imagen.",
+      });
+      return;
+    }
+
+    try {
+      setIsUploadingInvoice(true);
+      const formData = new FormData();
+      formData.append("invoice", invoiceFile);
+
+      const res = await fetch(`${API_URL}/api/inventory/${invoiceItem._id}/invoice`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: data.msg || "No se pudo cargar la factura",
+          detail: data.error || `Error ${res.status}`,
+        });
+        return;
+      }
+
+      setItems((current) => current.map((item) => (item._id === data._id ? data : item)));
+      setInvoiceItem(null);
+      setInvoiceFile(null);
+      setMessage({
+        type: "success",
+        title: "Factura cargada",
+        detail: "La factura quedo vinculada al equipo.",
+      });
+    } catch {
+      setMessage({
+        type: "error",
+        title: "Error de conexion",
+        detail: "No se pudo conectar con el servidor.",
+      });
+    } finally {
+      setIsUploadingInvoice(false);
     }
   };
 
@@ -351,6 +406,10 @@ function Inventory() {
               <input value={form.provider} onChange={(e) => updateForm("provider", e.target.value)} />
             </div>
             <div className="form-group">
+              <label>Responsable</label>
+              <input value={form.responsible} onChange={(e) => updateForm("responsible", e.target.value)} />
+            </div>
+            <div className="form-group">
               <label>Precio</label>
               <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => updateForm("price", e.target.value)} />
             </div>
@@ -435,6 +494,7 @@ function Inventory() {
                 <span>Sucursal: {item.branch?.name || "Sin sucursal"}</span>
                 <span>Departamento: {item.department || "Sin departamento"}</span>
                 <span>Proveedor: {item.provider}</span>
+                <span>Responsable: {item.responsible || "Sin responsable"}</span>
                 <span>Precio: {formatCurrency(item.price)}</span>
                 <span>Compra: {new Date(item.createdAt).toLocaleDateString("es-MX")}</span>
               </div>
@@ -452,6 +512,11 @@ function Inventory() {
               <div className="card-actions">
                 {item.invoice?.key && (
                   <button type="button" onClick={() => downloadInvoice(item)}>Factura</button>
+                )}
+                {canCreate && (
+                  <button type="button" onClick={() => { setInvoiceItem(item); setInvoiceFile(null); }}>
+                    {item.invoice?.key ? "Reemplazar factura" : "Subir factura"}
+                  </button>
                 )}
                 {canDispose && item.status === "activo" && (
                   <button type="button" className="danger-btn" onClick={() => setDisposeItem(item)}>
@@ -478,6 +543,29 @@ function Inventory() {
             <div className="modal-actions">
               <button type="button" onClick={submitDispose}>Confirmar baja</button>
               <button type="button" onClick={() => { setDisposeItem(null); setDisposeReason(""); }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {invoiceItem && (
+        <div className="modal">
+          <div className="modal-content">
+            <h3>{invoiceItem.invoice?.key ? "Reemplazar factura" : "Subir factura"}</h3>
+            <p>{invoiceItem.brand} {invoiceItem.model} - {invoiceItem.serialNumber}</p>
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp"
+              onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
+            />
+            <span>PDF o imagen, maximo 8 MB.</span>
+            <div className="modal-actions">
+              <button type="button" disabled={isUploadingInvoice} onClick={submitInvoice}>
+                {isUploadingInvoice ? "Cargando..." : "Guardar factura"}
+              </button>
+              <button type="button" onClick={() => { setInvoiceItem(null); setInvoiceFile(null); }}>
                 Cancelar
               </button>
             </div>
@@ -581,7 +669,8 @@ function Inventory() {
         .form-group select,
         .form-group textarea,
         .toolbar select,
-        .modal-content textarea {
+        .modal-content textarea,
+        .modal-content input {
           padding: 10px 12px;
           border-radius: 8px;
           border: 1px solid #1e293b;
@@ -740,6 +829,7 @@ function Inventory() {
 
         .modal-content h3 { font-size: 17px; }
         .modal-content p { color: #cbd5e1; font-size: 13px; }
+        .modal-content span { color: #94a3b8; font-size: 12px; }
 
         .modal-actions {
           display: flex;
