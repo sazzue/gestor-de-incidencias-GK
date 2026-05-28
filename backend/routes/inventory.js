@@ -60,6 +60,12 @@ const canViewAllInventory = (user) =>
 const getInventoryQueryForUser = (user) => {
   if (canViewAllInventory(user)) return {};
 
+  if (hasPermission(user, "VIEW_INVENTORY_DEPARTMENT")) {
+    const department = normalizeDepartment(user.department);
+    if (!department) return null;
+    return { department };
+  }
+
   if (
     user.role === "gerencia" ||
     hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
@@ -69,12 +75,6 @@ const getInventoryQueryForUser = (user) => {
     const branchIds = getAssignedBranchIds(user);
     if (branchIds.length === 0) return null;
     return { branch: { $in: branchIds } };
-  }
-
-  if (hasPermission(user, "VIEW_INVENTORY_DEPARTMENT")) {
-    const department = normalizeDepartment(user.department);
-    if (!department) return null;
-    return { department };
   }
 
   return null;
