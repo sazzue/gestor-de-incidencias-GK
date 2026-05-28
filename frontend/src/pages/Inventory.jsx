@@ -47,10 +47,15 @@ function Inventory() {
     return ids.map((branch) => branch?._id || branch).filter(Boolean);
   }, [user]);
 
-  const availableBranches = useMemo(() => {
+  const formBranches = useMemo(() => {
     if (canViewAll) return branches;
     return branches.filter((branch) => userBranchIds.includes(branch._id));
   }, [branches, canViewAll, userBranchIds]);
+
+  const filterBranches = useMemo(() => {
+    if (canViewAll || canViewDepartment) return branches;
+    return formBranches;
+  }, [branches, canViewAll, canViewDepartment, formBranches]);
 
   const availableDepartments = useMemo(() => {
     if (isDepartmentLocked) {
@@ -353,7 +358,7 @@ function Inventory() {
               <label>Sucursal</label>
               <select value={form.branch} onChange={(e) => updateForm("branch", e.target.value)}>
                 <option value="">Seleccionar sucursal</option>
-                {availableBranches.map((branch) => (
+                {formBranches.map((branch) => (
                   <option key={branch._id} value={branch._id}>{branch.name}</option>
                 ))}
               </select>
@@ -391,7 +396,7 @@ function Inventory() {
       <div className="toolbar">
         <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
           <option value="">Todas las sucursales</option>
-          {availableBranches.map((branch) => (
+          {filterBranches.map((branch) => (
             <option key={branch._id} value={branch._id}>{branch.name}</option>
           ))}
         </select>
