@@ -4,6 +4,7 @@ const Branch = require("../models/branch");
 const User = require("../models/User");
 const Incident = require("../models/incident");
 const Maintenance = require("../models/Maintenance");
+const InventoryItem = require("../models/InventoryItem");
 const authMiddleware = require("../middleware/authMiddleware");
 const authorize = require("../middleware/authorize");
 const ROLES = require("../config/roles");
@@ -51,7 +52,7 @@ router.delete("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) =
       return res.status(404).json({ msg: "Sucursal no encontrada" });
     }
 
-    const [users, incidents, maintenances] = await Promise.all([
+    const [users, incidents, maintenances, inventoryItems] = await Promise.all([
       User.countDocuments({
         $or: [
           { branch: branch._id },
@@ -60,9 +61,10 @@ router.delete("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) =
       }),
       Incident.countDocuments({ branch: branch._id }),
       Maintenance.countDocuments({ branch: branch._id }),
+      InventoryItem.countDocuments({ branch: branch._id }),
     ]);
 
-    if (users || incidents || maintenances) {
+    if (users || incidents || maintenances || inventoryItems) {
       return res.status(400).json({
         msg: "No se puede eliminar la sucursal porque ya está en uso",
         error: "Quita la sucursal de los usuarios asignados o conserva la sucursal para mantener el historial de incidencias y mantenimientos."

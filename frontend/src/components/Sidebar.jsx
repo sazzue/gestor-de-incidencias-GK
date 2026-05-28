@@ -67,6 +67,11 @@ function Sidebar() {
     hasPermission("VIEW_MAINTENANCE_BRANCH") ||
     hasPermission("CREATE_MAINTENANCE") ||
     hasPermission("CONFIRM_MAINTENANCE");
+  const canViewInventory =
+    hasPermission("VIEW_INVENTORY_ALL") ||
+    hasPermission("VIEW_INVENTORY_BRANCH") ||
+    hasPermission("CREATE_INVENTORY") ||
+    hasPermission("DISPOSE_INVENTORY");
 
   const isActive = (path) => location.pathname === path;
 
@@ -118,6 +123,14 @@ function Sidebar() {
               className={`sidebar-btn ${isActive("/maintenance") ? "active" : ""} ${!canViewMaintenance ? "disabled" : ""}`}
             >
               Mantenimientos
+            </button>
+
+            <button
+              disabled={!canViewInventory}
+              onClick={() => navigate("/inventory")}
+              className={`sidebar-btn ${isActive("/inventory") ? "active" : ""} ${!canViewInventory ? "disabled" : ""}`}
+            >
+              Inventario
             </button>
 
             <button

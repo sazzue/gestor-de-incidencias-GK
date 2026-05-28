@@ -49,6 +49,14 @@ const buildObjectKey = ({ incidentId, originalName }) => {
   return `incidents/${incidentId}/${Date.now()}-${random}-${safeName}`;
 };
 
+const buildInventoryObjectKey = ({ inventoryId, originalName }) => {
+  const extension = path.extname(originalName || "").toLowerCase();
+  const safeName = sanitizeFileName(originalName || `factura${extension}`);
+  const random = crypto.randomBytes(8).toString("hex");
+
+  return `inventory/${inventoryId}/${Date.now()}-${random}-${safeName}`;
+};
+
 const uploadIncidentFile = async ({ incidentId, file, uploadedBy }) => {
   const key = buildObjectKey({ incidentId, originalName: file.originalname });
 
@@ -85,6 +93,42 @@ const getIncidentFileUrl = ({ key, expiresIn = 300 }) =>
     { expiresIn }
   );
 
+const uploadInventoryInvoice = async ({ inventoryId, file, uploadedBy }) => {
+  const key = buildInventoryObjectKey({ inventoryId, originalName: file.originalname });
+
+  await getR2Client().send(
+    new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME.trim(),
+      Key: key,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+      Metadata: {
+        originalName: sanitizeFileName(file.originalname),
+        uploadedBy: String(uploadedBy || ""),
+      },
+    })
+  );
+
+  return {
+    key,
+    originalName: file.originalname,
+    mimeType: file.mimetype,
+    size: file.size,
+    uploadedBy,
+    uploadedAt: new Date(),
+  };
+};
+
+const getInventoryInvoiceUrl = ({ key, expiresIn = 300 }) =>
+  getSignedUrl(
+    getR2Client(),
+    new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME.trim(),
+      Key: key,
+    }),
+    { expiresIn }
+  );
+
 const deleteIncidentFile = ({ key }) =>
   getR2Client().send(
     new DeleteObjectCommand({
@@ -95,7 +139,9 @@ const deleteIncidentFile = ({ key }) =>
 
 module.exports = {
   deleteIncidentFile,
+  getInventoryInvoiceUrl,
   getIncidentFileUrl,
   isR2Configured,
   uploadIncidentFile,
+  uploadInventoryInvoice,
 };

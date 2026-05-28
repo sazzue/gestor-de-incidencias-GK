@@ -15,6 +15,10 @@ const USER_PERMISSIONS = [
   { value: "VIEW_MAINTENANCE_ALL", label: "Ver mantenimientos: todos" },
   { value: "VIEW_MAINTENANCE_DEPARTMENT", label: "Ver mantenimientos: su departamento" },
   { value: "VIEW_MAINTENANCE_BRANCH", label: "Ver mantenimientos: sus sucursales" },
+  { value: "CREATE_INVENTORY", label: "Crear equipos de inventario" },
+  { value: "VIEW_INVENTORY_ALL", label: "Ver inventario: todo" },
+  { value: "VIEW_INVENTORY_BRANCH", label: "Ver inventario: sus sucursales" },
+  { value: "DISPOSE_INVENTORY", label: "Dar de baja equipos" },
 ];
 
 function CreateUser() {

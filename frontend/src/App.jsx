@@ -6,6 +6,7 @@ import Dashboard           from "./pages/Dashboard.jsx";
 import CreateIncidencia    from "./pages/CreateIncidencia.jsx";
 import Incidents           from "./pages/Incidents.jsx";
 import MaintenanceCalendar from "./pages/MaintenanceCalendar.jsx";
+import Inventory           from "./pages/Inventory.jsx";
 import CreateUser          from "./pages/CreateUser.jsx";
 import Info                from "./pages/Info.jsx";
 import SystemSettings      from "./pages/SystemSettings.jsx";
@@ -52,6 +53,12 @@ function App() {
         <Route path="/maintenance" element={
           <PrivateRoute>
             <Layout><MaintenanceCalendar /></Layout>
+          </PrivateRoute>
+        } />
+
+        <Route path="/inventory" element={
+          <PrivateRoute>
+            <Layout><Inventory /></Layout>
           </PrivateRoute>
         } />
 
