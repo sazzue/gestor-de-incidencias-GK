@@ -129,6 +129,17 @@ const getInventoryInvoiceUrl = ({ key, expiresIn = 300 }) =>
     { expiresIn }
   );
 
+const getR2ObjectStream = async ({ key }) => {
+  const result = await getR2Client().send(
+    new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME.trim(),
+      Key: key,
+    })
+  );
+
+  return result.Body;
+};
+
 const deleteIncidentFile = ({ key }) =>
   getR2Client().send(
     new DeleteObjectCommand({
@@ -141,6 +152,7 @@ module.exports = {
   deleteIncidentFile,
   getInventoryInvoiceUrl,
   getIncidentFileUrl,
+  getR2ObjectStream,
   isR2Configured,
   uploadIncidentFile,
   uploadInventoryInvoice,

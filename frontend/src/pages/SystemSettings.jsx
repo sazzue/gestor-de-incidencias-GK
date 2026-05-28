@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_SETTINGS, applySystemTheme, cacheSystemSettings, useSystemSettings } from "../hooks/useSystemSettings";
 
@@ -26,11 +26,20 @@ const toColorInputValue = (value, fallback) => (
   /^#[0-9a-fA-F]{6}$/.test(value || "") ? value : fallback
 );
 
+const formatBytes = (bytes = 0) => {
+  if (!bytes) return "0 MB";
+  const gb = bytes / 1024 / 1024 / 1024;
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+};
+
 function SystemSettings() {
   const navigate = useNavigate();
   const { settings } = useSystemSettings();
   const [form, setForm] = useState(DEFAULT_SETTINGS);
   const [message, setMessage] = useState(null);
+  const [storage, setStorage] = useState(null);
+  const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
   const token = localStorage.getItem("token");
 
   useEffect(() => {
@@ -46,6 +55,69 @@ function SystemSettings() {
   const resetDefaults = () => {
     setForm(DEFAULT_SETTINGS);
     applySystemTheme(DEFAULT_SETTINGS);
+  };
+
+  const fetchStorageUsage = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/storage/usage`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) setStorage(data);
+    } catch {
+      setStorage(null);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchStorageUsage();
+  }, [fetchStorageUsage, token]);
+
+  const downloadBackup = async () => {
+    setMessage(null);
+
+    try {
+      setIsDownloadingBackup(true);
+      const res = await fetch(`${API_URL}/api/storage/backup.zip`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setMessage({
+          type: "error",
+          title: data.msg || "No se pudo generar el respaldo",
+          detail: data.error || `Error ${res.status}`,
+        });
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const date = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `respaldo-r2-${date}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      await fetchStorageUsage();
+      setMessage({
+        type: "success",
+        title: "Respaldo generado",
+        detail: "El ZIP se descargó correctamente.",
+      });
+    } catch {
+      setMessage({
+        type: "error",
+        title: "Error de conexión",
+        detail: "No se pudo generar el respaldo.",
+      });
+    } finally {
+      setIsDownloadingBackup(false);
+    }
   };
 
   const uploadImage = async (field, file) => {
@@ -258,6 +330,60 @@ function SystemSettings() {
             </div>
           </div>
         </section>
+
+        <section className="panel wide">
+          <div className="storage-header">
+            <div>
+              <h3>Respaldos de R2</h3>
+              <p>Exporta adjuntos de incidencias y facturas de inventario cuando el uso llegue al limite configurado.</p>
+            </div>
+            <button className="btn-cancel" onClick={fetchStorageUsage}>
+              Actualizar uso
+            </button>
+          </div>
+
+          <div className="storage-grid">
+            <div className="storage-stat">
+              <span>Uso actual</span>
+              <strong>{formatBytes(storage?.usageBytes)}</strong>
+            </div>
+            <div className="storage-stat">
+              <span>Limite configurado</span>
+              <strong>{formatBytes(storage?.limitBytes)}</strong>
+            </div>
+            <div className="storage-stat">
+              <span>Documentos</span>
+              <strong>{storage?.documentsCount ?? 0}</strong>
+            </div>
+            <div className="storage-stat">
+              <span>Uso</span>
+              <strong>{Number(storage?.usagePercent || 0).toFixed(1)}%</strong>
+            </div>
+          </div>
+
+          <div className="storage-bar">
+            <span style={{ width: `${Math.min(Number(storage?.usagePercent || 0), 100)}%` }} />
+          </div>
+
+          <div className="storage-actions">
+            <p>
+              Incidencias: {storage?.incidentFilesCount ?? 0} archivos | Inventario: {storage?.inventoryInvoicesCount ?? 0} facturas
+            </p>
+            <button
+              className="btn-submit"
+              disabled={!storage?.isAtLimit || isDownloadingBackup}
+              onClick={downloadBackup}
+            >
+              {isDownloadingBackup ? "Generando ZIP..." : "Descargar respaldo ZIP"}
+            </button>
+          </div>
+
+          {!storage?.isAtLimit && (
+            <p className="storage-note">
+              El boton se habilita cuando el uso llegue al limite definido en R2_STORAGE_LIMIT_GB.
+            </p>
+          )}
+        </section>
       </div>
 
       <div className="actions-bar">
@@ -298,6 +424,18 @@ function SystemSettings() {
         .preview p { color: var(--app-text); font-size: 13px; line-height: 1.5; }
         .preview input { margin-top: 12px; }
         .textarea-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .storage-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 16px; text-align: left; }
+        .storage-header p, .storage-actions p, .storage-note { color: var(--app-text); opacity: 0.7; font-size: 13px; margin: 0; }
+        .storage-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        .storage-stat { border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px; background: rgba(255,255,255,0.03); text-align: left; }
+        .storage-stat span { display: block; color: var(--app-text); opacity: 0.65; font-size: 12px; margin-bottom: 6px; }
+        .storage-stat strong { color: var(--app-title); font-size: 20px; }
+        .storage-bar { height: 10px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.08); margin: 16px 0; }
+        .storage-bar span { display: block; height: 100%; background: var(--app-accent); }
+        .storage-actions { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+        .storage-actions .btn-submit { width: auto; }
+        .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+        .storage-note { margin-top: 12px; text-align: left; }
         .image-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
         .image-picker { display: flex; flex-direction: column; gap: 10px; text-align: left; }
         .image-picker > label { font-size: 12px; color: var(--app-text); opacity: 0.75; }
@@ -342,9 +480,9 @@ function SystemSettings() {
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
         .notice span { color: var(--app-text); }
         @media (max-width: 900px) {
-          .settings-grid, .textarea-grid, .image-grid { grid-template-columns: 1fr; }
+          .settings-grid, .textarea-grid, .image-grid, .storage-grid { grid-template-columns: 1fr; }
           .color-row { grid-template-columns: 1fr; }
-          .actions-bar { flex-direction: column; }
+          .actions-bar, .storage-actions, .storage-header { flex-direction: column; }
         }
       `}</style>
     </div>

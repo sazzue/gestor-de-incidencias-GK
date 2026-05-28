@@ -21,6 +21,7 @@ app.use("/api/maintenance", require("./routes/maintenance"));
 app.use("/api/inventory", require("./routes/inventory"));
 app.use("/api/departments", require("./routes/departments"));
 app.use("/api/settings", require("./routes/settings"));
+app.use("/api/storage", require("./routes/storage"));
 
 app.use((req, res, next) => {
   res.setHeader(
