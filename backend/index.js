@@ -41,6 +41,10 @@ app.use("/api/departments", require("./routes/departments"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/storage", require("./routes/storage"));
 
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, service: "gestor-incidencias-api" });
+});
+
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
@@ -53,6 +57,26 @@ app.use((req, res, next) => {
     `
   );
   next();
+});
+
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    msg: "Ruta de API no encontrada",
+    path: req.originalUrl,
+  });
+});
+
+app.use((error, req, res, next) => {
+  console.error("API error:", error);
+
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  res.status(error.status || 500).json({
+    msg: "Error interno del servidor",
+    error: process.env.NODE_ENV === "production" ? undefined : error.message,
+  });
 });
 
 // 🔌 CONEXIÓN A MONGO

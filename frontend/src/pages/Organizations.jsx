@@ -22,6 +22,21 @@ const buildSlug = (value = "") =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+const readApiResponse = async (res) => {
+  const text = await res.text();
+
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    const preview = text.replace(/\s+/g, " ").trim().slice(0, 120);
+    throw new Error(
+      preview.startsWith("<!DOCTYPE")
+        ? "El servidor devolvio HTML en lugar de JSON. Revisa que el backend este desplegado y que VITE_API_URL apunte al backend correcto."
+        : `Respuesta invalida del servidor: ${preview || "sin contenido"}`
+    );
+  }
+};
+
 function Organizations() {
   const [organizations, setOrganizations] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -39,7 +54,7 @@ function Organizations() {
     try {
       setLoading(true);
       const res = await fetch(`${API_URL}/api/organizations`, { headers });
-      const data = await res.json();
+      const data = await readApiResponse(res);
 
       if (!res.ok) {
         setMessage({ type: "error", title: data.msg || "No se pudieron cargar empresas" });
@@ -49,7 +64,7 @@ function Organizations() {
       setOrganizations(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error cargando empresas:", error);
-      setMessage({ type: "error", title: "Error de conexion" });
+      setMessage({ type: "error", title: error.message || "Error de conexion" });
     } finally {
       setLoading(false);
     }
@@ -106,7 +121,7 @@ function Organizations() {
           owner,
         }),
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
 
       if (!res.ok) {
         setMessage({ type: "error", title: data.msg || "No se pudo crear la empresa" });
@@ -118,7 +133,7 @@ function Organizations() {
       await loadOrganizations();
     } catch (error) {
       console.error("Error creando empresa:", error);
-      setMessage({ type: "error", title: "Error de conexion" });
+      setMessage({ type: "error", title: error.message || "Error de conexion" });
     } finally {
       setSaving(false);
     }
@@ -131,7 +146,7 @@ function Organizations() {
         headers,
         body: JSON.stringify({ [field]: value }),
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
 
       if (!res.ok) {
         setMessage({ type: "error", title: data.msg || "No se pudo actualizar la empresa" });
@@ -142,7 +157,7 @@ function Organizations() {
       setMessage({ type: "success", title: "Empresa actualizada" });
     } catch (error) {
       console.error("Error actualizando empresa:", error);
-      setMessage({ type: "error", title: "Error de conexion" });
+      setMessage({ type: "error", title: error.message || "Error de conexion" });
     }
   };
 
