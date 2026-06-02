@@ -385,6 +385,38 @@ function Organizations() {
         )}
       </section>
 
+      <section className="pricing-reference">
+        <div className="table-header">
+          <h2>Referencia de precios</h2>
+          <span>MXN</span>
+        </div>
+        <div className="pricing-grid">
+          <div>
+            <h3>Planes mensuales</h3>
+            <p><b>Basic:</b> $799 / mes</p>
+            <p><b>Pro:</b> $1,899 / mes</p>
+            <p><b>Enterprise:</b> desde $4,999 / mes</p>
+          </div>
+          <div>
+            <h3>Planes anuales</h3>
+            <p><b>Basic:</b> $7,990 / ano</p>
+            <p><b>Pro:</b> $18,990 / ano</p>
+            <p><b>Enterprise:</b> cotizacion</p>
+          </div>
+          <div>
+            <h3>Adicionales mensuales</h3>
+            <p><b>Usuario extra:</b> $99 / mes</p>
+            <p><b>Sucursal extra:</b> $199 / mes</p>
+            <p><b>GB extra:</b> $149 / mes</p>
+          </div>
+          <div>
+            <h3>Servicios unicos</h3>
+            <p><b>Implementacion:</b> $2,500 - $8,000</p>
+            <p><b>Capacitacion:</b> $1,500 - $3,000</p>
+          </div>
+        </div>
+      </section>
+
       <style>{`
         .organizations-page {
           min-height: 100vh;
@@ -421,7 +453,8 @@ function Organizations() {
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
 
         .panel,
-        .table-panel {
+        .table-panel,
+        .pricing-reference {
           border: 1px solid rgba(255,255,255,0.08);
           background: color-mix(in srgb, var(--app-card) 88%, transparent);
           border-radius: 8px;
@@ -472,6 +505,32 @@ function Organizations() {
           align-items: center;
           justify-content: space-between;
           margin-bottom: 12px;
+        }
+
+        .pricing-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .pricing-grid div {
+          padding: 14px;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 8px;
+          background: rgba(255,255,255,0.03);
+        }
+
+        .pricing-grid h3 {
+          margin: 0 0 10px;
+          color: var(--app-title);
+          font-size: 14px;
+        }
+
+        .pricing-grid p {
+          margin: 6px 0;
+          color: var(--app-text);
+          font-size: 13px;
+          opacity: 0.86;
         }
 
         .table-header span,
@@ -625,11 +684,13 @@ function Organizations() {
 
         @media (max-width: 1100px) {
           .company-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .pricing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
 
         @media (max-width: 640px) {
           .organizations-page { padding: 16px; }
           .company-form { grid-template-columns: 1fr; }
+          .pricing-grid { grid-template-columns: 1fr; }
         }
       `}</style>
     </div>
