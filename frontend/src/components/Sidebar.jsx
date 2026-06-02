@@ -60,6 +60,7 @@ function Sidebar() {
     hasPermission("VIEW_INCIDENTS_DEPARTMENT") ||
     hasPermission("VIEW_INCIDENTS_BRANCH");
   const canAccessUsers = hasPermission("CREATE_USERS");
+  const canAccessCatalogs = user?.role === "admin";
   const canAccessSettings = Boolean(user?.isPlatformAdmin);
   const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
   const canViewMaintenance =
@@ -142,6 +143,15 @@ function Sidebar() {
             >
               Usuarios
             </button>
+
+            {canAccessCatalogs && (
+              <button
+                onClick={() => navigate("/catalogs")}
+                className={`sidebar-btn ${isActive("/catalogs") ? "active" : ""}`}
+              >
+                Catalogos
+              </button>
+            )}
 
             {canAccessSettings && (
               <button

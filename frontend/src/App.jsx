@@ -11,6 +11,7 @@ import CreateUser          from "./pages/CreateUser.jsx";
 import Info                from "./pages/Info.jsx";
 import SystemSettings      from "./pages/SystemSettings.jsx";
 import Organizations       from "./pages/Organizations.jsx";
+import Catalogs            from "./pages/Catalogs.jsx";
 import ForgotPassword      from "./pages/ForgotPassword.jsx";
 import ResetPassword       from "./pages/ResetPassword.jsx";
 import ChangePassword      from "./pages/ChangePassword.jsx";
@@ -66,6 +67,12 @@ function App() {
         <Route path="/users" element={
           <PrivateRoute>
             <Layout><CreateUser /></Layout>
+          </PrivateRoute>
+        } />
+
+        <Route path="/catalogs" element={
+          <PrivateRoute>
+            <Layout><Catalogs /></Layout>
           </PrivateRoute>
         } />
 

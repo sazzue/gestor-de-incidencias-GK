@@ -1,87 +1,102 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { ROLES } from "../config/roles";
 
 const API_URL = import.meta.env.VITE_API_URL;
+
 const USER_PERMISSIONS = [
   { value: "CREATE_USERS", label: "Crear usuarios" },
   { value: "CREATE_INCIDENT", label: "Crear solicitud" },
   { value: "VIEW_INCIDENTS_ALL", label: "Ver incidencias: todas" },
-  { value: "VIEW_INCIDENTS_DEPARTMENT", label: "Ver incidencias: su departamento" },
-  { value: "VIEW_INCIDENTS_BRANCH", label: "Ver incidencias: sus sucursales" },
+  { value: "VIEW_INCIDENTS_DEPARTMENT", label: "Ver incidencias: departamento" },
+  { value: "VIEW_INCIDENTS_BRANCH", label: "Ver incidencias: sucursales" },
   { value: "CREATE_MAINTENANCE", label: "Crear mantenimientos" },
   { value: "CONFIRM_MAINTENANCE", label: "Confirmar mantenimientos" },
   { value: "VIEW_MAINTENANCE_ALL", label: "Ver mantenimientos: todos" },
-  { value: "VIEW_MAINTENANCE_DEPARTMENT", label: "Ver mantenimientos: su departamento" },
-  { value: "VIEW_MAINTENANCE_BRANCH", label: "Ver mantenimientos: sus sucursales" },
-  { value: "CREATE_INVENTORY", label: "Crear equipos de inventario" },
+  { value: "VIEW_MAINTENANCE_DEPARTMENT", label: "Ver mantenimientos: departamento" },
+  { value: "VIEW_MAINTENANCE_BRANCH", label: "Ver mantenimientos: sucursales" },
+  { value: "CREATE_INVENTORY", label: "Crear inventario" },
   { value: "VIEW_INVENTORY_ALL", label: "Ver inventario: todo" },
-  { value: "VIEW_INVENTORY_DEPARTMENT", label: "Ver inventario: su departamento" },
-  { value: "VIEW_INVENTORY_BRANCH", label: "Ver inventario: sus sucursales" },
+  { value: "VIEW_INVENTORY_DEPARTMENT", label: "Ver inventario: departamento" },
+  { value: "VIEW_INVENTORY_BRANCH", label: "Ver inventario: sucursales" },
   { value: "DISPOSE_INVENTORY", label: "Dar de baja equipos" },
 ];
+
+const EMPTY_FORM = {
+  nombre: "",
+  username: "",
+  email: "",
+  password: "",
+  role: "",
+  department: "",
+  branches: [],
+  permissions: [],
+};
 
 function CreateUser() {
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [branches, setBranches] = useState([]);
   const [users, setUsers] = useState([]);
-
-  const [nombre, setNombre] = useState("");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("");
-  const [department, setDepartment] = useState("");
-  const [selectedBranches, setSelectedBranches] = useState([]);
-  const [permissions, setPermissions] = useState([]);
-  const [newDepartment, setNewDepartment] = useState("");
-  const [newBranch, setNewBranch] = useState("");
+  const [form, setForm] = useState(EMPTY_FORM);
   const [message, setMessage] = useState(null);
-
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [editPermissions, setEditPermissions] = useState([]);
-  const [editBranches, setEditBranches] = useState([]);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const currentUser = token ? jwtDecode(token) : null;
   const headers = { Authorization: `Bearer ${token}` };
 
-  function fetchDepartments() {
-    fetch(`${API_URL}/api/departments`, { headers })
-      .then((r) => r.json())
-      .then((d) => setDepartments(Array.isArray(d) ? d : []))
-      .catch(() => setDepartments([]));
-  }
+  const updateForm = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
-  function fetchBranches() {
-    fetch(`${API_URL}/api/branches`, { headers })
-      .then((r) => r.json())
-      .then((d) => setBranches(Array.isArray(d) ? d : []))
-      .catch(() => setBranches([]));
-  }
+  const toggleListItem = (items, item) =>
+    items.includes(item) ? items.filter((value) => value !== item) : [...items, item];
 
-  function fetchUsers() {
-    fetch(`${API_URL}/api/users`, { headers })
-      .then((r) => r.json())
-      .then((d) => setUsers(Array.isArray(d) ? d : []))
-      .catch(() => setUsers([]));
-  }
+  const togglePermission = (list, permission) => toggleListItem(list, permission);
+
+  const getRolePermissions = (roleName) =>
+    roleName === "admin" && Array.isArray(ROLES[roleName]) ? ROLES[roleName] : [];
+
+  const getUserBranches = (user) => {
+    if (Array.isArray(user?.branches) && user.branches.length > 0) {
+      return user.branches.map((item) => item?._id || item).filter(Boolean);
+    }
+
+    const singleBranch = user?.branch?._id || user?.branch;
+    return singleBranch ? [singleBranch] : [];
+  };
+
+  const fetchJson = async (path) => {
+    const res = await fetch(`${API_URL}${path}`, { headers });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.msg || `Error ${res.status}`);
+    return data;
+  };
+
+  const fetchData = async () => {
+    try {
+      const [rolesData, departmentsData, branchesData, usersData] = await Promise.all([
+        fetchJson("/api/roles"),
+        fetchJson("/api/departments"),
+        fetchJson("/api/branches"),
+        fetchJson("/api/users"),
+      ]);
+
+      setRoles(Array.isArray(rolesData) ? rolesData : []);
+      setDepartments(Array.isArray(departmentsData) ? departmentsData : []);
+      setBranches(Array.isArray(branchesData) ? branchesData : []);
+      setUsers(Array.isArray(usersData) ? usersData : []);
+    } catch (error) {
+      setMessage({ type: "error", title: "No se pudieron cargar los datos", detail: error.message });
+    }
+  };
 
   useEffect(() => {
-    fetch(`${API_URL}/api/roles`, { headers })
-      .then((r) => r.json()).then((d) => setRoles(Array.isArray(d) ? d : [])).catch(() => setRoles([]));
-
-    fetchDepartments();
-
-    fetchBranches();
-
-    fetchUsers();
+    fetchData();
   }, []);
 
   const refreshSession = async () => {
@@ -90,7 +105,6 @@ function CreateUser() {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       const data = await res.json();
-
       if (!res.ok) return;
 
       localStorage.setItem("token", data.token);
@@ -98,245 +112,106 @@ function CreateUser() {
       window.dispatchEvent(new Event("auth-updated"));
       window.dispatchEvent(new Event("auth-refresh"));
     } catch (error) {
-      console.error("Error actualizando sesión:", error);
+      console.error("Error actualizando sesion:", error);
     }
   };
 
-  const togglePermission = (permissions, permission) => {
-    return permissions.includes(permission)
-      ? permissions.filter((item) => item !== permission)
-      : [...permissions, permission];
-  };
+  const resetForm = () => setForm(EMPTY_FORM);
 
-  const toggleListItem = (items, item) => {
-    return items.includes(item)
-      ? items.filter((value) => value !== item)
-      : [...items, item];
-  };
-
-  const getUserBranches = (user) => {
-    if (Array.isArray(user?.branches) && user.branches.length > 0) {
-      return user.branches
-        .map((item) => item?._id || item)
-        .filter(Boolean);
-    }
-
-    const singleBranch = user?.branch?._id || user?.branch;
-    return singleBranch ? [singleBranch] : [];
-  };
-
-  const getRolePermissions = (roleName) => {
-    return roleName === "admin" && Array.isArray(ROLES[roleName])
-      ? ROLES[roleName]
-      : [];
-  };
-
-  const getEffectivePermissions = (user) => {
-    if (user?.role === "admin") {
-      return getRolePermissions(user.role);
-    }
-
-    return Array.isArray(user?.permissions) ? user.permissions : [];
-  };
-
-  const openEditModal = (user) => {
-    const directPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
-    setEditingUser({ ...user, permissions: directPermissions });
-    setEditPermissions(directPermissions);
-    setEditBranches(getUserBranches(user));
-    setShowEditModal(true);
-  };
-
-  const handleCreateDepartment = async () => {
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setMessage(null);
-    if (!newDepartment.trim()) {
-      setMessage({
-        type: "error",
-        title: "Falta nombre del departamento",
-        detail: "El campo Nuevo departamento es obligatorio."
-      });
-      return;
-    }
 
-    const res = await fetch(`${API_URL}/api/departments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({
-        name: newDepartment,
-        permissions: []
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setMessage({
-        type: "error",
-        title: data.msg || "No se pudo crear el departamento",
-        detail: data.error || `Error ${res.status}`
-      });
-      return;
-    }
-    setDepartments((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewDepartment("");
-    await refreshSession();
-    setMessage({
-      type: "success",
-      title: "Departamento creado correctamente",
-      detail: `Se agregó ${data.name}.`
-    });
-  };
-
-  const handleDeleteDepartment = async (item) => {
-    if (!confirm(`Eliminar departamento "${item.name}"?`)) return;
-    const res = await fetch(`${API_URL}/api/departments/${item._id}`, {
-      method: "DELETE",
-      headers,
-    });
-    const data = await res.json();
-    if (!res.ok) return alert(data.msg || "Error");
-    setDepartments((prev) => prev.filter((d) => d._id !== item._id));
-    await refreshSession();
-  };
-
-  const handleCreateBranch = async () => {
-    setMessage(null);
-    if (!newBranch.trim()) {
-      setMessage({
-        type: "error",
-        title: "Falta nombre de la sucursal",
-        detail: "El campo Nueva sucursal es obligatorio."
-      });
-      return;
-    }
-
-    const res = await fetch(`${API_URL}/api/branches`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ name: newBranch }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setMessage({
-        type: "error",
-        title: data.msg || "No se pudo crear la sucursal",
-        detail: data.error || `Error ${res.status}`
-      });
-      return;
-    }
-    setBranches((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewBranch("");
-    await refreshSession();
-    setMessage({
-      type: "success",
-      title: "Sucursal creada correctamente",
-      detail: `Se agregó ${data.name}.`
-    });
-  };
-
-  const handleDeleteBranch = async (item) => {
-    if (!confirm(`Eliminar sucursal "${item.name}"?`)) return;
-
-    const res = await fetch(`${API_URL}/api/branches/${item._id}`, {
-      method: "DELETE",
-      headers,
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setMessage({
-        type: "error",
-        title: data.msg || "No se pudo eliminar la sucursal",
-        detail: data.error || `Error ${res.status}`
-      });
-      return;
-    }
-    setBranches((prev) => prev.filter((b) => b._id !== item._id));
-    setSelectedBranches((prev) => prev.filter((id) => id !== item._id));
-    setEditBranches((prev) => prev.filter((id) => id !== item._id));
-    fetchUsers();
-    await refreshSession();
-    setMessage({
-      type: "success",
-      title: "Sucursal eliminada correctamente",
-      detail: `${item.name} ya no aparece en las listas de selección.`
-    });
-  };
-
-  const handleSubmit = async () => {
-    setMessage(null);
-    if (!nombre.trim() || !email.trim() || !password || !role) {
+    if (!form.nombre.trim() || !form.email.trim() || !form.password || !form.role) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Nombre, email, contraseña y rol son obligatorios."
+        detail: "Nombre, email, contrasena y rol son obligatorios.",
       });
       return;
     }
 
-    if (role === "departamento" && !department) {
+    if (form.role === "departamento" && !form.department) {
       setMessage({
         type: "error",
         title: "Falta departamento",
-        detail: "Para el rol departamento debes seleccionar un departamento."
+        detail: "Para el rol departamento debes seleccionar un departamento.",
       });
       return;
     }
 
-    const res = await fetch(`${API_URL}/api/users`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ nombre, username, email, password, role, department, branches: selectedBranches, permissions }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setMessage({
-        type: "error",
-        title: data.msg || "No se pudo crear el usuario",
-        detail: data.error || `Error ${res.status}`
+    try {
+      const res = await fetch(`${API_URL}/api/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({
+          nombre: form.nombre,
+          username: form.username,
+          email: form.email,
+          password: form.password,
+          role: form.role,
+          department: form.department,
+          branches: form.branches,
+          permissions: form.permissions,
+        }),
       });
-      return;
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({ type: "error", title: data.msg || "No se pudo crear el usuario", detail: data.error || `Error ${res.status}` });
+        return;
+      }
+
+      setUsers((prev) => [data, ...prev]);
+      resetForm();
+      await refreshSession();
+      setMessage({ type: "success", title: "Usuario creado correctamente", detail: `${data.nombre} ya puede iniciar sesion.` });
+    } catch (error) {
+      setMessage({ type: "error", title: "Error de conexion", detail: error.message });
     }
-    setUsers((prev) => [data, ...prev]);
-    setNombre(""); setUsername(""); setEmail(""); setPassword(""); setRole(""); setDepartment(""); setSelectedBranches([]); setPermissions([]);
-    await refreshSession();
-    setMessage({
-      type: "success",
-      title: "Usuario creado correctamente",
-      detail: `${data.nombre} ya puede iniciar sesión.`
-    });
   };
 
   const confirmDelete = async () => {
     if (!userToDelete?._id) return;
+
     const res = await fetch(`${API_URL}/api/users/${userToDelete._id}`, { method: "DELETE", headers });
     const data = await res.json();
+
     if (!res.ok) {
-      setMessage({
-        type: "error",
-        title: data.msg || "No se pudo eliminar el usuario",
-        detail: data.error || `Error ${res.status}`
-      });
+      setMessage({ type: "error", title: data.msg || "No se pudo eliminar el usuario", detail: data.error || `Error ${res.status}` });
       return;
     }
-    setUsers((prev) => prev.filter((u) => u?._id !== userToDelete._id));
+
+    setUsers((prev) => prev.filter((user) => user?._id !== userToDelete._id));
     setUserToDelete(null);
-    setShowDeleteModal(false);
     await refreshSession();
+  };
+
+  const openEditModal = (user) => {
+    setEditingUser({
+      ...user,
+      branches: getUserBranches(user),
+      permissions: Array.isArray(user?.permissions) ? user.permissions : [],
+    });
+  };
+
+  const updateEditingUser = (field, value) => {
+    setEditingUser((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleUpdateUser = async () => {
     if (!editingUser?._id) return;
     setMessage(null);
+
     const payload = {
       nombre: editingUser.nombre || "",
       username: editingUser.username || "",
       email: editingUser.email || "",
       role: editingUser.role || "",
       department: editingUser.department || "",
-      branch: editBranches[0] || null,
-      branches: editBranches,
-      permissions:
-        editingUser.role === "admin"
-          ? []
-          : editPermissions,
+      branch: editingUser.branches?.[0] || null,
+      branches: editingUser.branches || [],
+      permissions: editingUser.role === "admin" ? [] : editingUser.permissions || [],
     };
 
     const res = await fetch(`${API_URL}/api/users/${editingUser._id}`, {
@@ -345,35 +220,22 @@ function CreateUser() {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
+
     if (!res.ok) {
-      setMessage({
-        type: "error",
-        title: data.msg || "No se pudo actualizar el usuario",
-        detail: data.error || `Error ${res.status}`
-      });
+      setMessage({ type: "error", title: data.msg || "No se pudo actualizar el usuario", detail: data.error || `Error ${res.status}` });
       return;
     }
-    setUsers((prev) => prev.map((u) => (u?._id === data?._id ? data : u)));
-    fetchUsers();
+
+    setUsers((prev) => prev.map((user) => (user?._id === data?._id ? data : user)));
     setEditingUser(null);
-    setEditPermissions([]);
-    setEditBranches([]);
-    setShowEditModal(false);
     await refreshSession();
-    setMessage({
-      type: "success",
-      title: "Usuario actualizado correctamente",
-      detail: "Los permisos se actualizarán automáticamente en la sesión activa."
-    });
+    setMessage({ type: "success", title: "Usuario actualizado correctamente", detail: "Los cambios ya quedaron guardados." });
   };
 
-  if (
-    currentUser?.role !== "admin" &&
-    !currentUser?.permissions?.includes("CREATE_USERS")
-  ) {
+  if (currentUser?.role !== "admin" && !currentUser?.permissions?.includes("CREATE_USERS")) {
     return (
-      <div className="page">
-        <div className="form-card">
+      <div className="users-page">
+        <div className="empty-panel">
           <h3>Sin acceso</h3>
           <p>No tienes permisos para crear usuarios.</p>
         </div>
@@ -381,17 +243,54 @@ function CreateUser() {
     );
   }
 
-  return (
-    <div className="page">
+  const renderBranchCheckboxes = (selected, onChange) => (
+    <div className="option-grid">
+      {branches.map((branch) => (
+        <label key={branch._id} className="option-row">
+          <input
+            type="checkbox"
+            checked={selected.includes(branch._id)}
+            onChange={() => onChange(toggleListItem(selected, branch._id))}
+          />
+          <span>{branch.name}</span>
+        </label>
+      ))}
+    </div>
+  );
 
+  const renderPermissionCheckboxes = ({ selected, roleName, onChange }) => (
+    <div className="permissions-grid">
+      {USER_PERMISSIONS.map((permission) => {
+        const inherited = roleName === "admin" && getRolePermissions(roleName).includes(permission.value);
+        const checked = inherited || selected.includes(permission.value);
+
+        return (
+          <label key={permission.value} className="option-row">
+            <input
+              type="checkbox"
+              checked={checked}
+              disabled={inherited}
+              onChange={() => onChange(togglePermission(selected, permission.value))}
+            />
+            <span>{permission.label}</span>
+            {inherited && <small>Rol</small>}
+          </label>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div className="users-page">
       <div className="page-header">
         <div>
-          <h1>👥 Usuarios</h1>
-          <p>Gestión de usuarios del sistema</p>
+          <h1>Usuarios</h1>
+          <p>Crear usuarios, asignar sucursales y configurar permisos.</p>
         </div>
-        <button className="btn-back" onClick={() => navigate("/dashboard")}>
-          ← Volver
-        </button>
+        <div className="header-actions">
+          <button className="ghost-btn" onClick={() => navigate("/catalogs")}>Catalogos</button>
+          <button className="ghost-btn" onClick={() => navigate("/dashboard")}>Volver</button>
+        </div>
       </div>
 
       {message && (
@@ -401,597 +300,221 @@ function CreateUser() {
         </div>
       )}
 
-      <div className="layout-two-col">
-
-        {/* FORMULARIO */}
-        <div className="form-card">
-          <h3>Crear usuario</h3>
-
-          <div className="form-group">
-            <label>Nombre</label>
-            <input placeholder="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      <div className="users-layout">
+        <form className="panel user-form" onSubmit={handleSubmit}>
+          <div className="panel-title">
+            <div>
+              <h2>Nuevo usuario</h2>
+              <p>Datos de acceso y alcance operativo.</p>
+            </div>
           </div>
 
-          <div className="form-group">
-            <label>Usuario</label>
-            <input placeholder="usuario" value={username} onChange={(e) => setUsername(e.target.value)} />
-          </div>
-
-          <div className="form-group">
-            <label>Email</label>
-            <input placeholder="correo@empresa.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-
-          <div className="form-group">
-            <label>Contraseña</label>
-            <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-
-          <div className="form-group">
-            <label>Rol</label>
-            <select value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="">Selecciona rol</option>
-              {roles.map((r, i) => (
-                <option key={r?._id || i} value={r?.name}>{r?.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {role === "departamento" && (
-            <div className="form-group">
-              <label>Departamento</label>
-              <select value={department} onChange={(e) => setDepartment(e.target.value)}>
-                <option value="">Seleccionar departamento</option>
-                {departments.map((d, i) => (
-                  <option key={d?._id || i} value={d?.name}>{d?.name}</option>
-                ))}
+          <div className="field-grid">
+            <label>
+              Nombre
+              <input value={form.nombre} onChange={(e) => updateForm("nombre", e.target.value)} placeholder="Nombre completo" />
+            </label>
+            <label>
+              Usuario
+              <input value={form.username} onChange={(e) => updateForm("username", e.target.value)} placeholder="usuario" />
+            </label>
+            <label>
+              Email
+              <input value={form.email} onChange={(e) => updateForm("email", e.target.value)} placeholder="correo@empresa.com" />
+            </label>
+            <label>
+              Contrasena
+              <input type="password" value={form.password} onChange={(e) => updateForm("password", e.target.value)} placeholder="Temporal" />
+            </label>
+            <label>
+              Rol
+              <select value={form.role} onChange={(e) => updateForm("role", e.target.value)}>
+                <option value="">Selecciona rol</option>
+                {roles.map((roleItem) => <option key={roleItem._id || roleItem.name} value={roleItem.name}>{roleItem.name}</option>)}
               </select>
-            </div>
-          )}
-
-          <div className="form-group">
-            <label>Sucursales asignadas</label>
-            <div className="checkbox-grid">
-              {branches.map((b, i) => (
-                <label key={b?._id || i} className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={selectedBranches.includes(b?._id)}
-                    onChange={() =>
-                      setSelectedBranches((prev) => toggleListItem(prev, b?._id))
-                    }
-                  />
-                  {b?.name}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="permissions-list">
-            <label>Permisos del usuario</label>
-            {USER_PERMISSIONS.map((permission) => (
-              <label key={permission.value} className="check-row">
-                <input
-                  type="checkbox"
-                  checked={permissions.includes(permission.value)}
-                  onChange={() =>
-                    setPermissions((prev) => togglePermission(prev, permission.value))
-                  }
-                />
-                {permission.label}
+            </label>
+            {form.role === "departamento" && (
+              <label>
+                Departamento
+                <select value={form.department} onChange={(e) => updateForm("department", e.target.value)}>
+                  <option value="">Selecciona departamento</option>
+                  {departments.map((department) => <option key={department._id} value={department.name}>{department.name}</option>)}
+                </select>
               </label>
-            ))}
+            )}
           </div>
 
-          <button className="btn-submit" onClick={handleSubmit}>Crear usuario</button>
-
-          <div className="department-admin">
-            <h3>Departamentos</h3>
-            <div className="form-group">
-              <label>Nuevo departamento</label>
-              <input
-                placeholder="ej. compras"
-                value={newDepartment}
-                onChange={(e) => setNewDepartment(e.target.value)}
-              />
+          <div className="form-section">
+            <div>
+              <h3>Sucursales asignadas</h3>
+              <p>Define en que sucursales puede operar el usuario.</p>
             </div>
+            {renderBranchCheckboxes(form.branches, (next) => updateForm("branches", next))}
+          </div>
 
-            <button className="btn-submit" onClick={handleCreateDepartment}>
-              Crear departamento
-            </button>
+          <div className="form-section">
+            <div>
+              <h3>Permisos</h3>
+              <p>El rol admin hereda todos los permisos automaticamente.</p>
+            </div>
+            {renderPermissionCheckboxes({
+              selected: form.permissions,
+              roleName: form.role,
+              onChange: (next) => updateForm("permissions", next),
+            })}
+          </div>
 
-            <div className="departments-list">
-              {departments.map((item, i) => (
-                <div className="department-row" key={item?._id || i}>
-                  <div>
-                    <b>{item?.name}</b>
-                  </div>
-                  <button className="btn-icon delete" onClick={() => handleDeleteDepartment(item)}>
-                    🗑
-                  </button>
-                </div>
-              ))}
+          <button className="primary-btn" type="submit">Crear usuario</button>
+        </form>
+
+        <section className="panel users-panel">
+          <div className="panel-title">
+            <div>
+              <h2>Usuarios registrados</h2>
+              <p>{users.length} usuarios activos en esta empresa.</p>
             </div>
           </div>
 
-          <div className="department-admin">
-            <h3>Sucursales</h3>
-            <div className="form-group">
-              <label>Nueva sucursal</label>
-              <input
-                placeholder="ej. monterrey"
-                value={newBranch}
-                onChange={(e) => setNewBranch(e.target.value)}
-              />
-            </div>
-
-            <button className="btn-submit" onClick={handleCreateBranch}>
-              Crear sucursal
-            </button>
-
-            <div className="departments-list">
-              {branches.map((item, i) => (
-                <div className="department-row" key={item?._id || i}>
-                  <div>
-                    <b>{item?.name}</b>
-                  </div>
-                  <button className="btn-icon delete" onClick={() => handleDeleteBranch(item)}>
-                    🗑
-                  </button>
+          <div className="users-table">
+            {users.map((user) => (
+              <div className="user-row" key={user._id}>
+                <div className="avatar">{user.nombre?.[0]?.toUpperCase() || "?"}</div>
+                <div className="user-main">
+                  <b>{user.nombre}</b>
+                  <span>{user.username ? `${user.username} | ${user.email}` : user.email}</span>
+                  <small>{(user.permissions || []).length} permisos directos</small>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* LISTA */}
-        <div className="users-panel">
-          <h3>Usuarios registrados <span className="count">{users.length}</span></h3>
-
-          <div className="users-list">
-            {users.map((u, i) => (
-              <div className="user-card" key={u?._id || i}>
-                <div className="user-info">
-                  <div className="user-avatar">{u?.nombre?.[0]?.toUpperCase() || "?"}</div>
-                  <div>
-                    <b>{u?.nombre}</b>
-                    <p>{u?.username ? `${u.username} | ${u.email}` : u?.email}</p>
-                    <small className="permission-summary">
-                      {(u?.permissions || []).length} permisos directos
-                    </small>
-                  </div>
-                </div>
-                <div className="user-actions">
-                  <span className="role-badge">{u?.role}</span>
-                  <button className="btn-icon edit" onClick={() => openEditModal(u)}>✏</button>
-                  <button className="btn-icon delete" onClick={() => { setUserToDelete(u); setShowDeleteModal(true); }}>🗑</button>
+                <span className="role-pill">{user.role}</span>
+                <div className="row-actions">
+                  <button onClick={() => openEditModal(user)}>Editar</button>
+                  <button className="danger" onClick={() => setUserToDelete(user)}>Eliminar</button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       </div>
 
-      {/* MODAL DELETE */}
-      {showDeleteModal && (
+      {userToDelete && (
         <div className="modal-overlay">
           <div className="modal-box">
             <h3>Eliminar usuario</h3>
-            <p>¿Estás seguro de eliminar a <b>{userToDelete?.nombre}</b>?</p>
+            <p>Estas seguro de eliminar a <b>{userToDelete.nombre}</b>?</p>
             <div className="modal-actions">
-              <button className="btn-danger" onClick={confirmDelete}>Eliminar</button>
-              <button className="btn-cancel" onClick={() => setShowDeleteModal(false)}>Cancelar</button>
+              <button className="danger-btn" onClick={confirmDelete}>Eliminar</button>
+              <button className="ghost-btn" onClick={() => setUserToDelete(null)}>Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL EDIT */}
-      {showEditModal && editingUser && (
+      {editingUser && (
         <div className="modal-overlay">
-          <div className="modal-box">
+          <div className="modal-box wide">
             <h3>Editar usuario</h3>
-            <div className="form-group">
-              <label>Nombre</label>
-              <input value={editingUser.nombre || ""} onChange={(e) => setEditingUser({ ...editingUser, nombre: e.target.value })} />
-            </div>
-            <div className="form-group">
-              <label>Usuario</label>
-              <input value={editingUser.username || ""} onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })} />
-            </div>
-            <div className="form-group">
-              <label>Email</label>
-              <input value={editingUser.email || ""} onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })} />
-            </div>
-            <div className="form-group">
-              <label>Rol</label>
-              <select value={editingUser.role || ""} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}>
-                <option value="">Selecciona rol</option>
-                {roles.map((r, i) => (
-                  <option key={r?._id || i} value={r?.name}>{r?.name}</option>
-                ))}
-              </select>
-            </div>
-            {editingUser.role === "departamento" && (
-              <div className="form-group">
-                <label>Departamento</label>
-                <select
-                  value={editingUser.department || ""}
-                  onChange={(e) => setEditingUser({ ...editingUser, department: e.target.value })}
-                >
-                  <option value="">Seleccionar departamento</option>
-                  {departments.map((d, i) => (
-                    <option key={d?._id || i} value={d?.name}>{d?.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="form-group">
-              <label>Sucursales asignadas</label>
-              <div className="checkbox-grid">
-                {branches.map((b, i) => (
-                  <label key={b?._id || i} className="check-row">
-                    <input
-                      type="checkbox"
-                      checked={editBranches.includes(b?._id)}
-                      onChange={() =>
-                        setEditBranches((prev) => toggleListItem(prev, b?._id))
-                      }
-                    />
-                    {b?.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="permissions-list">
+            <div className="field-grid">
               <label>
-                Permisos del usuario
-                {editingUser.role === "admin" && (
-                  <span className="hint-text">El rol admin siempre tiene todos los permisos.</span>
-                )}
+                Nombre
+                <input value={editingUser.nombre || ""} onChange={(e) => updateEditingUser("nombre", e.target.value)} />
               </label>
-              {USER_PERMISSIONS.map((permission) => (
-                <label key={permission.value} className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={
-                      editingUser.role === "admin"
-                        ? getEffectivePermissions(editingUser).includes(permission.value)
-                        : editPermissions.includes(permission.value)
-                    }
-                    disabled={
-                      editingUser.role === "admin" &&
-                      getRolePermissions(editingUser.role).includes(permission.value)
-                    }
-                    onChange={() =>
-                      setEditPermissions((prev) => togglePermission(prev, permission.value))
-                    }
-                  />
-                  {permission.label}
-                  {editingUser.role === "admin" &&
-                    getRolePermissions(editingUser.role).includes(permission.value) && (
-                    <span className="inherited-tag">Rol</span>
-                  )}
+              <label>
+                Usuario
+                <input value={editingUser.username || ""} onChange={(e) => updateEditingUser("username", e.target.value)} />
+              </label>
+              <label>
+                Email
+                <input value={editingUser.email || ""} onChange={(e) => updateEditingUser("email", e.target.value)} />
+              </label>
+              <label>
+                Rol
+                <select value={editingUser.role || ""} onChange={(e) => updateEditingUser("role", e.target.value)}>
+                  <option value="">Selecciona rol</option>
+                  {roles.map((roleItem) => <option key={roleItem._id || roleItem.name} value={roleItem.name}>{roleItem.name}</option>)}
+                </select>
+              </label>
+              {editingUser.role === "departamento" && (
+                <label>
+                  Departamento
+                  <select value={editingUser.department || ""} onChange={(e) => updateEditingUser("department", e.target.value)}>
+                    <option value="">Selecciona departamento</option>
+                    {departments.map((department) => <option key={department._id} value={department.name}>{department.name}</option>)}
+                  </select>
                 </label>
-              ))}
+              )}
             </div>
+
+            <div className="form-section">
+              <h3>Sucursales</h3>
+              {renderBranchCheckboxes(editingUser.branches || [], (next) => updateEditingUser("branches", next))}
+            </div>
+
+            <div className="form-section">
+              <h3>Permisos</h3>
+              {renderPermissionCheckboxes({
+                selected: editingUser.permissions || [],
+                roleName: editingUser.role,
+                onChange: (next) => updateEditingUser("permissions", next),
+              })}
+            </div>
+
             <div className="modal-actions">
-              <button className="btn-submit" onClick={handleUpdateUser}>Guardar</button>
-              <button className="btn-cancel" onClick={() => { setShowEditModal(false); setEditingUser(null); setEditPermissions([]); setEditBranches([]); }}>Cancelar</button>
+              <button className="primary-btn" onClick={handleUpdateUser}>Guardar</button>
+              <button className="ghost-btn" onClick={() => setEditingUser(null)}>Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
       <style>{`
-        .page { padding: 28px; min-height: 100vh; color: #fff; }
-
-        .page-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 28px;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-        .page-header h1 { font-size: 22px; }
-        .page-header p { font-size: 13px; color: #64748b; margin-top: 4px; }
-
-        .btn-back {
-          padding: 9px 16px;
-          border-radius: 8px;
-          border: 1px solid #1e293b;
-          background: transparent;
-          color: #94a3b8;
-          cursor: pointer;
-          font-size: 14px;
-          transition: 0.2s;
-        }
-        .btn-back:hover { border-color: #3b82f6; color: white; }
-
-        .notice {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          margin-bottom: 18px;
-          padding: 12px 14px;
-          border-radius: 8px;
-          font-size: 13px;
-          border: 1px solid transparent;
-        }
+        .users-page { min-height: 100vh; padding: 28px; color: var(--app-text); background: var(--app-bg); }
+        .page-header { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 20px; }
+        .page-header h1 { color: var(--app-title); font-size: 24px; margin: 0; }
+        .page-header p, .panel-title p, .form-section p { margin: 4px 0 0; color: var(--app-text); opacity: 0.7; font-size: 13px; }
+        .header-actions { display: flex; gap: 10px; }
+        .users-layout { display: grid; grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); gap: 18px; align-items: start; }
+        .panel { border: 1px solid rgba(255,255,255,0.08); background: color-mix(in srgb, var(--app-card) 88%, transparent); border-radius: 8px; padding: 18px; }
+        .panel-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+        .panel-title h2, .form-section h3, .modal-box h3 { color: var(--app-title); font-size: 16px; margin: 0; }
+        .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--app-text); }
+        input, select { min-width: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: var(--app-input); color: var(--app-text); outline: none; }
+        input:focus, select:focus { border-color: var(--app-accent); }
+        .form-section { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+        .option-grid, .permissions-grid { display: grid; gap: 8px; max-height: 190px; overflow: auto; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; background: var(--app-input); }
+        .permissions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .option-row { flex-direction: row; align-items: center; gap: 8px; color: var(--app-text); opacity: 0.86; }
+        .option-row input { width: auto; accent-color: var(--app-accent); }
+        .option-row small { margin-left: auto; color: var(--app-accent); font-weight: 700; }
+        .primary-btn, .ghost-btn, .danger-btn, .row-actions button { border: none; border-radius: 8px; padding: 10px 12px; cursor: pointer; font-weight: 600; }
+        .primary-btn { width: 100%; margin-top: 16px; background: var(--app-accent); color: white; }
+        .ghost-btn { background: transparent; color: var(--app-text); border: 1px solid rgba(255,255,255,0.14); }
+        .danger-btn, .row-actions .danger { background: rgba(239,68,68,0.16); color: #fca5a5; }
+        .notice { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; padding: 12px 14px; border-radius: 8px; border: 1px solid transparent; font-size: 13px; }
         .notice.success { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #86efac; }
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
-        .notice span { color: #cbd5e1; }
-
-        .layout-two-col {
-          display: grid;
-          grid-template-columns: 360px 1fr;
-          gap: 24px;
-          align-items: start;
-        }
-
-        .form-card, .users-panel {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.07);
-          border-radius: 16px;
-          padding: 24px;
-        }
-
-        .form-card h3, .users-panel h3 {
-          font-size: 15px;
-          margin-bottom: 20px;
-          color: #e2e8f0;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .count {
-          background: rgba(59,130,246,0.2);
-          color: #60a5fa;
-          padding: 2px 8px;
-          border-radius: 999px;
-          font-size: 12px;
-        }
-
-        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-        .form-group label { font-size: 12px; font-weight: 500; color: #94a3b8; }
-        .form-group input,
-        .form-group select {
-          padding: 10px 12px;
-          border-radius: 8px;
-          border: 1px solid #1e293b;
-          background: var(--app-input);
-          color: #e2e8f0;
-          font-size: 14px;
-          transition: 0.2s;
-        }
-        .form-group input:focus,
-        .form-group select:focus {
-          border-color: #3b82f6;
-          outline: none;
-          box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
-        }
-
-        .btn-submit {
-          width: 100%;
-          padding: 11px;
-          border-radius: 8px;
-          border: none;
-          background: #3b82f6;
-          color: white;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: 0.2s;
-        }
-        .btn-submit:hover { background: #2563eb; }
-
-        .department-admin {
-          margin-top: 24px;
-          padding-top: 20px;
-          border-top: 1px solid rgba(255,255,255,0.08);
-        }
-
-        .permissions-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          margin-bottom: 14px;
-        }
-
-        .permissions-list.compact {
-          margin: 8px 0 0;
-          gap: 6px;
-        }
-
-        .checkbox-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 8px;
-          max-height: 150px;
-          overflow: auto;
-          padding: 10px;
-          border: 1px solid #1e293b;
-          border-radius: 8px;
-          background: var(--app-input);
-        }
-
-        .check-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: #94a3b8;
-          font-size: 12px;
-        }
-
-        .check-row input {
-          width: auto;
-          accent-color: #3b82f6;
-        }
-
-        .hint-text {
-          display: block;
-          margin-top: 4px;
-          color: #64748b;
-          font-size: 11px;
-          font-weight: 400;
-        }
-
-        .check-row input:disabled {
-          cursor: not-allowed;
-          opacity: 0.75;
-        }
-
-        .inherited-tag {
-          margin-left: auto;
-          padding: 2px 6px;
-          border-radius: 999px;
-          background: rgba(59,130,246,0.16);
-          color: #93c5fd;
-          font-size: 10px;
-          font-weight: 600;
-        }
-
-        .departments-list {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          margin-top: 16px;
-        }
-
-        .department-row {
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.05);
-          border-radius: 10px;
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 12px;
-        }
-
-        .department-row b {
-          color: #e2e8f0;
-          font-size: 13px;
-          text-transform: capitalize;
-        }
-
-        .users-list { display: flex; flex-direction: column; gap: 10px; }
-
-        .user-card {
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.05);
-          padding: 12px 14px;
-          border-radius: 10px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 10px;
-          transition: 0.2s;
-        }
-        .user-card:hover { background: rgba(255,255,255,0.06); }
-
-        .user-info { display: flex; align-items: center; gap: 12px; }
-
-        .user-avatar {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #3b82f6, #6366f1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          font-size: 14px;
-          flex-shrink: 0;
-        }
-
-        .user-info b { font-size: 14px; display: block; }
-        .user-info p { font-size: 12px; color: #64748b; margin: 0; }
-        .permission-summary {
-          display: block;
-          margin-top: 3px;
-          color: #60a5fa;
-          font-size: 11px;
-        }
-
-        .user-actions { display: flex; align-items: center; gap: 8px; }
-
-        .role-badge {
-          background: rgba(255,255,255,0.07);
-          padding: 3px 10px;
-          border-radius: 999px;
-          font-size: 11px;
-          color: #94a3b8;
-          text-transform: capitalize;
-        }
-
-        .btn-icon {
-          width: 30px;
-          height: 30px;
-          border-radius: 7px;
-          border: none;
-          cursor: pointer;
-          font-size: 13px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: 0.2s;
-          margin: 0;
-          padding: 0;
-        }
-        .btn-icon.edit { background: rgba(59,130,246,0.12); }
-        .btn-icon.edit:hover { background: #3b82f6; }
-        .btn-icon.delete { background: rgba(239,68,68,0.12); }
-        .btn-icon.delete:hover { background: #ef4444; }
-
-        /* MODALS */
-        .modal-overlay {
-          position: fixed;
-          top: 0; left: 0;
-          width: 100%; height: 100%;
-          background: rgba(0,0,0,0.65);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          z-index: 999;
-        }
-
-        .modal-box {
-          background: #0f172a;
-          border: 1px solid #1e293b;
-          padding: 28px;
-          border-radius: 14px;
-          width: 90%;
-          max-width: 360px;
-        }
-
-        .modal-box h3 { font-size: 16px; margin-bottom: 14px; }
-        .modal-box p { font-size: 14px; color: #94a3b8; margin-bottom: 20px; }
-
+        .notice span { color: var(--app-text); }
+        .users-table { display: flex; flex-direction: column; gap: 8px; }
+        .user-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 12px; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; background: rgba(255,255,255,0.03); }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--app-accent); color: white; font-weight: 800; }
+        .user-main { display: flex; flex-direction: column; min-width: 0; }
+        .user-main b { color: var(--app-title); }
+        .user-main span, .user-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; opacity: 0.72; }
+        .role-pill { padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,0.08); font-size: 12px; text-transform: capitalize; }
+        .row-actions { display: flex; gap: 8px; }
+        .row-actions button { background: rgba(255,255,255,0.08); color: var(--app-text); font-size: 12px; }
+        .modal-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.68); display: flex; align-items: center; justify-content: center; padding: 18px; }
+        .modal-box { width: min(440px, 100%); max-height: 92vh; overflow: auto; border: 1px solid rgba(255,255,255,0.1); background: var(--app-card); border-radius: 8px; padding: 20px; }
+        .modal-box.wide { width: min(760px, 100%); }
         .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
-
-        .btn-danger {
-          flex: 1; padding: 10px; border: none; border-radius: 8px;
-          background: #ef4444; color: white; cursor: pointer; font-size: 14px; font-weight: 600;
-          transition: 0.2s;
-        }
-        .btn-danger:hover { background: #dc2626; }
-
-        .btn-cancel {
-          flex: 1; padding: 10px; border: 1px solid #1e293b; border-radius: 8px;
-          background: transparent; color: #94a3b8; cursor: pointer; font-size: 14px;
-          transition: 0.2s;
-        }
-        .btn-cancel:hover { border-color: #3b82f6; color: white; }
-
-        @media (max-width: 900px) {
-          .layout-two-col { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 600px) {
-          .page { padding: 16px; }
-          .user-card { flex-direction: column; align-items: flex-start; }
+        .modal-actions .primary-btn { margin-top: 0; }
+        .empty-panel { max-width: 420px; border: 1px solid rgba(255,255,255,0.08); background: var(--app-card); border-radius: 8px; padding: 20px; }
+        @media (max-width: 1050px) { .users-layout { grid-template-columns: 1fr; } }
+        @media (max-width: 720px) {
+          .users-page { padding: 16px; }
+          .page-header, .header-actions, .modal-actions { flex-direction: column; align-items: stretch; }
+          .field-grid, .permissions-grid { grid-template-columns: 1fr; }
+          .user-row { grid-template-columns: 40px minmax(0, 1fr); }
+          .role-pill, .row-actions { grid-column: 2; }
         }
       `}</style>
     </div>
