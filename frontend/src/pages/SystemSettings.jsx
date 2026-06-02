@@ -47,6 +47,7 @@ function SystemSettings() {
   const [message, setMessage] = useState(null);
   const [storage, setStorage] = useState(null);
   const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const token = localStorage.getItem("token");
   const isAdmin = user?.role === "admin";
 
@@ -56,17 +57,21 @@ function SystemSettings() {
   }, [user]);
 
   useEffect(() => {
-    setForm(settings);
-  }, [settings]);
+    if (!isDirty) {
+      setForm(settings);
+    }
+  }, [isDirty, settings]);
 
   const updateField = (field, value) => {
     const next = { ...form, [field]: value };
+    setIsDirty(true);
     setForm(next);
     applySystemTheme(next);
   };
 
   const resetDefaults = () => {
     const next = { ...form, ...pickAppearance(DEFAULT_SETTINGS) };
+    setIsDirty(true);
     setForm(next);
     applySystemTheme(next);
   };
@@ -169,6 +174,7 @@ function SystemSettings() {
     }
 
     const nextSettings = { ...DEFAULT_SETTINGS, ...data };
+    setIsDirty(false);
     setForm(nextSettings);
     cacheSystemSettings(nextSettings);
     window.dispatchEvent(new CustomEvent("system-settings-updated", { detail: nextSettings }));
@@ -202,6 +208,7 @@ function SystemSettings() {
     }
 
     const nextSettings = { ...DEFAULT_SETTINGS, ...data };
+    setIsDirty(false);
     setForm(nextSettings);
     cacheSystemSettings(nextSettings);
     window.dispatchEvent(new CustomEvent("system-settings-updated", { detail: nextSettings }));

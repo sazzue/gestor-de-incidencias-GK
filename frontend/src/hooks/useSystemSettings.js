@@ -122,12 +122,8 @@ export function useSystemSettings() {
       fetchSettings();
     };
     window.addEventListener("system-settings-updated", handleSettingsUpdated);
-    window.addEventListener("auth-updated", fetchSettings);
-    window.addEventListener("auth-refresh", fetchSettings);
     return () => {
       window.removeEventListener("system-settings-updated", handleSettingsUpdated);
-      window.removeEventListener("auth-updated", fetchSettings);
-      window.removeEventListener("auth-refresh", fetchSettings);
     };
   }, [fetchSettings]);
 
