@@ -7,6 +7,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 function Login() {
   const [identifier, setIdentifier] = useState("");
+  const [organizationSlug, setOrganizationSlug] = useState(() => localStorage.getItem("organizationSlug") || "default");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -34,7 +35,7 @@ function Login() {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: identifier, username: identifier, password }),
+        body: JSON.stringify({ email: identifier, username: identifier, password, organizationSlug }),
       });
 
       const data = await res.json();
@@ -46,6 +47,7 @@ function Login() {
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("organizationSlug", organizationSlug);
 
       if (data.user.mustChangePassword) {
         navigate("/change-password");
@@ -69,6 +71,13 @@ function Login() {
         <p className="subtitle">Accede a {settings.systemName}</p>
 
         <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            placeholder="Empresa"
+            value={organizationSlug}
+            onChange={(e) => setOrganizationSlug(e.target.value.toLowerCase().trim())}
+          />
+
           <input
             type="text"
             placeholder="Correo o usuario"

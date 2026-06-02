@@ -20,6 +20,11 @@ const attachmentSchema = new mongoose.Schema(
 
 const incidentSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
+    },
     title: String,
     description: String,
     status: {

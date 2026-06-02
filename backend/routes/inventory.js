@@ -58,12 +58,14 @@ const canViewAllInventory = (user) =>
   hasPermission(user, "VIEW_INVENTORY_ALL");
 
 const getInventoryQueryForUser = (user) => {
-  if (canViewAllInventory(user)) return {};
+  const organization = user.organization || null;
+
+  if (canViewAllInventory(user)) return { organization };
 
   if (hasPermission(user, "VIEW_INVENTORY_DEPARTMENT")) {
     const department = normalizeDepartment(user.department);
     if (!department) return null;
-    return { department };
+    return { organization, department };
   }
 
   if (
@@ -74,7 +76,7 @@ const getInventoryQueryForUser = (user) => {
   ) {
     const branchIds = getAssignedBranchIds(user);
     if (branchIds.length === 0) return null;
-    return { branch: { $in: branchIds } };
+    return { organization, branch: { $in: branchIds } };
   }
 
   return null;
@@ -170,6 +172,7 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
     }
 
     const item = await InventoryItem.create({
+      organization: req.user.organization || null,
       model,
       brand,
       serialNumber: serialNumber.trim(),
@@ -219,7 +222,10 @@ router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, a
       return res.status(503).json({ msg: "Cloudflare R2 no esta configurado para cargar facturas" });
     }
 
-    const item = await InventoryItem.findById(req.params.id);
+    const item = await InventoryItem.findOne({
+      _id: req.params.id,
+      organization: req.user.organization || null,
+    });
 
     if (!item) {
       return res.status(404).json({ msg: "Equipo no encontrado" });
@@ -259,7 +265,10 @@ router.put("/:id/dispose", auth, async (req, res) => {
       return res.status(400).json({ msg: "El motivo de baja es obligatorio" });
     }
 
-    const item = await InventoryItem.findById(req.params.id);
+    const item = await InventoryItem.findOne({
+      _id: req.params.id,
+      organization: req.user.organization || null,
+    });
 
     if (!item) {
       return res.status(404).json({ msg: "Equipo no encontrado" });
@@ -292,7 +301,10 @@ router.put("/:id/dispose", auth, async (req, res) => {
 
 router.get("/:id/invoice", auth, async (req, res) => {
   try {
-    const item = await InventoryItem.findById(req.params.id);
+    const item = await InventoryItem.findOne({
+      _id: req.params.id,
+      organization: req.user.organization || null,
+    });
 
     if (!item) {
       return res.status(404).json({ msg: "Equipo no encontrado" });

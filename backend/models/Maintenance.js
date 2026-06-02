@@ -2,6 +2,12 @@
 const mongoose = require("mongoose");
 
 const maintenanceSchema = new mongoose.Schema({
+  organization: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Organization",
+    default: null,
+  },
+
   title: String,
   description: String,
   observations: String,

@@ -61,6 +61,7 @@ function Sidebar() {
     hasPermission("VIEW_INCIDENTS_BRANCH");
   const canAccessUsers = hasPermission("CREATE_USERS");
   const canAccessSettings = user?.role === "admin";
+  const canAccessOrganizations = user?.role === "admin";
   const canViewMaintenance =
     hasPermission("VIEW_MAINTENANCE_ALL") ||
     hasPermission("VIEW_MAINTENANCE_DEPARTMENT") ||
@@ -148,6 +149,14 @@ function Sidebar() {
               className={`sidebar-btn ${isActive("/settings") ? "active" : ""} ${!canAccessSettings ? "disabled" : ""}`}
             >
               Configuracion
+            </button>
+
+            <button
+              disabled={!canAccessOrganizations}
+              onClick={() => navigate("/organizations")}
+              className={`sidebar-btn ${isActive("/organizations") ? "active" : ""} ${!canAccessOrganizations ? "disabled" : ""}`}
+            >
+              Empresas
             </button>
           </nav>
         </div>

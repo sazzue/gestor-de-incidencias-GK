@@ -20,6 +20,11 @@ const invoiceSchema = new mongoose.Schema(
 
 const inventoryItemSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
+    },
     model: {
       type: String,
       required: true,
@@ -34,7 +39,6 @@ const inventoryItemSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      unique: true,
     },
     provider: {
       type: String,
@@ -89,5 +93,7 @@ const inventoryItemSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+inventoryItemSchema.index({ organization: 1, serialNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model("InventoryItem", inventoryItemSchema);

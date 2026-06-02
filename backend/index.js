@@ -6,13 +6,31 @@ const cors = require('cors');
 const Role = require("./models/Role");
 const Department = require("./models/Department");
 const User = require("./models/User");
+const Organization = require("./models/Organization");
+const Branch = require("./models/branch");
+const Incident = require("./models/incident");
+const Maintenance = require("./models/Maintenance");
+const InventoryItem = require("./models/InventoryItem");
+const SystemSettings = require("./models/SystemSettings");
 const { startAttachmentCleanupSchedule } = require("./utils/attachmentCleanup");
+
+const dropLegacyIndex = async (Model, indexName) => {
+  try {
+    await Model.collection.dropIndex(indexName);
+    console.log(`Indice legacy eliminado: ${Model.modelName}.${indexName}`);
+  } catch (error) {
+    if (error.codeName !== "IndexNotFound" && error.code !== 27) {
+      console.warn(`No se pudo eliminar indice ${Model.modelName}.${indexName}:`, error.message);
+    }
+  }
+};
 
 // Middleware global
 app.use(cors());
 
 // 📦 ROUTES
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/organizations", require("./routes/organizations"));
 app.use("/api/roles", require("./routes/roleRoutes"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/branches", require("./routes/branches"));
@@ -41,6 +59,45 @@ app.use((req, res, next) => {
 mongoose.connect(process.env.MONGODB_URI)
 .then(async () => {
   console.log('CONECTADO A MONGODB');
+
+  const defaultOrganization = await Organization.findOneAndUpdate(
+    { slug: "default" },
+    {
+      $setOnInsert: {
+        name: process.env.DEFAULT_ORGANIZATION_NAME || "Empresa principal",
+        slug: "default",
+        status: "active",
+        plan: "basic",
+      },
+    },
+    { new: true, upsert: true }
+  );
+
+  await Promise.all([
+    User.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
+    User.updateMany({ organization: null }, { organization: defaultOrganization._id }),
+    Branch.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
+    Branch.updateMany({ organization: null }, { organization: defaultOrganization._id }),
+    Department.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
+    Department.updateMany({ organization: null }, { organization: defaultOrganization._id }),
+    Incident.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
+    Incident.updateMany({ organization: null }, { organization: defaultOrganization._id }),
+    Maintenance.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
+    Maintenance.updateMany({ organization: null }, { organization: defaultOrganization._id }),
+    InventoryItem.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
+    InventoryItem.updateMany({ organization: null }, { organization: defaultOrganization._id }),
+    SystemSettings.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
+    SystemSettings.updateMany({ organization: null }, { organization: defaultOrganization._id }),
+  ]);
+
+  await Promise.all([
+    dropLegacyIndex(User, "email_1"),
+    dropLegacyIndex(User, "username_1"),
+    dropLegacyIndex(Branch, "name_1"),
+    dropLegacyIndex(Department, "name_1"),
+    dropLegacyIndex(InventoryItem, "serialNumber_1"),
+    dropLegacyIndex(SystemSettings, "key_1"),
+  ]);
 
   // 🔥 SEED ROLES
   const roles = ["admin", "gerencia", "direccion", "departamento"];

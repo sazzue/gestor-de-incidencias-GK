@@ -1,10 +1,14 @@
 const mongoose = require("mongoose");
 
 const systemSettingsSchema = new mongoose.Schema({
+  organization: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Organization",
+    default: null,
+  },
   key: {
     type: String,
     default: "global",
-    unique: true,
   },
   systemName: {
     type: String,
@@ -75,5 +79,7 @@ const systemSettingsSchema = new mongoose.Schema({
     default: "",
   },
 }, { timestamps: true });
+
+systemSettingsSchema.index({ organization: 1, key: 1 }, { unique: true });
 
 module.exports = mongoose.model("SystemSettings", systemSettingsSchema);

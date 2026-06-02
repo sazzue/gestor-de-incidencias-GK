@@ -43,11 +43,25 @@ const normalizeUserInput = (body) => {
   };
 };
 
+const getOrganizationFilter = (req) => {
+  if (!req.user?.organization) return {};
+
+  return { organization: req.user.organization };
+};
+
 const deleteUser = async (req, res) => {
   try {
     if (!canManageUsers(req, res)) return;
 
-    await User.findByIdAndDelete(req.params.id);
+    const deletedUser = await User.findOneAndDelete({
+      _id: req.params.id,
+      ...getOrganizationFilter(req),
+    });
+
+    if (!deletedUser) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
     res.json({ msg: "Usuario eliminado" });
   } catch (error) {
     res.status(500).json({ msg: "Error al eliminar usuario", error: error.message });
@@ -70,6 +84,7 @@ const updateUser = async (req, res) => {
 
     const duplicate = await User.findOne({
       _id: { $ne: req.params.id },
+      ...getOrganizationFilter(req),
       $or: [
         { email: input.email },
         ...(input.username ? [{ username: input.username }] : [])
@@ -106,7 +121,10 @@ const updateUser = async (req, res) => {
     }
 
     const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
+      {
+        _id: req.params.id,
+        ...getOrganizationFilter(req),
+      },
       { $set: update, ...(Object.keys(unset).length ? { $unset: unset } : {}) },
       { new: true, runValidators: true }
     )
@@ -129,7 +147,7 @@ const getUsers = async (req, res) => {
   try {
     if (!canManageUsers(req, res)) return;
 
-    const users = await User.find()
+    const users = await User.find(getOrganizationFilter(req))
       .select("-password")
       .populate("branch", "name")
       .populate("branches", "name");
@@ -158,13 +176,19 @@ const createUser = async (req, res) => {
       return res.status(400).json({ msg: "El departamento es obligatorio para este rol" });
     }
 
-    const userExists = await User.findOne({ email: input.email });
+    const userExists = await User.findOne({
+      email: input.email,
+      ...getOrganizationFilter(req),
+    });
     if (userExists) {
       return res.status(400).json({ msg: "El usuario ya existe" });
     }
 
     if (input.username) {
-      const usernameExists = await User.findOne({ username: input.username });
+      const usernameExists = await User.findOne({
+        username: input.username,
+        ...getOrganizationFilter(req),
+      });
       if (usernameExists) {
         return res.status(400).json({ msg: "El nombre de usuario ya existe" });
       }
@@ -175,6 +199,7 @@ const createUser = async (req, res) => {
       nombre: input.nombre,
       email: input.email,
       password: hashedPassword,
+      organization: req.user.organization || null,
       role: input.role,
       department: input.department,
       branch: input.branch,

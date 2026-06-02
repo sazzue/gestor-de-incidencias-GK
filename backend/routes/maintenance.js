@@ -20,12 +20,14 @@ const getAssignedBranchIds = (user) => {
 };
 
 const getMaintenanceQueryForUser = (user) => {
+  const organization = user.organization || null;
+
   if (
     user.role === "admin" ||
     user.role === "direccion" ||
     hasPermission(user, "VIEW_MAINTENANCE_ALL")
   ) {
-    return {};
+    return { organization };
   }
 
   if (user.role === "gerencia" || hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) {
@@ -34,7 +36,7 @@ const getMaintenanceQueryForUser = (user) => {
       return null;
     }
 
-    return { branch: { $in: assignedBranchIds } };
+    return { organization, branch: { $in: assignedBranchIds } };
   }
 
   const department = normalizeDepartment(user.department);
@@ -42,7 +44,7 @@ const getMaintenanceQueryForUser = (user) => {
     hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") &&
     isMaintenanceDepartment(department)
   ) {
-    return { department };
+    return { organization, department };
   }
 
   return null;
@@ -135,6 +137,7 @@ router.post("/", auth, async (req, res) => {
 
     const newMaintenance = await Maintenance.create({
       ...req.body,
+      organization: req.user.organization || null,
       department,
       createdBy: req.user.id,
     });
@@ -155,7 +158,10 @@ router.put("/:id/confirm", auth, async (req, res) => {
       return res.status(403).json({ msg: "No tienes permisos para confirmar mantenimientos" });
     }
 
-    const maintenance = await Maintenance.findById(req.params.id);
+    const maintenance = await Maintenance.findOne({
+      _id: req.params.id,
+      organization: req.user.organization || null,
+    });
 
     if (!maintenance) {
       return res.status(404).json({ msg: "No encontrado" });

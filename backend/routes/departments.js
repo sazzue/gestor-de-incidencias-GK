@@ -7,14 +7,15 @@ const authorize = require("../middleware/authorize");
 const ROLES = require("../config/roles");
 const { normalizePermissions } = require("../utils/permissions");
 
-router.get("/", async (req, res) => {
-  const deps = await Department.find().sort({ name: 1 });
+router.get("/", authMiddleware, async (req, res) => {
+  const deps = await Department.find({ organization: req.user.organization || null }).sort({ name: 1 });
   res.json(deps);
 });
 
 router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   try {
     const name = req.body.name?.toLowerCase().trim();
+    const organization = req.user.organization || null;
 
     if (!name) {
       return res.status(400).json({ msg: "El nombre del departamento es obligatorio" });
@@ -22,6 +23,7 @@ router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
 
     const department = await Department.create({
       name,
+      organization,
       permissions: normalizePermissions(req.body.permissions)
     });
 
@@ -38,13 +40,17 @@ router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
 router.put("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   try {
     const name = req.body.name?.toLowerCase().trim();
+    const organization = req.user.organization || null;
 
     if (!name) {
       return res.status(400).json({ msg: "El nombre del departamento es obligatorio" });
     }
 
     const department = await Department.findByIdAndUpdate(
-      req.params.id,
+      {
+        _id: req.params.id,
+        organization,
+      },
       {
         name,
         permissions: normalizePermissions(req.body.permissions)
@@ -68,7 +74,10 @@ router.put("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
 
 router.delete("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   try {
-    const department = await Department.findByIdAndDelete(req.params.id);
+    const department = await Department.findOneAndDelete({
+      _id: req.params.id,
+      organization: req.user.organization || null,
+    });
 
     if (!department) {
       return res.status(404).json({ msg: "Departamento no encontrado" });

@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Organization = require("../models/Organization");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -104,7 +105,9 @@ const buildUserPayload = async (user) => {
       id: user._id,
       nombre: user.nombre,
       username: user.username || null,
+      email: user.email,
       role: user.role,
+      organization: user.organization || null,
       department: user.department || null,
       branch: user.branch || null,
       branches: user.branches || [],
@@ -117,6 +120,7 @@ const buildUserPayload = async (user) => {
       username: user.username || null,
       email: user.email,
       role: user.role,
+      organization: user.organization || null,
       department: user.department || null,
       branch: user.branch || null,
       branches: user.branches || [],
@@ -126,12 +130,38 @@ const buildUserPayload = async (user) => {
   };
 };
 
+const getOrganizationBySlug = async (slug) => {
+  const normalizedSlug = slug?.toString().toLowerCase().trim();
+  if (!normalizedSlug) return null;
+
+  return Organization.findOne({ slug: normalizedSlug });
+};
+
+const getActiveOrganization = async (user) => {
+  if (!user.organization) return null;
+
+  const organization = await Organization.findById(user.organization);
+
+  if (!organization) {
+    throw new Error("La empresa no existe");
+  }
+
+  if (organization.status === "suspended") {
+    throw new Error("La empresa esta suspendida");
+  }
+
+  return organization;
+};
+
 // POST /api/auth/register
 exports.register = async (req, res) => {
   try {
-    const { nombre, email, password, role, department, permissions } = req.body;
+    const { nombre, email, password, role, department, permissions, organization } = req.body;
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await User.findOne({
+      email: email.toLowerCase(),
+      organization: organization || null,
+    });
     if (existing) {
       return res.status(400).json({ msg: "El correo ya esta registrado" });
     }
@@ -143,6 +173,7 @@ exports.register = async (req, res) => {
       email: email.toLowerCase(),
       password: hashed,
       role,
+      organization: organization || null,
       department,
       permissions,
       mustChangePassword: true,
@@ -161,18 +192,37 @@ exports.login = async (req, res) => {
     const identifier = (req.body.email || req.body.username || req.body.identifier || "")
       .toLowerCase()
       .trim();
-    const { password } = req.body;
+    const { password, organizationSlug } = req.body;
+    const organization = await getOrganizationBySlug(organizationSlug);
 
-    const user = await User.findOne({
+    if (organizationSlug && !organization) {
+      return res.status(400).json({ msg: "Empresa no encontrada" });
+    }
+
+    const userQuery = {
       $or: [
         { email: identifier },
         { username: identifier },
       ],
-    });
+      ...(organization ? { organization: organization._id } : {}),
+    };
+    const users = await User.find(userQuery).limit(2);
+
+    if (users.length > 1) {
+      return res.status(400).json({ msg: "Indica la empresa para iniciar sesion" });
+    }
+
+    const user = users[0];
     if (!user) return res.status(400).json({ msg: "Credenciales incorrectas" });
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(400).json({ msg: "Credenciales incorrectas" });
+
+    try {
+      await getActiveOrganization(user);
+    } catch (organizationError) {
+      return res.status(403).json({ msg: organizationError.message });
+    }
 
     const { tokenPayload, userPayload } = await buildUserPayload(user);
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "1d" });
@@ -190,6 +240,12 @@ exports.me = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
+    try {
+      await getActiveOrganization(user);
+    } catch (organizationError) {
+      return res.status(403).json({ msg: organizationError.message });
     }
 
     const { tokenPayload, userPayload } = await buildUserPayload(user);
@@ -213,10 +269,21 @@ exports.changePassword = async (req, res) => {
 
     const hashed = await bcrypt.hash(newPassword, 12);
 
-    await User.findByIdAndUpdate(userId, {
-      password: hashed,
-      mustChangePassword: false,
-    });
+    const targetUserId = req.user.role === "admin" && userId ? userId : req.user.id;
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        _id: targetUserId,
+        organization: req.user.organization || null,
+      },
+      {
+        password: hashed,
+        mustChangePassword: false,
+      }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
 
     res.json({ msg: "Contrasena actualizada correctamente" });
   } catch (error) {
@@ -228,14 +295,25 @@ exports.changePassword = async (req, res) => {
 // POST /api/auth/forgot-password
 exports.forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, organizationSlug } = req.body;
 
     if (!email) {
       return res.status(400).json({ msg: "Ingresa un correo valido" });
     }
 
     const genericMsg = "Si el correo esta registrado, recibiras un enlace en breve.";
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const organization = await getOrganizationBySlug(organizationSlug);
+
+    if (organizationSlug && !organization) {
+      return res.json({ msg: genericMsg });
+    }
+
+    const userQuery = {
+      email: email.toLowerCase().trim(),
+      ...(organization ? { organization: organization._id } : {}),
+    };
+    const users = await User.find(userQuery).limit(2);
+    const user = users.length === 1 ? users[0] : null;
 
     if (!user) return res.json({ msg: genericMsg });
 

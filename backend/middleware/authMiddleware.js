@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Organization = require("../models/Organization");
 const { getPermissionsForUser } = require("../utils/permissions");
 
 const authMiddleware = async (req, res, next) => {
@@ -19,12 +20,26 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ msg: "Usuario no encontrado" });
     }
 
+    if (user.organization) {
+      const organization = await Organization.findById(user.organization);
+
+      if (!organization) {
+        return res.status(401).json({ msg: "Empresa no encontrada" });
+      }
+
+      if (organization.status === "suspended") {
+        return res.status(403).json({ msg: "La empresa esta suspendida" });
+      }
+    }
+
     req.user = {
       ...decoded,
       id: user._id,
       nombre: user.nombre,
       username: user.username || null,
+      email: user.email,
       role: user.role,
+      organization: user.organization || null,
       department: user.department || null,
       branch: user.branch || null,
       branches: Array.isArray(user.branches) ? user.branches : [],

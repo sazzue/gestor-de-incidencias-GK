@@ -62,8 +62,8 @@ const buildManifest = (documents) => {
     .join("\n");
 };
 
-const getIncidentDocuments = async () => {
-  const incidents = await Incident.find({ "attachments.0": { $exists: true } })
+const getIncidentDocuments = async (organization = null) => {
+  const incidents = await Incident.find({ organization, "attachments.0": { $exists: true } })
     .populate("branch", "name")
     .lean();
 
@@ -85,8 +85,8 @@ const getIncidentDocuments = async () => {
   );
 };
 
-const getInventoryDocuments = async () => {
-  const items = await InventoryItem.find({ "invoice.key": { $exists: true, $ne: "" } })
+const getInventoryDocuments = async (organization = null) => {
+  const items = await InventoryItem.find({ organization, "invoice.key": { $exists: true, $ne: "" } })
     .populate("branch", "name")
     .lean();
 
@@ -104,17 +104,17 @@ const getInventoryDocuments = async () => {
   }));
 };
 
-const getDocuments = async () => {
+const getDocuments = async (organization = null) => {
   const [incidentDocs, inventoryDocs] = await Promise.all([
-    getIncidentDocuments(),
-    getInventoryDocuments(),
+    getIncidentDocuments(organization),
+    getInventoryDocuments(organization),
   ]);
 
   return [...incidentDocs, ...inventoryDocs].filter((doc) => doc.key);
 };
 
-const getUsageSummary = async () => {
-  const documents = await getDocuments();
+const getUsageSummary = async (organization = null) => {
+  const documents = await getDocuments(organization);
   const usageBytes = documents.reduce((total, doc) => total + (doc.size || 0), 0);
   const limitBytes = getStorageLimitBytes();
 
@@ -132,7 +132,7 @@ const getUsageSummary = async () => {
 
 router.get("/usage", auth, authorize(ROLES.ADMIN), async (req, res) => {
   try {
-    res.json(await getUsageSummary());
+    res.json(await getUsageSummary(req.user.organization || null));
   } catch (error) {
     res.status(500).json({ msg: "Error al calcular uso de almacenamiento", error: error.message });
   }
@@ -144,7 +144,8 @@ router.get("/backup.zip", auth, authorize(ROLES.ADMIN), async (req, res) => {
       return res.status(503).json({ msg: "Cloudflare R2 no esta configurado" });
     }
 
-    const summary = await getUsageSummary();
+    const organization = req.user.organization || null;
+    const summary = await getUsageSummary(organization);
 
     if (!summary.isAtLimit) {
       return res.status(400).json({
@@ -154,7 +155,7 @@ router.get("/backup.zip", auth, authorize(ROLES.ADMIN), async (req, res) => {
       });
     }
 
-    const documents = await getDocuments();
+    const documents = await getDocuments(organization);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
     res.setHeader("Content-Type", "application/zip");

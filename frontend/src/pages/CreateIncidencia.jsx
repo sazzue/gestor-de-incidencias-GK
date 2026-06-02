@@ -26,8 +26,8 @@ function CreateIncidencia() {
   const fetchData = async () => {
     try {
       const [resBranches, resDepartments] = await Promise.all([
-        fetch(`${API_URL}/api/branches`),
-        fetch(`${API_URL}/api/departments`),
+        fetch(`${API_URL}/api/branches`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/departments`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       setBranches(await resBranches.json());

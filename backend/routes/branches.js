@@ -17,12 +17,13 @@ router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
       return res.status(400).json({ msg: "El nombre de la sucursal es obligatorio" });
     }
 
-    const existingBranch = await Branch.findOne({ name });
+    const organization = req.user.organization || null;
+    const existingBranch = await Branch.findOne({ name, organization });
     if (existingBranch) {
       return res.status(400).json({ msg: "La sucursal ya existe" });
     }
 
-    const branch = await Branch.create({ name });
+    const branch = await Branch.create({ name, organization });
 
     res.status(201).json(branch);
   } catch (error) {
@@ -35,9 +36,9 @@ router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
   try {
-    const branches = await Branch.find().sort({ name: 1 });
+    const branches = await Branch.find({ organization: req.user.organization || null }).sort({ name: 1 });
     res.json(branches);
   } catch (error) {
     res.status(500).json({ msg: "Error al obtener sucursales" });
@@ -46,7 +47,8 @@ router.get("/", async (req, res) => {
 
 router.delete("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   try {
-    const branch = await Branch.findById(req.params.id);
+    const organization = req.user.organization || null;
+    const branch = await Branch.findOne({ _id: req.params.id, organization });
 
     if (!branch) {
       return res.status(404).json({ msg: "Sucursal no encontrada" });
@@ -54,14 +56,15 @@ router.delete("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) =
 
     const [users, incidents, maintenances, inventoryItems] = await Promise.all([
       User.countDocuments({
+        organization,
         $or: [
           { branch: branch._id },
           { branches: branch._id }
         ]
       }),
-      Incident.countDocuments({ branch: branch._id }),
-      Maintenance.countDocuments({ branch: branch._id }),
-      InventoryItem.countDocuments({ branch: branch._id }),
+      Incident.countDocuments({ organization, branch: branch._id }),
+      Maintenance.countDocuments({ organization, branch: branch._id }),
+      InventoryItem.countDocuments({ organization, branch: branch._id }),
     ]);
 
     if (users || incidents || maintenances || inventoryItems) {

@@ -19,13 +19,20 @@ const getStorageLimitBytes = () => {
 
 const formatGb = (bytes) => (bytes / 1024 / 1024 / 1024).toFixed(2);
 
-const getCurrentAttachmentStorageBytes = async () => {
+const getCurrentAttachmentStorageBytes = async (organization = null) => {
   const [result] = await Incident.aggregate([
+    { $match: { organization } },
     { $unwind: "$attachments" },
     { $group: { _id: null, total: { $sum: { $ifNull: ["$attachments.size", 0] } } } },
   ]);
 
   return result?.total || 0;
+};
+
+const getOrganizationFilter = (req) => {
+  if (!req.user?.organization) return {};
+
+  return { organization: req.user.organization };
 };
 
 const getAttachmentErrorStatus = (error) => {
@@ -68,7 +75,7 @@ const canViewIncident = (user, incident) => {
   return false;
 };
 
-const uploadFilesForIncident = async ({ incident, files, userId }) => {
+const uploadFilesForIncident = async ({ incident, files, userId, organization }) => {
   if (!files || files.length === 0) return [];
 
   if (!isR2Configured()) {
@@ -89,7 +96,7 @@ const uploadFilesForIncident = async ({ incident, files, userId }) => {
   }
 
   const storageLimit = getStorageLimitBytes();
-  const currentStorage = await getCurrentAttachmentStorageBytes();
+  const currentStorage = await getCurrentAttachmentStorageBytes(organization);
 
   if (currentStorage + incomingSize > storageLimit) {
     throw new Error(
@@ -119,7 +126,7 @@ const getIncidents = async (req, res) => {
     let query = null;
 
     if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
-      query = {};
+      query = getOrganizationFilter(req);
     } else {
       const filters = [];
 
@@ -147,7 +154,11 @@ const getIncidents = async (req, res) => {
         return res.status(403).json({ msg: "No tienes permisos para ver incidencias" });
       }
 
-      query = filters.length === 1 ? filters[0] : { $or: filters };
+      const permissionQuery = filters.length === 1 ? filters[0] : { $or: filters };
+      query = {
+        ...getOrganizationFilter(req),
+        ...permissionQuery,
+      };
     }
 
     const incidents = await Incident.find(query)
@@ -179,6 +190,7 @@ const createIncident = async (req, res) => {
     const incident = await Incident.create({
       title,
       description,
+      organization: req.user.organization || null,
       branch,
       department: department.toLowerCase().trim(),
       createdBy: req.user.id,
@@ -189,6 +201,7 @@ const createIncident = async (req, res) => {
         incident,
         files: req.files,
         userId: req.user.id,
+        organization: req.user.organization || null,
       });
 
       if (attachments.length > 0) {
@@ -214,7 +227,10 @@ const createIncident = async (req, res) => {
 
 const addAttachments = async (req, res) => {
   try {
-    const incident = await Incident.findById(req.params.id);
+    const incident = await Incident.findOne({
+      _id: req.params.id,
+      ...getOrganizationFilter(req),
+    });
 
     if (!incident) {
       return res.status(404).json({ msg: "Incidencia no encontrada" });
@@ -228,6 +244,7 @@ const addAttachments = async (req, res) => {
       incident,
       files: req.files,
       userId: req.user.id,
+      organization: req.user.organization || null,
     });
 
     if (attachments.length === 0) {
@@ -251,7 +268,10 @@ const addAttachments = async (req, res) => {
 
 const getAttachmentDownloadUrl = async (req, res) => {
   try {
-    const incident = await Incident.findById(req.params.id);
+    const incident = await Incident.findOne({
+      _id: req.params.id,
+      ...getOrganizationFilter(req),
+    });
 
     if (!incident) {
       return res.status(404).json({ msg: "Incidencia no encontrada" });
@@ -292,7 +312,10 @@ const updateStatus = async (req, res) => {
       return res.status(400).json({ msg: "Status requerido" });
     }
 
-    const incident = await Incident.findById(req.params.id);
+    const incident = await Incident.findOne({
+      _id: req.params.id,
+      ...getOrganizationFilter(req),
+    });
 
     if (!incident) {
       return res.status(404).json({ msg: "Incidencia no encontrada" });

@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const SystemSettings = require("../models/SystemSettings");
+const Organization = require("../models/Organization");
 const authMiddleware = require("../middleware/authMiddleware");
 const authorize = require("../middleware/authorize");
 const ROLES = require("../config/roles");
@@ -38,11 +39,17 @@ const editableFields = [
   "sidebarImageUrl",
 ];
 
-const getSettings = async () => {
-  let settings = await SystemSettings.findOne({ key: "global" });
+const getDefaultOrganizationId = async () => {
+  const organization = await Organization.findOne({ slug: "default" }).select("_id");
+  return organization?._id || null;
+};
+
+const getSettings = async (organization = null) => {
+  const organizationId = organization || await getDefaultOrganizationId();
+  let settings = await SystemSettings.findOne({ key: "global", organization: organizationId });
 
   if (!settings) {
-    settings = await SystemSettings.create({ key: "global" });
+    settings = await SystemSettings.create({ key: "global", organization: organizationId });
   }
 
   return settings;
@@ -61,6 +68,7 @@ router.get("/", async (req, res) => {
 router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
+    const organization = req.user.organization || null;
     const payload = {};
 
     editableFields.forEach((field) => {
@@ -80,8 +88,8 @@ router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
     }
 
     const settings = await SystemSettings.findOneAndUpdate(
-      { key: "global" },
-      { $set: payload, $setOnInsert: { key: "global" } },
+      { key: "global", organization },
+      { $set: payload, $setOnInsert: { key: "global", organization } },
       { new: true, upsert: true, runValidators: true }
     );
 
@@ -105,11 +113,12 @@ router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), upload.sing
     }
 
     const imageData = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+    const organization = req.user.organization || null;
     const settings = await SystemSettings.findOneAndUpdate(
-      { key: "global" },
+      { key: "global", organization },
       {
         $set: { [req.params.field]: imageData },
-        $setOnInsert: { key: "global" }
+        $setOnInsert: { key: "global", organization }
       },
       { new: true, upsert: true, runValidators: true }
     );

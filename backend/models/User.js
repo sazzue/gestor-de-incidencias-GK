@@ -1,11 +1,16 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
+  organization: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Organization",
+    default: null
+  },
+
   nombre: String,
 
   username: {
     type: String,
-    unique: true,
     sparse: true,
     lowercase: true,
     trim: true
@@ -14,7 +19,6 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     trim: true
   },
@@ -66,5 +70,11 @@ const userSchema = new mongoose.Schema({
   }
 
 }, { timestamps: true });
+
+userSchema.index({ organization: 1, email: 1 }, { unique: true });
+userSchema.index(
+  { organization: 1, username: 1 },
+  { unique: true, sparse: true }
+);
 
 module.exports = mongoose.model('User', userSchema);

@@ -224,7 +224,7 @@ function MaintenanceCalendar() {
   }, [filterStatus, date, maintenances, selectedBranch, selectedDepartment]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/branches`)
+    fetch(`${API_URL}/api/branches`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => setBranches(data))
       .catch(err => console.error(err));
