@@ -143,24 +143,28 @@ export const exportPdfReport = ({ title, subtitle = "", columns, rows, summary =
         </table>
         <footer>Total de registros: ${rows.length}</footer>
         <script>
-          window.onload = () => {
-            window.focus();
-            window.print();
-          };
+          window.addEventListener("load", () => {
+            setTimeout(() => {
+              window.focus();
+              window.print();
+            }, 250);
+          });
         </script>
       </body>
     </html>
   `;
 
-  const reportWindow = window.open("", "_blank", "noopener,noreferrer");
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const reportWindow = window.open(url, "_blank");
+
   if (!reportWindow) {
+    URL.revokeObjectURL(url);
     alert("Permite ventanas emergentes para exportar el PDF");
     return;
   }
 
-  reportWindow.document.open();
-  reportWindow.document.write(html);
-  reportWindow.document.close();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 };
 
 export { formatDate };
