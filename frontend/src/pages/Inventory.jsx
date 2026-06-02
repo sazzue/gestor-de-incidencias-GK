@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuthUser } from "../hooks/useAuthUser";
+import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -94,6 +95,41 @@ function Inventory() {
       style: "currency",
       currency: "MXN",
     });
+
+  const exportInventoryPdf = () => {
+    if (filteredItems.length === 0) { alert("No hay equipos para exportar"); return; }
+
+    exportPdfReport({
+      title: "Reporte de inventario",
+      subtitle: "Equipos comprados y asignados por sucursal",
+      summary: [
+        { label: "Total", value: inventoryStats.total },
+        { label: "Activos", value: inventoryStats.activos },
+        { label: "Bajas", value: inventoryStats.bajas },
+        { label: "Valor activo", value: formatCurrency(inventoryStats.value) },
+      ],
+      columns: [
+        { key: "equipment", label: "Equipo" },
+        { key: "serialNumber", label: "Serie" },
+        { key: "branch", label: "Sucursal" },
+        { key: "department", label: "Departamento" },
+        { key: "provider", label: "Proveedor" },
+        { key: "responsible", label: "Responsable" },
+        { key: "price", label: "Precio" },
+        { key: "status", label: "Estado" },
+      ],
+      rows: filteredItems.map((item) => ({
+        equipment: `${item.brand || ""} ${item.model || ""}`.trim(),
+        serialNumber: item.serialNumber,
+        branch: item.branch?.name || "Sin sucursal",
+        department: item.department || "Sin departamento",
+        provider: item.provider,
+        responsible: item.responsible || "Sin responsable",
+        price: formatCurrency(item.price),
+        status: item.status,
+      })),
+    });
+  };
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -354,6 +390,7 @@ function Inventory() {
           <h1>Inventario</h1>
           <p>Equipos comprados y asignados por sucursal</p>
         </div>
+        <button className="export-btn" onClick={exportInventoryPdf}>Exportar PDF</button>
       </div>
 
       {message && (
@@ -584,6 +621,8 @@ function Inventory() {
           display: flex;
           justify-content: space-between;
           align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
           margin-bottom: 20px;
         }
 
@@ -696,6 +735,16 @@ function Inventory() {
         }
 
         .btn-submit:disabled { opacity: 0.65; cursor: not-allowed; }
+
+        .export-btn {
+          padding: 10px 14px;
+          border: none;
+          border-radius: 8px;
+          background: #22c55e;
+          color: white;
+          font-weight: 700;
+          cursor: pointer;
+        }
 
         .toolbar {
           display: flex;

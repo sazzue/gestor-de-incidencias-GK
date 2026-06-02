@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 import { useAuthUser } from "../hooks/useAuthUser";
+import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const MAINTENANCE_DEPARTMENTS = [
@@ -81,39 +80,38 @@ function MaintenanceCalendar() {
 
   const toLocalDate = (d) => new Date(d).toLocaleDateString("sv-SE");
 
-  const exportFilteredToExcel = () => {
+  const exportFilteredToPdf = () => {
     if (filtered.length === 0) { alert("No hay datos para exportar"); return; }
-    const data = filtered.map((m) => ({
-      Titulo: m.title,
-      Descripcion: m.description,
-      Sucursal: m.branch?.name || "Sin sucursal",
-      Departamento: getDepartmentLabel(m.department),
-      Estado: m.status,
-      Fecha: new Date(m.date).toLocaleDateString("es-MX"),
+    const rows = filtered.map((m) => ({
+      title: m.title,
+      description: m.description,
+      branch: m.branch?.name || "Sin sucursal",
+      department: getDepartmentLabel(m.department),
+      status: m.status,
+      date: new Date(m.date).toLocaleDateString("es-MX"),
+      confirmedBy: m.confirmedBy?.nombre || m.confirmedBy?.email || "",
     }));
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Mantenimientos");
-    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([excelBuffer], { type: "application/octet-stream" }), "mantenimientos_filtrados.xlsx");
-  };
-
-  const exportByBranch = () => {
-    if (filtered.length === 0) { alert("No hay datos para exportar"); return; }
-    const data = filtered.map((m) => ({
-      Titulo: m.title,
-      Descripcion: m.description,
-      Sucursal: m.branch?.name,
-      Departamento: getDepartmentLabel(m.department),
-      Estado: m.status,
-      Fecha: new Date(m.date).toLocaleDateString("es-MX"),
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sucursal");
-    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const branchName = branches.find((b) => b._id === selectedBranch)?.name || "todas";
-    saveAs(new Blob([excelBuffer], { type: "application/octet-stream" }), `mantenimientos_${branchName}.xlsx`);
+    exportPdfReport({
+      title: "Reporte de mantenimientos",
+      subtitle: `Sucursal: ${branchName}`,
+      summary: [
+        { label: "Total", value: filtered.length },
+        { label: "Programados", value: filtered.filter((item) => item.status === "programado").length },
+        { label: "Finalizados", value: filtered.filter((item) => item.status === "finalizado").length },
+        { label: "Fecha vista", value: date.toLocaleDateString("es-MX") },
+      ],
+      columns: [
+        { key: "title", label: "Titulo" },
+        { key: "description", label: "Descripcion" },
+        { key: "branch", label: "Sucursal" },
+        { key: "department", label: "Departamento" },
+        { key: "status", label: "Estado" },
+        { key: "date", label: "Fecha" },
+        { key: "confirmedBy", label: "Confirmado por" },
+      ],
+      rows,
+    });
   };
 
   async function fetchData() {
@@ -302,8 +300,7 @@ function MaintenanceCalendar() {
             {canCreateMaintenance ? "Programar mantenimiento" : "Solo Sistemas y Mantenimiento pueden crear"}
           </button>
 
-          <button onClick={exportFilteredToExcel} className="export-btn">Exportar filtrados</button>
-          <button onClick={exportByBranch} className="export-btn">Exportar por sucursal</button>
+          <button onClick={exportFilteredToPdf} className="export-btn">Exportar PDF</button>
         </div>
 
         {/* DERECHA */}

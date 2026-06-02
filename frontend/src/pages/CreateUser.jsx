@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { ROLES } from "../config/roles";
+import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -232,6 +233,41 @@ function CreateUser() {
     setMessage({ type: "success", title: "Usuario actualizado correctamente", detail: "Los cambios ya quedaron guardados." });
   };
 
+  const exportUsersPdf = () => {
+    if (users.length === 0) { alert("No hay usuarios para exportar"); return; }
+
+    exportPdfReport({
+      title: "Reporte de usuarios",
+      subtitle: "Usuarios, roles y permisos de la empresa",
+      summary: [
+        { label: "Total", value: users.length },
+        { label: "Admins", value: users.filter((user) => user.role === "admin").length },
+        { label: "Departamentos", value: departments.length },
+        { label: "Sucursales", value: branches.length },
+      ],
+      columns: [
+        { key: "name", label: "Nombre" },
+        { key: "email", label: "Email" },
+        { key: "username", label: "Usuario" },
+        { key: "role", label: "Rol" },
+        { key: "department", label: "Departamento" },
+        { key: "branches", label: "Sucursales" },
+        { key: "permissions", label: "Permisos directos" },
+      ],
+      rows: users.map((user) => ({
+        name: user.nombre,
+        email: user.email,
+        username: user.username || "",
+        role: user.role,
+        department: user.department || "",
+        branches: (user.branches || [])
+          .map((branch) => branch?.name || branch)
+          .join(", "),
+        permissions: (user.permissions || []).length,
+      })),
+    });
+  };
+
   if (currentUser?.role !== "admin" && !currentUser?.permissions?.includes("CREATE_USERS")) {
     return (
       <div className="users-page">
@@ -288,6 +324,7 @@ function CreateUser() {
           <p>Crear usuarios, asignar sucursales y configurar permisos.</p>
         </div>
         <div className="header-actions">
+          <button className="ghost-btn" onClick={exportUsersPdf}>Exportar PDF</button>
           <button className="ghost-btn" onClick={() => navigate("/catalogs")}>Catalogos</button>
           <button className="ghost-btn" onClick={() => navigate("/dashboard")}>Volver</button>
         </div>

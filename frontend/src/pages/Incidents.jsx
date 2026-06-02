@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 import { useAuthUser } from "../hooks/useAuthUser";
+import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -117,25 +116,40 @@ function Incidents() {
     setFilteredIncidents(result);
   };
 
-  const exportIncidents = () => {
+  const exportIncidentsPdf = () => {
     if (filteredIncidents.length === 0) { alert("No hay incidencias para exportar"); return; }
-    const data = filteredIncidents.map((i) => ({
-      Titulo: i.title,
-      Descripcion: i.description,
-      Sucursal: i.branch?.name || i.branch || "Sin sucursal",
-      Departamento: i.department?.name || i.department || "Sin departamento",
-      Estado: i.status,
-      Fecha: new Date(i.createdAt).toLocaleDateString("es-MX"),
-      Resuelto: getResolvedDate(i)
+    const rows = filteredIncidents.map((i) => ({
+      title: i.title,
+      description: i.description,
+      branch: i.branch?.name || i.branch || "Sin sucursal",
+      department: i.department?.name || i.department || "Sin departamento",
+      status: i.status?.replace("_", " ") || "",
+      createdAt: new Date(i.createdAt).toLocaleDateString("es-MX"),
+      resolvedAt: getResolvedDate(i)
         ? new Date(getResolvedDate(i)).toLocaleDateString("es-MX")
         : "",
     }));
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Incidencias");
-    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const branchName = branches.find((b) => b._id === selectedBranch)?.name || "todas";
-    saveAs(new Blob([excelBuffer], { type: "application/octet-stream" }), `incidencias_${branchName}.xlsx`);
+    exportPdfReport({
+      title: "Reporte de incidencias",
+      subtitle: `Sucursal: ${branchName}`,
+      summary: [
+        { label: "Total", value: filteredIncidents.length },
+        { label: "Pendientes", value: filteredIncidents.filter((item) => item.status === "pendiente").length },
+        { label: "En proceso", value: filteredIncidents.filter((item) => item.status === "en_proceso").length },
+        { label: "Resueltas", value: filteredIncidents.filter((item) => item.status === "resuelto").length },
+      ],
+      columns: [
+        { key: "title", label: "Titulo" },
+        { key: "description", label: "Descripcion" },
+        { key: "branch", label: "Sucursal" },
+        { key: "department", label: "Departamento" },
+        { key: "status", label: "Estado" },
+        { key: "createdAt", label: "Fecha" },
+        { key: "resolvedAt", label: "Resuelto" },
+      ],
+      rows,
+    });
   };
 
   const updateStatus = async (id, status) => {
@@ -250,7 +264,7 @@ function Incidents() {
         <input type="date" onChange={(e) => setStartDate(e.target.value)} />
         <input type="date" onChange={(e) => setEndDate(e.target.value)} />
 
-        <button className="btn-export" onClick={exportIncidents}>📊 Exportar</button>
+        <button className="btn-export" onClick={exportIncidentsPdf}>Exportar PDF</button>
       </div>
 
       {/* GRID */}
