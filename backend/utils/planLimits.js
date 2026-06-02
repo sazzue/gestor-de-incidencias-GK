@@ -31,6 +31,20 @@ const PLAN_LIMITS = {
   },
 };
 
+const ADD_ON_PRICES = {
+  extraUsers: 99,
+  extraBranches: 199,
+  extraStorageGb: 149,
+  implementation: {
+    min: 2500,
+    max: 8000,
+  },
+  training: {
+    min: 1500,
+    max: 3000,
+  },
+};
+
 const LIMIT_LABELS = {
   users: "usuarios",
   branches: "sucursales",
@@ -116,13 +130,31 @@ const getOrganizationUsage = async (organization) => {
   };
 };
 
-const getPlanLimits = (plan = "basic") => PLAN_LIMITS[plan] || PLAN_LIMITS.basic;
+const getPlanLimits = (plan = "basic", addOns = {}) => {
+  const baseLimits = PLAN_LIMITS[plan] || PLAN_LIMITS.basic;
+
+  if (plan === "enterprise") return baseLimits;
+
+  return {
+    ...baseLimits,
+    users: baseLimits.users + Number(addOns.extraUsers || 0),
+    branches: baseLimits.branches + Number(addOns.extraBranches || 0),
+    storageBytes: baseLimits.storageBytes + (Number(addOns.extraStorageGb || 0) * GB),
+  };
+};
+
+const getAddOnMonthlyTotal = (addOns = {}) =>
+  (Number(addOns.extraUsers || 0) * ADD_ON_PRICES.extraUsers) +
+  (Number(addOns.extraBranches || 0) * ADD_ON_PRICES.extraBranches) +
+  (Number(addOns.extraStorageGb || 0) * ADD_ON_PRICES.extraStorageGb);
 
 const getOrganizationPlanSummary = async (organization) => {
-  const limits = getPlanLimits(organization.plan);
+  const limits = getPlanLimits(organization.plan, organization.addOns);
   const usage = await getOrganizationUsage(organization._id);
 
   return {
+    addOnPrices: ADD_ON_PRICES,
+    addOnMonthlyTotal: getAddOnMonthlyTotal(organization.addOns),
     limits,
     usage,
   };
@@ -131,10 +163,10 @@ const getOrganizationPlanSummary = async (organization) => {
 const assertWithinPlanLimit = async ({ organization, metric, increment = 1 }) => {
   if (!organization) return;
 
-  const organizationDoc = await Organization.findById(organization).select("plan");
+  const organizationDoc = await Organization.findById(organization).select("plan addOns");
   if (!organizationDoc) return;
 
-  const limits = getPlanLimits(organizationDoc.plan);
+  const limits = getPlanLimits(organizationDoc.plan, organizationDoc.addOns);
   const limit = limits[metric];
   if (limit === null || limit === undefined) return;
 
@@ -153,10 +185,10 @@ const assertWithinPlanLimit = async ({ organization, metric, increment = 1 }) =>
 const assertStorageWithinPlanLimit = async ({ organization, incrementBytes = 0 }) => {
   if (!organization || incrementBytes <= 0) return;
 
-  const organizationDoc = await Organization.findById(organization).select("plan");
+  const organizationDoc = await Organization.findById(organization).select("plan addOns");
   if (!organizationDoc) return;
 
-  const limits = getPlanLimits(organizationDoc.plan);
+  const limits = getPlanLimits(organizationDoc.plan, organizationDoc.addOns);
   const limit = limits.storageBytes;
   if (limit === null || limit === undefined) return;
 
@@ -173,6 +205,7 @@ const assertStorageWithinPlanLimit = async ({ organization, incrementBytes = 0 }
 
 module.exports = {
   PLAN_LIMITS,
+  ADD_ON_PRICES,
   assertStorageWithinPlanLimit,
   assertWithinPlanLimit,
   getOrganizationPlanSummary,

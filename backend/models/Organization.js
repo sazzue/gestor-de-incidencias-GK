@@ -29,6 +29,31 @@ const organizationSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    addOns: {
+      extraUsers: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      extraBranches: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      extraStorageGb: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      implementation: {
+        type: Boolean,
+        default: false,
+      },
+      training: {
+        type: Boolean,
+        default: false,
+      },
+    },
   },
   { timestamps: true }
 );

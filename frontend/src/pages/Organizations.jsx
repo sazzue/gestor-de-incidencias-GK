@@ -38,6 +38,13 @@ const usagePercent = (used, limit) => {
   return Math.min(100, Math.round((used / limit) * 100));
 };
 
+const formatMoney = (value = 0) =>
+  new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 0,
+  }).format(value);
+
 const readApiResponse = async (res) => {
   const text = await res.text();
 
@@ -201,6 +208,20 @@ function Organizations() {
     }
   };
 
+  const updateAddOns = async (organization, patch) => {
+    const nextAddOns = {
+      extraUsers: 0,
+      extraBranches: 0,
+      extraStorageGb: 0,
+      implementation: false,
+      training: false,
+      ...(organization.addOns || {}),
+      ...patch,
+    };
+
+    await updateOrganization(organization, "addOns", nextAddOns);
+  };
+
   if (!user?.isPlatformAdmin) {
     return (
       <div style={{ minHeight: "100vh", padding: 28, color: "var(--app-text)", background: "var(--app-bg)" }}>
@@ -268,6 +289,7 @@ function Organizations() {
                   <th>Admin</th>
                   <th>Plan</th>
                   <th>Estado</th>
+                  <th>Adicionales</th>
                   <th>Uso</th>
                 </tr>
               </thead>
@@ -290,6 +312,61 @@ function Organizations() {
                         <option value="trial">Trial</option>
                         <option value="suspended">Suspendida</option>
                       </select>
+                    </td>
+                    <td>
+                      <div className="addons-panel">
+                        <label>
+                          Usuarios extra
+                          <input
+                            type="number"
+                            min="0"
+                            value={organization.addOns?.extraUsers || 0}
+                            onChange={(e) => updateAddOns(organization, { extraUsers: Number(e.target.value || 0) })}
+                          />
+                          <small>{formatMoney(organization.addOnPrices?.extraUsers || 99)} / mes c/u</small>
+                        </label>
+                        <label>
+                          Sucursales extra
+                          <input
+                            type="number"
+                            min="0"
+                            value={organization.addOns?.extraBranches || 0}
+                            onChange={(e) => updateAddOns(organization, { extraBranches: Number(e.target.value || 0) })}
+                          />
+                          <small>{formatMoney(organization.addOnPrices?.extraBranches || 199)} / mes c/u</small>
+                        </label>
+                        <label>
+                          GB extra
+                          <input
+                            type="number"
+                            min="0"
+                            value={organization.addOns?.extraStorageGb || 0}
+                            onChange={(e) => updateAddOns(organization, { extraStorageGb: Number(e.target.value || 0) })}
+                          />
+                          <small>{formatMoney(organization.addOnPrices?.extraStorageGb || 149)} / mes c/u</small>
+                        </label>
+                        <label className="inline-check">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(organization.addOns?.implementation)}
+                            onChange={(e) => updateAddOns(organization, { implementation: e.target.checked })}
+                          />
+                          Implementacion
+                          <small>{formatMoney(organization.addOnPrices?.implementation?.min || 2500)} - {formatMoney(organization.addOnPrices?.implementation?.max || 8000)}</small>
+                        </label>
+                        <label className="inline-check">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(organization.addOns?.training)}
+                            onChange={(e) => updateAddOns(organization, { training: e.target.checked })}
+                          />
+                          Capacitacion
+                          <small>{formatMoney(organization.addOnPrices?.training?.min || 1500)} - {formatMoney(organization.addOnPrices?.training?.max || 3000)}</small>
+                        </label>
+                        <div className="addon-total">
+                          Extra mensual: <b>{formatMoney(organization.addOnMonthlyTotal || 0)}</b>
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <div className="metrics-grid">
@@ -410,7 +487,7 @@ function Organizations() {
         table {
           width: 100%;
           border-collapse: collapse;
-          min-width: 1080px;
+          min-width: 1320px;
         }
 
         th,
@@ -434,6 +511,67 @@ function Organizations() {
         td select {
           min-width: 130px;
           padding: 8px 10px;
+        }
+
+        .addons-panel {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(130px, 1fr));
+          gap: 8px 10px;
+          min-width: 330px;
+        }
+
+        .addons-panel label {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 11px;
+          color: var(--app-text);
+          opacity: 0.82;
+        }
+
+        .addons-panel input[type="number"] {
+          width: 100%;
+          min-width: 0;
+          padding: 8px 9px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: var(--app-input);
+          color: var(--app-text);
+        }
+
+        .addons-panel small {
+          color: var(--app-text);
+          opacity: 0.58;
+          font-size: 10px;
+        }
+
+        .inline-check {
+          flex-direction: row !important;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .inline-check input {
+          width: auto;
+          accent-color: var(--app-accent);
+        }
+
+        .inline-check small {
+          width: 100%;
+          padding-left: 21px;
+        }
+
+        .addon-total {
+          grid-column: 1 / -1;
+          padding: 8px 10px;
+          border-radius: 8px;
+          background: rgba(255,255,255,0.06);
+          color: var(--app-text);
+          font-size: 12px;
+        }
+
+        .addon-total b {
+          color: var(--app-title);
         }
 
         .metrics-grid {

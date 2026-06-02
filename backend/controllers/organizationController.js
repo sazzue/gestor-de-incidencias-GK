@@ -13,6 +13,14 @@ const buildSlug = (value = "") =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+const normalizeAddOns = (addOns = {}) => ({
+  extraUsers: Math.max(0, Number(addOns.extraUsers || 0)),
+  extraBranches: Math.max(0, Number(addOns.extraBranches || 0)),
+  extraStorageGb: Math.max(0, Number(addOns.extraStorageGb || 0)),
+  implementation: Boolean(addOns.implementation),
+  training: Boolean(addOns.training),
+});
+
 const attachPlanSummaries = async (organizations) => {
   const list = Array.isArray(organizations) ? organizations : [organizations];
   const summaries = await Promise.all(
@@ -38,6 +46,7 @@ const createOrganization = async (req, res) => {
     const status = req.body.status || "active";
     const ownerUser = req.body.ownerUser || null;
     const owner = req.body.owner || null;
+    const addOns = normalizeAddOns(req.body.addOns);
 
     if (!name || !slug) {
       return res.status(400).json({ msg: "Nombre y slug son obligatorios" });
@@ -53,6 +62,7 @@ const createOrganization = async (req, res) => {
       plan,
       status,
       ownerUser,
+      addOns,
     });
 
     if (ownerUser) {
@@ -102,6 +112,10 @@ const updateOrganization = async (req, res) => {
 
     if (req.body.slug) {
       payload.slug = buildSlug(req.body.slug);
+    }
+
+    if (req.body.addOns) {
+      payload.addOns = normalizeAddOns(req.body.addOns);
     }
 
     const organization = await Organization.findByIdAndUpdate(
