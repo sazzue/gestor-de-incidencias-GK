@@ -2,6 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const Role = require("../models/Role");
 const { hasPermission, normalizePermissions } = require("../utils/permissions");
+const { getPlatformAdminEmails, isPlatformAdminEmail } = require("../utils/platformAdmin");
 
 const canManageUsers = (req, res) => {
   if (!req.user) {
@@ -49,18 +50,33 @@ const getOrganizationFilter = (req) => {
   return { organization: req.user.organization };
 };
 
+const canManagePlatformUser = (req, res, user) => {
+  if (!isPlatformAdminEmail(user?.email)) return true;
+
+  if (isPlatformAdminEmail(req.user?.email)) return true;
+
+  res.status(403).json({
+    msg: "No puedes modificar al super admin del sistema",
+  });
+  return false;
+};
+
 const deleteUser = async (req, res) => {
   try {
     if (!canManageUsers(req, res)) return;
 
-    const deletedUser = await User.findOneAndDelete({
+    const user = await User.findOne({
       _id: req.params.id,
       ...getOrganizationFilter(req),
     });
 
-    if (!deletedUser) {
+    if (!user) {
       return res.status(404).json({ msg: "Usuario no encontrado" });
     }
+
+    if (!canManagePlatformUser(req, res, user)) return;
+
+    await user.deleteOne();
 
     res.json({ msg: "Usuario eliminado" });
   } catch (error) {
@@ -71,6 +87,17 @@ const deleteUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     if (!canManageUsers(req, res)) return;
+
+    const currentUser = await User.findOne({
+      _id: req.params.id,
+      ...getOrganizationFilter(req),
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
+    if (!canManagePlatformUser(req, res, currentUser)) return;
 
     const input = normalizeUserInput(req.body);
 
@@ -120,7 +147,7 @@ const updateUser = async (req, res) => {
       update.password = await bcrypt.hash(input.password, 10);
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
+    const updatedUser = await User.findOneAndUpdate(
       {
         _id: req.params.id,
         ...getOrganizationFilter(req),
@@ -147,7 +174,14 @@ const getUsers = async (req, res) => {
   try {
     if (!canManageUsers(req, res)) return;
 
-    const users = await User.find(getOrganizationFilter(req))
+    const query = {
+      ...getOrganizationFilter(req),
+      ...(isPlatformAdminEmail(req.user?.email)
+        ? {}
+        : { email: { $nin: getPlatformAdminEmails() } }),
+    };
+
+    const users = await User.find(query)
       .select("-password")
       .populate("branch", "name")
       .populate("branches", "name");
@@ -165,6 +199,12 @@ const createUser = async (req, res) => {
 
     if (!input.nombre || !input.email || !input.password || !input.role) {
       return res.status(400).json({ msg: "Datos incompletos" });
+    }
+
+    if (isPlatformAdminEmail(input.email) && !isPlatformAdminEmail(req.user?.email)) {
+      return res.status(403).json({
+        msg: "No puedes crear usuarios con un correo reservado de super admin",
+      });
     }
 
     const roleExists = await Role.findOne({ name: input.role });
