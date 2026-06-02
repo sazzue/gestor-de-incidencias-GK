@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { jwtDecode } from "jwt-decode";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const SETTINGS_CACHE_KEY = "systemSettings";
@@ -35,6 +36,18 @@ export const applySystemTheme = (settings = DEFAULT_SETTINGS) => {
 
 const normalizeSettings = (settings) => ({ ...DEFAULT_SETTINGS, ...(settings || {}) });
 
+const getSettingsCacheKey = () => {
+  const token = localStorage.getItem("token");
+  if (!token) return `${SETTINGS_CACHE_KEY}:public`;
+
+  try {
+    const user = jwtDecode(token);
+    return `${SETTINGS_CACHE_KEY}:${user.organization || user.organizationSlug || "public"}`;
+  } catch {
+    return `${SETTINGS_CACHE_KEY}:public`;
+  }
+};
+
 const getSettingsTime = (settings) => {
   const value = settings?.updatedAt || settings?.createdAt;
   const time = value ? new Date(value).getTime() : 0;
@@ -43,7 +56,8 @@ const getSettingsTime = (settings) => {
 
 export const getCachedSystemSettings = () => {
   try {
-    const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
+    const token = localStorage.getItem("token");
+    const cached = localStorage.getItem(getSettingsCacheKey()) || (!token ? localStorage.getItem(SETTINGS_CACHE_KEY) : null);
     return cached ? normalizeSettings(JSON.parse(cached)) : null;
   } catch {
     return null;
@@ -52,7 +66,7 @@ export const getCachedSystemSettings = () => {
 
 export const cacheSystemSettings = (settings) => {
   const nextSettings = normalizeSettings(settings);
-  localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(nextSettings));
+  localStorage.setItem(getSettingsCacheKey(), JSON.stringify(nextSettings));
   applySystemTheme(nextSettings);
   return nextSettings;
 };
@@ -63,7 +77,12 @@ export function useSystemSettings() {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/settings`, { cache: "no-store" });
+      const token = localStorage.getItem("token");
+      const endpoint = token ? "/api/settings/current" : "/api/settings";
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const data = await res.json();
 
       if (!res.ok) return;
@@ -89,6 +108,9 @@ export function useSystemSettings() {
 
   useEffect(() => {
     applySystemTheme(settings);
+  }, [settings]);
+
+  useEffect(() => {
     fetchSettings();
     const handleSettingsUpdated = (event) => {
       if (event.detail) {
@@ -100,8 +122,14 @@ export function useSystemSettings() {
       fetchSettings();
     };
     window.addEventListener("system-settings-updated", handleSettingsUpdated);
-    return () => window.removeEventListener("system-settings-updated", handleSettingsUpdated);
-  }, [fetchSettings, settings]);
+    window.addEventListener("auth-updated", fetchSettings);
+    window.addEventListener("auth-refresh", fetchSettings);
+    return () => {
+      window.removeEventListener("system-settings-updated", handleSettingsUpdated);
+      window.removeEventListener("auth-updated", fetchSettings);
+      window.removeEventListener("auth-refresh", fetchSettings);
+    };
+  }, [fetchSettings]);
 
   return { settings, setSettings, loading, refreshSettings: fetchSettings };
 }

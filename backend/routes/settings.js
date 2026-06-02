@@ -20,16 +20,7 @@ const upload = multer({
   },
 });
 
-const editableFields = [
-  "systemName",
-  "systemTitle",
-  "systemDescription",
-  "developer",
-  "contactEmail",
-  "version",
-  "usageInfo",
-  "rolesInfo",
-  "departmentsInfo",
+const appearanceFields = [
   "textColor",
   "titleColor",
   "backgroundColor",
@@ -39,6 +30,32 @@ const editableFields = [
   "loginImageUrl",
   "sidebarImageUrl",
 ];
+
+const identityFields = [
+  "systemName",
+  "systemTitle",
+  "systemDescription",
+  "developer",
+  "contactEmail",
+  "version",
+  "usageInfo",
+  "rolesInfo",
+  "departmentsInfo",
+];
+
+const pickFields = (body, fields) => {
+  const payload = {};
+
+  fields.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      payload[field] = typeof body[field] === "string"
+        ? body[field].trim()
+        : body[field];
+    }
+  });
+
+  return payload;
+};
 
 const getDefaultOrganizationId = async () => {
   const organization = await Organization.findOne({ slug: "default" }).select("_id");
@@ -62,30 +79,50 @@ router.get("/", async (req, res) => {
     const settings = await getSettings();
     res.json(settings);
   } catch (error) {
-    res.status(500).json({ msg: "Error al obtener configuración del sistema" });
+    res.status(500).json({ msg: "Error al obtener configuracion del sistema" });
   }
 });
 
-router.put("/", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, async (req, res) => {
+router.get("/current", authMiddleware, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const settings = await getSettings(req.user.organization || null);
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ msg: "Error al obtener configuracion de la empresa" });
+  }
+});
+
+router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const organization = req.user.organization || null;
-    const payload = {};
+    const payload = pickFields(req.body, appearanceFields);
 
-    editableFields.forEach((field) => {
-      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
-        payload[field] = typeof req.body[field] === "string"
-          ? req.body[field].trim()
-          : req.body[field];
-      }
-    });
+    const settings = await SystemSettings.findOneAndUpdate(
+      { key: "global", organization },
+      { $set: payload, $setOnInsert: { key: "global", organization } },
+      { new: true, upsert: true, runValidators: true }
+    );
+
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ msg: "Error al guardar configuracion de la empresa" });
+  }
+});
+
+router.put("/identity", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const organization = req.user.organization || null;
+    const payload = pickFields(req.body, identityFields);
 
     if (!payload.systemName) {
       return res.status(400).json({ msg: "El nombre del sistema es obligatorio" });
     }
 
     if (!payload.version) {
-      return res.status(400).json({ msg: "La versión es obligatoria" });
+      return res.status(400).json({ msg: "La version es obligatoria" });
     }
 
     const settings = await SystemSettings.findOneAndUpdate(
@@ -96,17 +133,17 @@ router.put("/", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, as
 
     res.json(settings);
   } catch (error) {
-    res.status(500).json({ msg: "Error al guardar configuración del sistema" });
+    res.status(500).json({ msg: "Error al guardar identidad del sistema" });
   }
 });
 
-router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, upload.single("image"), async (req, res) => {
+router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), upload.single("image"), async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const allowedFields = ["loginImageUrl", "sidebarImageUrl"];
 
     if (!allowedFields.includes(req.params.field)) {
-      return res.status(400).json({ msg: "Campo de imagen no válido" });
+      return res.status(400).json({ msg: "Campo de imagen no valido" });
     }
 
     if (!req.file) {
@@ -119,7 +156,7 @@ router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), requirePlat
       { key: "global", organization },
       {
         $set: { [req.params.field]: imageData },
-        $setOnInsert: { key: "global", organization }
+        $setOnInsert: { key: "global", organization },
       },
       { new: true, upsert: true, runValidators: true }
     );
@@ -127,7 +164,7 @@ router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), requirePlat
     res.json(settings);
   } catch (error) {
     if (error.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ msg: "La imagen no puede pesar más de 2 MB" });
+      return res.status(400).json({ msg: "La imagen no puede pesar mas de 2 MB" });
     }
 
     res.status(500).json({ msg: error.message || "Error al subir imagen" });

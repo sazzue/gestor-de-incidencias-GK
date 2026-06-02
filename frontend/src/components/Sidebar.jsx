@@ -61,7 +61,7 @@ function Sidebar() {
     hasPermission("VIEW_INCIDENTS_BRANCH");
   const canAccessUsers = hasPermission("CREATE_USERS");
   const canAccessCatalogs = user?.role === "admin";
-  const canAccessSettings = Boolean(user?.isPlatformAdmin);
+  const canAccessSettings = user?.role === "admin";
   const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
   const canViewMaintenance =
     hasPermission("VIEW_MAINTENANCE_ALL") ||
@@ -159,6 +159,15 @@ function Sidebar() {
                 className={`sidebar-btn ${isActive("/settings") ? "active" : ""}`}
               >
                 Configuracion
+              </button>
+            )}
+
+            {canAccessOrganizations && (
+              <button
+                onClick={() => navigate("/platform-identity")}
+                className={`sidebar-btn ${isActive("/platform-identity") ? "active" : ""}`}
+              >
+                Identidad
               </button>
             )}
 

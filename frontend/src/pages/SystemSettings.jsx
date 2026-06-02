@@ -1,26 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_SETTINGS, applySystemTheme, cacheSystemSettings, useSystemSettings } from "../hooks/useSystemSettings";
 import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const fields = [
-  { name: "systemName", label: "Nombre en sidebar", type: "text" },
-  { name: "systemTitle", label: "Título del sistema", type: "text" },
-  { name: "systemDescription", label: "Descripción del sistema", type: "textarea" },
-  { name: "developer", label: "Desarrollador", type: "text" },
-  { name: "contactEmail", label: "Contacto", type: "email" },
-  { name: "version", label: "Versión", type: "text" },
-];
-
 const colors = [
   { name: "backgroundColor", label: "Color de fondo" },
   { name: "textColor", label: "Color de texto" },
-  { name: "titleColor", label: "Color de títulos" },
-  { name: "cardColor", label: "Color de tarjetas" },
-  { name: "inputColor", label: "Color de cuadros de texto" },
+  { name: "titleColor", label: "Color de titulos" },
+  { name: "cardColor", label: "Color de paneles" },
+  { name: "inputColor", label: "Color de campos" },
   { name: "accentColor", label: "Color principal" },
+];
+
+const appearanceFields = [
+  "backgroundColor",
+  "textColor",
+  "titleColor",
+  "cardColor",
+  "inputColor",
+  "accentColor",
+  "loginImageUrl",
+  "sidebarImageUrl",
 ];
 
 const toColorInputValue = (value, fallback) => (
@@ -34,6 +36,9 @@ const formatBytes = (bytes = 0) => {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 };
 
+const pickAppearance = (settings) =>
+  appearanceFields.reduce((payload, field) => ({ ...payload, [field]: settings[field] }), {});
+
 function SystemSettings() {
   const navigate = useNavigate();
   const { settings } = useSystemSettings();
@@ -43,6 +48,12 @@ function SystemSettings() {
   const [storage, setStorage] = useState(null);
   const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
   const token = localStorage.getItem("token");
+  const isAdmin = user?.role === "admin";
+
+  const storageTitle = useMemo(() => {
+    const company = user?.organizationName || user?.organizationSlug;
+    return company ? `Respaldo de ${company}` : "Respaldo de empresa";
+  }, [user]);
 
   useEffect(() => {
     setForm(settings);
@@ -55,11 +66,14 @@ function SystemSettings() {
   };
 
   const resetDefaults = () => {
-    setForm(DEFAULT_SETTINGS);
-    applySystemTheme(DEFAULT_SETTINGS);
+    const next = { ...form, ...pickAppearance(DEFAULT_SETTINGS) };
+    setForm(next);
+    applySystemTheme(next);
   };
 
   const fetchStorageUsage = useCallback(async () => {
+    if (!token || !isAdmin) return;
+
     try {
       const res = await fetch(`${API_URL}/api/storage/usage`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -69,12 +83,11 @@ function SystemSettings() {
     } catch {
       setStorage(null);
     }
-  }, [token]);
+  }, [isAdmin, token]);
 
   useEffect(() => {
-    if (!token || !user?.isPlatformAdmin) return;
     fetchStorageUsage();
-  }, [fetchStorageUsage, token, user?.isPlatformAdmin]);
+  }, [fetchStorageUsage]);
 
   const downloadBackup = async () => {
     setMessage(null);
@@ -100,7 +113,7 @@ function SystemSettings() {
       const link = document.createElement("a");
       const date = new Date().toISOString().slice(0, 10);
       link.href = url;
-      link.download = `respaldo-r2-${date}.zip`;
+      link.download = `respaldo-empresa-${date}.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -109,12 +122,12 @@ function SystemSettings() {
       setMessage({
         type: "success",
         title: "Respaldo generado",
-        detail: "El ZIP se descargó correctamente.",
+        detail: "El ZIP contiene solo informacion de esta empresa.",
       });
     } catch {
       setMessage({
         type: "error",
-        title: "Error de conexión",
+        title: "Error de conexion",
         detail: "No se pudo generar el respaldo.",
       });
     } finally {
@@ -130,8 +143,8 @@ function SystemSettings() {
     if (!file.type.startsWith("image/")) {
       setMessage({
         type: "error",
-        title: "Archivo inválido",
-        detail: "Selecciona una imagen válida."
+        title: "Archivo invalido",
+        detail: "Selecciona una imagen valida.",
       });
       return;
     }
@@ -161,22 +174,13 @@ function SystemSettings() {
     window.dispatchEvent(new CustomEvent("system-settings-updated", { detail: nextSettings }));
     setMessage({
       type: "success",
-      title: "Imagen actualizada correctamente",
-      detail: "La imagen ya se refleja en la sesión actual."
+      title: "Imagen actualizada",
+      detail: "La imagen se guardo para esta empresa.",
     });
   };
 
   const saveSettings = async () => {
     setMessage(null);
-
-    if (!form.systemName?.trim() || !form.version?.trim()) {
-      setMessage({
-        type: "error",
-        title: "Faltan campos obligatorios",
-        detail: "Nombre del sistema y versión son obligatorios."
-      });
-      return;
-    }
 
     const res = await fetch(`${API_URL}/api/settings`, {
       method: "PUT",
@@ -184,14 +188,14 @@ function SystemSettings() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(form),
+      body: JSON.stringify(pickAppearance(form)),
     });
     const data = await res.json();
 
     if (!res.ok) {
       setMessage({
         type: "error",
-        title: data.msg || "No se pudo guardar la configuración",
+        title: data.msg || "No se pudo guardar la apariencia",
         detail: data.error || `Error ${res.status}`,
       });
       return;
@@ -203,16 +207,16 @@ function SystemSettings() {
     window.dispatchEvent(new CustomEvent("system-settings-updated", { detail: nextSettings }));
     setMessage({
       type: "success",
-      title: "Configuración guardada correctamente",
-      detail: "Los cambios se aplicaron en la sesión actual."
+      title: "Apariencia guardada",
+      detail: "Los cambios aplican solo para esta empresa.",
     });
   };
 
-  if (!user?.isPlatformAdmin) {
+  if (!isAdmin) {
     return (
       <div style={{ minHeight: "100vh", padding: 28, color: "var(--app-text)", background: "var(--app-bg)" }}>
         <h2 style={{ color: "var(--app-title)", marginBottom: 8 }}>Sin acceso</h2>
-        <p>Solo el super admin del sistema puede acceder a esta seccion.</p>
+        <p>Solo un administrador puede modificar la apariencia de la empresa.</p>
       </div>
     );
   }
@@ -221,11 +225,11 @@ function SystemSettings() {
     <div className="settings-page">
       <div className="page-header">
         <div>
-          <h1>Configuración</h1>
-          <p>Edita apariencia, versión e información del sistema.</p>
+          <h1>Configuracion</h1>
+          <p>Apariencia, imagenes y respaldo privado de la empresa.</p>
         </div>
         <button className="btn-back" onClick={() => navigate("/dashboard")}>
-          ← Volver
+          Volver
         </button>
       </div>
 
@@ -237,28 +241,6 @@ function SystemSettings() {
       )}
 
       <div className="settings-grid">
-        <section className="panel">
-          <h3>Identidad</h3>
-          {fields.map((field) => (
-            <div className="form-group" key={field.name}>
-              <label>{field.label}</label>
-              {field.type === "textarea" ? (
-                <textarea
-                  rows="4"
-                  value={form[field.name] || ""}
-                  onChange={(e) => updateField(field.name, e.target.value)}
-                />
-              ) : (
-                <input
-                  type={field.type}
-                  value={form[field.name] || ""}
-                  onChange={(e) => updateField(field.name, e.target.value)}
-                />
-              )}
-            </div>
-          ))}
-        </section>
-
         <section className="panel">
           <h3>Apariencia</h3>
           {colors.map((field) => (
@@ -275,16 +257,20 @@ function SystemSettings() {
               />
             </div>
           ))}
+        </section>
 
+        <section className="panel">
+          <h3>Vista previa</h3>
           <div className="preview">
             <h4>{form.systemTitle}</h4>
             <p>{form.systemDescription}</p>
-            <input value="Vista previa de cuadro de texto" readOnly />
+            <input value="Campo de ejemplo" readOnly />
+            <button type="button">Boton principal</button>
           </div>
         </section>
 
         <section className="panel wide">
-          <h3>Imágenes</h3>
+          <h3>Imagenes</h3>
           <div className="image-grid">
             <div className="image-picker">
               <label>Imagen de login</label>
@@ -325,28 +311,10 @@ function SystemSettings() {
         </section>
 
         <section className="panel wide">
-          <h3>Información del sistema</h3>
-          <div className="textarea-grid">
-            <div className="form-group">
-              <label>Modo de uso</label>
-              <textarea rows="5" value={form.usageInfo || ""} onChange={(e) => updateField("usageInfo", e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Roles del sistema</label>
-              <textarea rows="5" value={form.rolesInfo || ""} onChange={(e) => updateField("rolesInfo", e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Departamentos</label>
-              <textarea rows="5" value={form.departmentsInfo || ""} onChange={(e) => updateField("departmentsInfo", e.target.value)} />
-            </div>
-          </div>
-        </section>
-
-        <section className="panel wide">
           <div className="storage-header">
             <div>
-              <h3>Respaldos de R2</h3>
-              <p>Exporta adjuntos de incidencias y facturas de inventario cuando el uso llegue al limite configurado.</p>
+              <h3>{storageTitle}</h3>
+              <p>El calculo y el ZIP usan solamente archivos de esta empresa.</p>
             </div>
             <button className="btn-cancel" onClick={fetchStorageUsage}>
               Actualizar uso
@@ -391,7 +359,7 @@ function SystemSettings() {
 
           {!storage?.isAtLimit && (
             <p className="storage-note">
-              El boton se habilita cuando el uso llegue al limite definido en R2_STORAGE_LIMIT_GB.
+              El boton se habilita cuando esta empresa llegue al limite definido en R2_STORAGE_LIMIT_GB.
             </p>
           )}
         </section>
@@ -402,7 +370,7 @@ function SystemSettings() {
           Usar valores base
         </button>
         <button className="btn-submit" onClick={saveSettings}>
-          Guardar cambios
+          Guardar apariencia
         </button>
       </div>
 
@@ -412,12 +380,10 @@ function SystemSettings() {
         .page-header h1 { color: var(--app-title); font-size: 24px; margin: 0; }
         .page-header p { color: var(--app-text); opacity: 0.7; font-size: 13px; margin-top: 4px; }
         .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-        .panel { background: var(--app-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; }
+        .panel { background: var(--app-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 20px; }
         .panel.wide { grid-column: 1 / -1; }
         .panel h3 { color: var(--app-title); font-size: 16px; margin-bottom: 16px; }
-        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; text-align: left; }
-        .form-group label, .color-row label { font-size: 12px; color: var(--app-text); opacity: 0.75; }
-        input, textarea {
+        input {
           width: 100%;
           padding: 10px 12px;
           border-radius: 8px;
@@ -426,15 +392,14 @@ function SystemSettings() {
           color: var(--app-text);
           outline: none;
         }
-        textarea { resize: vertical; }
-        input:focus, textarea:focus { border-color: var(--app-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 28%, transparent); }
-        .color-row { display: grid; grid-template-columns: 1fr 52px 130px; gap: 10px; align-items: center; margin-bottom: 12px; text-align: left; }
+        input:focus { border-color: var(--app-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 28%, transparent); }
+        .color-row { display: grid; grid-template-columns: 1fr 52px 140px; gap: 10px; align-items: center; margin-bottom: 12px; text-align: left; }
+        .color-row label { font-size: 12px; color: var(--app-text); opacity: 0.75; }
         .color-row input[type="color"] { padding: 2px; height: 38px; }
-        .preview { background: var(--app-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 16px; margin-top: 16px; text-align: left; }
+        .preview { min-height: 100%; background: var(--app-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 18px; text-align: left; }
         .preview h4 { color: var(--app-title); margin-bottom: 8px; }
-        .preview p { color: var(--app-text); font-size: 13px; line-height: 1.5; }
-        .preview input { margin-top: 12px; }
-        .textarea-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .preview p { color: var(--app-text); font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
+        .preview button { margin-top: 12px; padding: 10px 14px; border: none; border-radius: 8px; background: var(--app-accent); color: white; font-weight: 600; }
         .storage-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 16px; text-align: left; }
         .storage-header p, .storage-actions p, .storage-note { color: var(--app-text); opacity: 0.7; font-size: 13px; margin: 0; }
         .storage-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
@@ -456,7 +421,7 @@ function SystemSettings() {
           align-items: center;
           justify-content: center;
           border: 1px dashed rgba(255,255,255,0.18);
-          border-radius: 10px;
+          border-radius: 8px;
           background: rgba(2,6,23,0.55);
           color: var(--app-text);
           overflow: hidden;
@@ -491,7 +456,7 @@ function SystemSettings() {
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
         .notice span { color: var(--app-text); }
         @media (max-width: 900px) {
-          .settings-grid, .textarea-grid, .image-grid, .storage-grid { grid-template-columns: 1fr; }
+          .settings-grid, .image-grid, .storage-grid { grid-template-columns: 1fr; }
           .color-row { grid-template-columns: 1fr; }
           .actions-bar, .storage-actions, .storage-header { flex-direction: column; }
         }

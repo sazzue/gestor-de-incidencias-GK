@@ -10,6 +10,7 @@ import Inventory           from "./pages/Inventory.jsx";
 import CreateUser          from "./pages/CreateUser.jsx";
 import Info                from "./pages/Info.jsx";
 import SystemSettings      from "./pages/SystemSettings.jsx";
+import PlatformIdentity    from "./pages/PlatformIdentity.jsx";
 import Organizations       from "./pages/Organizations.jsx";
 import Catalogs            from "./pages/Catalogs.jsx";
 import ForgotPassword      from "./pages/ForgotPassword.jsx";
@@ -85,6 +86,12 @@ function App() {
         <Route path="/settings" element={
           <PrivateRoute>
             <Layout><SystemSettings /></Layout>
+          </PrivateRoute>
+        } />
+
+        <Route path="/platform-identity" element={
+          <PrivateRoute>
+            <Layout><PlatformIdentity /></Layout>
           </PrivateRoute>
         } />
 
