@@ -6,6 +6,7 @@ const InventoryItem = require("../models/InventoryItem");
 const auth = require("../middleware/authMiddleware");
 const authorize = require("../middleware/authorize");
 const ROLES = require("../config/roles");
+const { requirePlatformAdmin } = require("../utils/platformAdmin");
 const { getR2ObjectStream, isR2Configured } = require("../utils/r2Storage");
 const { streamZip } = require("../utils/zipStream");
 
@@ -130,7 +131,7 @@ const getUsageSummary = async (organization = null) => {
   };
 };
 
-router.get("/usage", auth, authorize(ROLES.ADMIN), async (req, res) => {
+router.get("/usage", auth, authorize(ROLES.ADMIN), requirePlatformAdmin, async (req, res) => {
   try {
     res.json(await getUsageSummary(req.user.organization || null));
   } catch (error) {
@@ -138,7 +139,7 @@ router.get("/usage", auth, authorize(ROLES.ADMIN), async (req, res) => {
   }
 });
 
-router.get("/backup.zip", auth, authorize(ROLES.ADMIN), async (req, res) => {
+router.get("/backup.zip", auth, authorize(ROLES.ADMIN), requirePlatformAdmin, async (req, res) => {
   try {
     if (!isR2Configured()) {
       return res.status(503).json({ msg: "Cloudflare R2 no esta configurado" });

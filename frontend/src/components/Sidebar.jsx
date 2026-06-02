@@ -60,8 +60,8 @@ function Sidebar() {
     hasPermission("VIEW_INCIDENTS_DEPARTMENT") ||
     hasPermission("VIEW_INCIDENTS_BRANCH");
   const canAccessUsers = hasPermission("CREATE_USERS");
-  const canAccessSettings = user?.role === "admin";
-  const canAccessOrganizations = user?.role === "admin";
+  const canAccessSettings = Boolean(user?.isPlatformAdmin);
+  const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
   const canViewMaintenance =
     hasPermission("VIEW_MAINTENANCE_ALL") ||
     hasPermission("VIEW_MAINTENANCE_DEPARTMENT") ||
@@ -143,21 +143,23 @@ function Sidebar() {
               Usuarios
             </button>
 
-            <button
-              disabled={!canAccessSettings}
-              onClick={() => navigate("/settings")}
-              className={`sidebar-btn ${isActive("/settings") ? "active" : ""} ${!canAccessSettings ? "disabled" : ""}`}
-            >
-              Configuracion
-            </button>
+            {canAccessSettings && (
+              <button
+                onClick={() => navigate("/settings")}
+                className={`sidebar-btn ${isActive("/settings") ? "active" : ""}`}
+              >
+                Configuracion
+              </button>
+            )}
 
-            <button
-              disabled={!canAccessOrganizations}
-              onClick={() => navigate("/organizations")}
-              className={`sidebar-btn ${isActive("/organizations") ? "active" : ""} ${!canAccessOrganizations ? "disabled" : ""}`}
-            >
-              Empresas
-            </button>
+            {canAccessOrganizations && (
+              <button
+                onClick={() => navigate("/organizations")}
+                className={`sidebar-btn ${isActive("/organizations") ? "active" : ""}`}
+              >
+                Empresas
+              </button>
+            )}
           </nav>
         </div>
 

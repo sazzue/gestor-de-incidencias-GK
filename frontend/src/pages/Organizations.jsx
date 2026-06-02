@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -38,6 +39,7 @@ const readApiResponse = async (res) => {
 };
 
 function Organizations() {
+  const user = useAuthUser();
   const [organizations, setOrganizations] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
@@ -71,8 +73,13 @@ function Organizations() {
   };
 
   useEffect(() => {
+    if (!user?.isPlatformAdmin) {
+      setLoading(false);
+      return;
+    }
+
     loadOrganizations();
-  }, []);
+  }, [user?.isPlatformAdmin]);
 
   const updateField = (field, value) => {
     setForm((prev) => {
@@ -160,6 +167,15 @@ function Organizations() {
       setMessage({ type: "error", title: error.message || "Error de conexion" });
     }
   };
+
+  if (!user?.isPlatformAdmin) {
+    return (
+      <div style={{ minHeight: "100vh", padding: 28, color: "var(--app-text)", background: "var(--app-bg)" }}>
+        <h2 style={{ color: "var(--app-title)", marginBottom: 8 }}>Sin acceso</h2>
+        <p>Solo el super admin del sistema puede acceder a esta seccion.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="organizations-page">

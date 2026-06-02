@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Organization = require("../models/Organization");
 const { getPermissionsForUser } = require("../utils/permissions");
+const { isPlatformAdminEmail } = require("../utils/platformAdmin");
 
 const authMiddleware = async (req, res, next) => {
   const header = req.headers.authorization;
@@ -39,6 +40,7 @@ const authMiddleware = async (req, res, next) => {
       username: user.username || null,
       email: user.email,
       role: user.role,
+      isPlatformAdmin: isPlatformAdminEmail(user.email),
       organization: user.organization || null,
       department: user.department || null,
       branch: user.branch || null,

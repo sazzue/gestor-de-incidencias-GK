@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const { Resend } = require("resend");
 const { getPermissionsForUser } = require("../utils/permissions");
+const { isPlatformAdminEmail } = require("../utils/platformAdmin");
 
 const getMailTransporter = () => {
   const port = Number(process.env.SMTP_PORT || 587);
@@ -99,6 +100,7 @@ const sendPasswordResetEmail = async ({ user, resetLink }) => {
 
 const buildUserPayload = async (user) => {
   const permissions = await getPermissionsForUser(user);
+  const isPlatformAdmin = isPlatformAdminEmail(user.email);
 
   return {
     tokenPayload: {
@@ -107,6 +109,7 @@ const buildUserPayload = async (user) => {
       username: user.username || null,
       email: user.email,
       role: user.role,
+      isPlatformAdmin,
       organization: user.organization || null,
       department: user.department || null,
       branch: user.branch || null,
@@ -120,6 +123,7 @@ const buildUserPayload = async (user) => {
       username: user.username || null,
       email: user.email,
       role: user.role,
+      isPlatformAdmin,
       organization: user.organization || null,
       department: user.department || null,
       branch: user.branch || null,

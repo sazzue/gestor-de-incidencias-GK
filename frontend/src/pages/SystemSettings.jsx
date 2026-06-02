@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_SETTINGS, applySystemTheme, cacheSystemSettings, useSystemSettings } from "../hooks/useSystemSettings";
+import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -36,6 +37,7 @@ const formatBytes = (bytes = 0) => {
 function SystemSettings() {
   const navigate = useNavigate();
   const { settings } = useSystemSettings();
+  const user = useAuthUser();
   const [form, setForm] = useState(DEFAULT_SETTINGS);
   const [message, setMessage] = useState(null);
   const [storage, setStorage] = useState(null);
@@ -70,9 +72,9 @@ function SystemSettings() {
   }, [token]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !user?.isPlatformAdmin) return;
     fetchStorageUsage();
-  }, [fetchStorageUsage, token]);
+  }, [fetchStorageUsage, token, user?.isPlatformAdmin]);
 
   const downloadBackup = async () => {
     setMessage(null);
@@ -205,6 +207,15 @@ function SystemSettings() {
       detail: "Los cambios se aplicaron en la sesión actual."
     });
   };
+
+  if (!user?.isPlatformAdmin) {
+    return (
+      <div style={{ minHeight: "100vh", padding: 28, color: "var(--app-text)", background: "var(--app-bg)" }}>
+        <h2 style={{ color: "var(--app-title)", marginBottom: 8 }}>Sin acceso</h2>
+        <p>Solo el super admin del sistema puede acceder a esta seccion.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="settings-page">

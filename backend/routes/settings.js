@@ -5,6 +5,7 @@ const Organization = require("../models/Organization");
 const authMiddleware = require("../middleware/authMiddleware");
 const authorize = require("../middleware/authorize");
 const ROLES = require("../config/roles");
+const { requirePlatformAdmin } = require("../utils/platformAdmin");
 const multer = require("multer");
 
 const upload = multer({
@@ -65,7 +66,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.put("/", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const organization = req.user.organization || null;
@@ -99,7 +100,7 @@ router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   }
 });
 
-router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), upload.single("image"), async (req, res) => {
+router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, upload.single("image"), async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const allowedFields = ["loginImageUrl", "sidebarImageUrl"];
