@@ -5,7 +5,7 @@ const Organization = require("../models/Organization");
 const authMiddleware = require("../middleware/authMiddleware");
 const authorize = require("../middleware/authorize");
 const ROLES = require("../config/roles");
-const { requirePlatformAdmin } = require("../utils/platformAdmin");
+const { isPlatformAdminEmail, requirePlatformAdmin } = require("../utils/platformAdmin");
 const multer = require("multer");
 
 const upload = multer({
@@ -27,7 +27,6 @@ const appearanceFields = [
   "cardColor",
   "inputColor",
   "accentColor",
-  "loginImageUrl",
   "sidebarImageUrl",
 ];
 
@@ -67,7 +66,19 @@ const getSettings = async (organization = null) => {
   let settings = await SystemSettings.findOne({ key: "global", organization: organizationId });
 
   if (!settings) {
-    settings = await SystemSettings.create({ key: "global", organization: organizationId });
+    const defaultOrganizationId = await getDefaultOrganizationId();
+    const defaultSettings = defaultOrganizationId && String(organizationId || "") !== String(defaultOrganizationId)
+      ? await SystemSettings.findOne({ key: "global", organization: defaultOrganizationId }).lean()
+      : null;
+    const inheritedIdentity = defaultSettings
+      ? pickFields(defaultSettings, [...identityFields, "loginImageUrl"])
+      : {};
+
+    settings = await SystemSettings.create({
+      ...inheritedIdentity,
+      key: "global",
+      organization: organizationId,
+    });
   }
 
   return settings;
@@ -125,6 +136,14 @@ router.put("/identity", authMiddleware, authorize(ROLES.ADMIN), requirePlatformA
       return res.status(400).json({ msg: "La version es obligatoria" });
     }
 
+    const updatedAt = new Date();
+
+    await SystemSettings.updateMany(
+      { key: "global" },
+      { $set: { ...payload, updatedAt } },
+      { runValidators: true }
+    );
+
     const settings = await SystemSettings.findOneAndUpdate(
       { key: "global", organization },
       { $set: payload, $setOnInsert: { key: "global", organization } },
@@ -152,6 +171,32 @@ router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), upload.sing
 
     const imageData = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
     const organization = req.user.organization || null;
+
+    if (req.params.field === "loginImageUrl") {
+      if (!isPlatformAdminEmail(req.user?.email)) {
+        return res.status(403).json({ msg: "Solo el super admin puede cambiar la imagen de login" });
+      }
+
+      const updatedAt = new Date();
+
+      await SystemSettings.updateMany(
+        { key: "global" },
+        { $set: { loginImageUrl: imageData, updatedAt } },
+        { runValidators: true }
+      );
+
+      const settings = await SystemSettings.findOneAndUpdate(
+        { key: "global", organization },
+        {
+          $set: { loginImageUrl: imageData },
+          $setOnInsert: { key: "global", organization },
+        },
+        { new: true, upsert: true, runValidators: true }
+      );
+
+      return res.json(settings);
+    }
+
     const settings = await SystemSettings.findOneAndUpdate(
       { key: "global", organization },
       {

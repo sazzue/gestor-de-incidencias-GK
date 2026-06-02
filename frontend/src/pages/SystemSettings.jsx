@@ -21,7 +21,6 @@ const appearanceFields = [
   "cardColor",
   "inputColor",
   "accentColor",
-  "loginImageUrl",
   "sidebarImageUrl",
 ];
 
@@ -278,25 +277,7 @@ function SystemSettings() {
 
         <section className="panel wide">
           <h3>Imagenes</h3>
-          <div className="image-grid">
-            <div className="image-picker">
-              <label>Imagen de login</label>
-              <div className="image-preview">
-                {form.loginImageUrl ? <img src={form.loginImageUrl} alt="Login" /> : <span>Sin imagen personalizada</span>}
-              </div>
-              <label className="file-button">
-                Seleccionar imagen
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => uploadImage("loginImageUrl", e.target.files?.[0])}
-                />
-              </label>
-              <button className="btn-cancel small" onClick={() => updateField("loginImageUrl", "")}>
-                Quitar imagen
-              </button>
-            </div>
-
+          <div className="image-grid single">
             <div className="image-picker">
               <label>Imagen de sidebar</label>
               <div className="image-preview">
@@ -420,6 +401,7 @@ function SystemSettings() {
         .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
         .storage-note { margin-top: 12px; text-align: left; }
         .image-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+        .image-grid.single { grid-template-columns: minmax(280px, 420px); }
         .image-picker { display: flex; flex-direction: column; gap: 10px; text-align: left; }
         .image-picker > label { font-size: 12px; color: var(--app-text); opacity: 0.75; }
         .image-preview {

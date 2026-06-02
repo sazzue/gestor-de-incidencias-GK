@@ -43,6 +43,50 @@ function PlatformIdentity() {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
+  const uploadLoginImage = async (file) => {
+    if (!file) return;
+
+    setMessage(null);
+
+    if (!file.type.startsWith("image/")) {
+      setMessage({
+        type: "error",
+        title: "Archivo invalido",
+        detail: "Selecciona una imagen valida.",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const res = await fetch(`${API_URL}/api/settings/image/loginImageUrl`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setMessage({
+        type: "error",
+        title: data.msg || "No se pudo subir la imagen",
+        detail: data.error || `Error ${res.status}`,
+      });
+      return;
+    }
+
+    const nextSettings = { ...DEFAULT_SETTINGS, ...data };
+    setForm(nextSettings);
+    cacheSystemSettings(nextSettings);
+    window.dispatchEvent(new CustomEvent("system-settings-updated", { detail: nextSettings }));
+    setMessage({
+      type: "success",
+      title: "Imagen de login actualizada",
+      detail: "La imagen se aplicara de forma general al login.",
+    });
+  };
+
   const saveIdentity = async () => {
     setMessage(null);
 
@@ -148,6 +192,23 @@ function PlatformIdentity() {
         </section>
 
         <section className="panel wide">
+          <h3>Imagen general de login</h3>
+          <div className="image-picker">
+            <div className="image-preview">
+              {form.loginImageUrl ? <img src={form.loginImageUrl} alt="Login" /> : <span>Sin imagen personalizada</span>}
+            </div>
+            <label className="file-button">
+              Seleccionar imagen
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => uploadLoginImage(e.target.files?.[0])}
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="panel wide">
           <h3>Informacion del sistema</h3>
           <div className="textarea-grid">
             {informationFields.map((field) => (
@@ -198,6 +259,33 @@ function PlatformIdentity() {
         .preview strong { display: block; color: var(--app-title); margin-bottom: 8px; }
         .preview p { color: var(--app-text); font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
         .textarea-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .image-picker { display: grid; grid-template-columns: minmax(220px, 360px) 180px; gap: 14px; align-items: end; text-align: left; }
+        .image-preview {
+          height: 150px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px dashed rgba(255,255,255,0.18);
+          border-radius: 8px;
+          background: rgba(2,6,23,0.55);
+          color: var(--app-text);
+          overflow: hidden;
+        }
+        .image-preview img { width: 100%; height: 100%; object-fit: contain; }
+        .file-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 10px 14px;
+          border-radius: 8px;
+          background: var(--app-accent);
+          color: white !important;
+          font-size: 14px !important;
+          font-weight: 600;
+          cursor: pointer;
+          opacity: 1 !important;
+        }
+        .file-button input { display: none; }
         .actions-bar { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
         .btn-submit, .btn-back {
           padding: 10px 14px;
@@ -213,6 +301,7 @@ function PlatformIdentity() {
         .notice span { color: var(--app-text); }
         @media (max-width: 900px) {
           .settings-grid, .textarea-grid { grid-template-columns: 1fr; }
+          .image-picker { grid-template-columns: 1fr; }
           .actions-bar { flex-direction: column; }
         }
       `}</style>
