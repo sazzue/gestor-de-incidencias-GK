@@ -8,6 +8,7 @@ const InventoryItem = require("../models/InventoryItem");
 const authMiddleware = require("../middleware/authMiddleware");
 const authorize = require("../middleware/authorize");
 const ROLES = require("../config/roles");
+const { assertWithinPlanLimit } = require("../utils/planLimits");
 
 router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   try {
@@ -23,10 +24,20 @@ router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
       return res.status(400).json({ msg: "La sucursal ya existe" });
     }
 
+    await assertWithinPlanLimit({
+      organization,
+      metric: "branches",
+      increment: 1,
+    });
+
     const branch = await Branch.create({ name, organization });
 
     res.status(201).json(branch);
   } catch (error) {
+    if (error.code === "PLAN_LIMIT_EXCEEDED") {
+      return res.status(error.status || 403).json({ msg: error.message });
+    }
+
     if (error.code === 11000) {
       return res.status(400).json({ msg: "La sucursal ya existe" });
     }

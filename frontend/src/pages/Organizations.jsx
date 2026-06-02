@@ -23,6 +23,21 @@ const buildSlug = (value = "") =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+const formatBytes = (bytes = 0) => {
+  if (!bytes) return "0 MB";
+  const gb = bytes / 1024 / 1024 / 1024;
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+};
+
+const formatLimit = (value, formatter = (item) => item) =>
+  value === null || value === undefined ? "Ilimitado" : formatter(value);
+
+const usagePercent = (used, limit) => {
+  if (!limit) return 0;
+  return Math.min(100, Math.round((used / limit) * 100));
+};
+
 const readApiResponse = async (res) => {
   const text = await res.text();
 
@@ -70,6 +85,24 @@ function Organizations() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderMetric = (organization, metric, label, formatter) => {
+    const used = organization.usage?.[metric] || 0;
+    const limit = organization.limits?.[metric];
+    const percent = usagePercent(used, limit);
+
+    return (
+      <div className="metric">
+        <div className="metric-line">
+          <span>{label}</span>
+          <b>{formatter ? formatter(used) : used} / {formatLimit(limit, formatter)}</b>
+        </div>
+        <div className="meter">
+          <span style={{ width: `${limit ? percent : 100}%` }} className={percent >= 90 ? "danger" : percent >= 75 ? "warn" : ""} />
+        </div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -235,6 +268,7 @@ function Organizations() {
                   <th>Admin</th>
                   <th>Plan</th>
                   <th>Estado</th>
+                  <th>Uso</th>
                 </tr>
               </thead>
               <tbody>
@@ -256,6 +290,15 @@ function Organizations() {
                         <option value="trial">Trial</option>
                         <option value="suspended">Suspendida</option>
                       </select>
+                    </td>
+                    <td>
+                      <div className="metrics-grid">
+                        {renderMetric(organization, "users", "Usuarios")}
+                        {renderMetric(organization, "branches", "Sucursales")}
+                        {renderMetric(organization, "incidents", "Incidencias")}
+                        {renderMetric(organization, "files", "Archivos")}
+                        {renderMetric(organization, "storageBytes", "Almacenamiento", formatBytes)}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -367,7 +410,7 @@ function Organizations() {
         table {
           width: 100%;
           border-collapse: collapse;
-          min-width: 760px;
+          min-width: 1080px;
         }
 
         th,
@@ -392,6 +435,55 @@ function Organizations() {
           min-width: 130px;
           padding: 8px 10px;
         }
+
+        .metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(150px, 1fr));
+          gap: 8px 12px;
+          min-width: 360px;
+        }
+
+        .metric {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+
+        .metric-line {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          font-size: 12px;
+        }
+
+        .metric-line span {
+          opacity: 0.75;
+        }
+
+        .metric-line b {
+          color: var(--app-title);
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .meter {
+          width: 100%;
+          height: 6px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.1);
+        }
+
+        .meter span {
+          display: block;
+          height: 100%;
+          min-width: 5px;
+          border-radius: inherit;
+          background: #22c55e;
+        }
+
+        .meter span.warn { background: #f59e0b; }
+        .meter span.danger { background: #ef4444; }
 
         @media (max-width: 1100px) {
           .company-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }

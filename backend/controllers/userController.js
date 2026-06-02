@@ -2,6 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const Role = require("../models/Role");
 const { hasPermission, normalizePermissions } = require("../utils/permissions");
+const { assertWithinPlanLimit } = require("../utils/planLimits");
 const { getPlatformAdminEmails, isPlatformAdminEmail } = require("../utils/platformAdmin");
 
 const canManageUsers = (req, res) => {
@@ -207,6 +208,14 @@ const createUser = async (req, res) => {
       });
     }
 
+    if (!isPlatformAdminEmail(input.email)) {
+      await assertWithinPlanLimit({
+        organization: req.user.organization,
+        metric: "users",
+        increment: 1,
+      });
+    }
+
     const roleExists = await Role.findOne({ name: input.role });
     if (!roleExists) {
       return res.status(400).json({ msg: "Rol no valido" });
@@ -260,6 +269,10 @@ const createUser = async (req, res) => {
 
     res.status(201).json(createdUser);
   } catch (error) {
+    if (error.code === "PLAN_LIMIT_EXCEEDED") {
+      return res.status(error.status || 403).json({ msg: error.message });
+    }
+
     console.error("ERROR CREATE USER:", error);
     res.status(500).json({ msg: "Error al crear usuario", error: error.message });
   }

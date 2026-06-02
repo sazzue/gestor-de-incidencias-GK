@@ -1,6 +1,7 @@
 const Organization = require("../models/Organization");
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const { getOrganizationPlanSummary } = require("../utils/planLimits");
 
 const buildSlug = (value = "") =>
   value
@@ -11,6 +12,23 @@ const buildSlug = (value = "") =>
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+
+const attachPlanSummaries = async (organizations) => {
+  const list = Array.isArray(organizations) ? organizations : [organizations];
+  const summaries = await Promise.all(
+    list.map(async (organization) => {
+      const payload = organization.toObject ? organization.toObject() : organization;
+      const planSummary = await getOrganizationPlanSummary(payload);
+
+      return {
+        ...payload,
+        ...planSummary,
+      };
+    })
+  );
+
+  return Array.isArray(organizations) ? summaries : summaries[0];
+};
 
 const createOrganization = async (req, res) => {
   try {
@@ -57,7 +75,10 @@ const createOrganization = async (req, res) => {
       await organization.save();
     }
 
-    res.status(201).json(organization);
+    const populated = await Organization.findById(organization._id)
+      .populate("ownerUser", "nombre email");
+
+    res.status(201).json(await attachPlanSummaries(populated));
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ msg: "La empresa ya existe" });
@@ -93,7 +114,7 @@ const updateOrganization = async (req, res) => {
       return res.status(404).json({ msg: "Empresa no encontrada" });
     }
 
-    res.json(organization);
+    res.json(await attachPlanSummaries(organization));
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ msg: "La empresa ya existe" });
@@ -109,7 +130,7 @@ const getOrganizations = async (req, res) => {
       .populate("ownerUser", "nombre email")
       .sort({ createdAt: -1 });
 
-    res.json(organizations);
+    res.json(await attachPlanSummaries(organizations));
   } catch (error) {
     res.status(500).json({ msg: "Error al obtener empresas", error: error.message });
   }

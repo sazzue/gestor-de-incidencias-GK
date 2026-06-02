@@ -5,6 +5,7 @@ const router = express.Router();
 const InventoryItem = require("../models/InventoryItem");
 const auth = require("../middleware/authMiddleware");
 const { hasPermission } = require("../utils/permissions");
+const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
 const {
   getInventoryInvoiceUrl,
   isR2Configured,
@@ -171,6 +172,18 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       return res.status(503).json({ msg: "Cloudflare R2 no esta configurado para cargar facturas" });
     }
 
+    if (req.file) {
+      await assertWithinPlanLimit({
+        organization: req.user.organization,
+        metric: "files",
+        increment: 1,
+      });
+      await assertStorageWithinPlanLimit({
+        organization: req.user.organization,
+        incrementBytes: req.file.size || 0,
+      });
+    }
+
     const item = await InventoryItem.create({
       organization: req.user.organization || null,
       model,
@@ -200,6 +213,10 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
 
     res.status(201).json(populated);
   } catch (error) {
+    if (error.code === "PLAN_LIMIT_EXCEEDED") {
+      return res.status(error.status || 403).json({ msg: error.message });
+    }
+
     if (error.code === 11000) {
       return res.status(400).json({ msg: "El numero de serie ya existe" });
     }
@@ -235,6 +252,16 @@ router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, a
       return res.status(403).json({ msg: "No autorizado para cargar factura en este equipo" });
     }
 
+    await assertWithinPlanLimit({
+      organization: req.user.organization,
+      metric: "files",
+      increment: item.invoice?.key ? 0 : 1,
+    });
+    await assertStorageWithinPlanLimit({
+      organization: req.user.organization,
+      incrementBytes: Math.max(0, (req.file.size || 0) - (item.invoice?.size || 0)),
+    });
+
     item.invoice = await uploadInventoryInvoice({
       inventoryId: item._id,
       file: req.file,
@@ -249,6 +276,10 @@ router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, a
 
     res.json(updated);
   } catch (error) {
+    if (error.code === "PLAN_LIMIT_EXCEEDED") {
+      return res.status(error.status || 403).json({ msg: error.message });
+    }
+
     res.status(500).json({ msg: "Error al cargar factura", error: error.message });
   }
 });

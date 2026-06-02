@@ -1,5 +1,6 @@
 const Incident = require("../models/incident");
 const { hasPermission } = require("../utils/permissions");
+const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
 const { deleteIncidentFile, getIncidentFileUrl, isR2Configured, uploadIncidentFile } = require("../utils/r2Storage");
 
 const MAX_ATTACHMENTS_PER_INCIDENT = 10;
@@ -40,9 +41,10 @@ const getAttachmentErrorStatus = (error) => {
     error.message?.includes("maximo") ||
     error.message?.includes("Selecciona") ||
     error.message?.includes("permite") ||
-    error.message?.includes("limite gratuito")
+    error.message?.includes("limite gratuito") ||
+    error.code === "PLAN_LIMIT_EXCEEDED"
   ) {
-    return 400;
+    return error.status || 400;
   }
 
   if (error.message?.includes("Cloudflare R2 no esta configurado")) {
@@ -103,6 +105,17 @@ const uploadFilesForIncident = async ({ incident, files, userId, organization })
       `La carga supera el limite gratuito configurado de R2 (${formatGb(storageLimit)} GB). Uso actual aproximado: ${formatGb(currentStorage)} GB.`
     );
   }
+
+  await assertWithinPlanLimit({
+    organization,
+    metric: "files",
+    increment: incomingCount,
+  });
+
+  await assertStorageWithinPlanLimit({
+    organization,
+    incrementBytes: incomingSize,
+  });
 
   const uploaded = [];
 
@@ -186,6 +199,12 @@ const createIncident = async (req, res) => {
     if (!title || !description || !branch || !department) {
       return res.status(400).json({ msg: "Datos incompletos" });
     }
+
+    await assertWithinPlanLimit({
+      organization: req.user.organization,
+      metric: "incidents",
+      increment: 1,
+    });
 
     const incident = await Incident.create({
       title,
