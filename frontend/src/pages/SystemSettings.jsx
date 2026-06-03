@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_SETTINGS, applySystemTheme, cacheSystemSettings, useSystemSettings } from "../hooks/useSystemSettings";
 import { useAuthUser } from "../hooks/useAuthUser";
@@ -60,10 +60,12 @@ function SystemSettings() {
   const [message, setMessage] = useState(null);
   const [storage, setStorage] = useState(null);
   const [mailSettings, setMailSettings] = useState(DEFAULT_MAIL_SETTINGS);
+  const [isMailDirty, setIsMailDirty] = useState(false);
   const [isSavingMail, setIsSavingMail] = useState(false);
   const [isTestingMail, setIsTestingMail] = useState(false);
   const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const isMailDirtyRef = useRef(false);
   const token = localStorage.getItem("token");
   const isAdmin = user?.role === "admin";
 
@@ -115,11 +117,13 @@ function SystemSettings() {
       });
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && !isMailDirtyRef.current) {
         setMailSettings({ ...DEFAULT_MAIL_SETTINGS, ...data, smtpPassword: "" });
       }
     } catch {
-      setMailSettings(DEFAULT_MAIL_SETTINGS);
+      if (!isMailDirtyRef.current) {
+        setMailSettings(DEFAULT_MAIL_SETTINGS);
+      }
     }
   }, [isAdmin, token]);
 
@@ -129,6 +133,8 @@ function SystemSettings() {
   }, [fetchMailSettings, fetchStorageUsage]);
 
   const updateMailField = (field, value) => {
+    isMailDirtyRef.current = true;
+    setIsMailDirty(true);
     setMailSettings((current) => ({ ...current, [field]: value }));
   };
 
@@ -170,6 +176,8 @@ function SystemSettings() {
         return;
       }
 
+      isMailDirtyRef.current = false;
+      setIsMailDirty(false);
       setMailSettings({ ...DEFAULT_MAIL_SETTINGS, ...data, smtpPassword: "" });
       setMessage({
         type: "success",
@@ -211,6 +219,8 @@ function SystemSettings() {
         return;
       }
 
+      isMailDirtyRef.current = false;
+      setIsMailDirty(false);
       setMailSettings({ ...DEFAULT_MAIL_SETTINGS, ...data.settings, smtpPassword: "" });
       setMessage({
         type: "success",
@@ -519,8 +529,8 @@ function SystemSettings() {
           )}
 
           <div className="panel-actions">
-            <button className="btn-cancel" onClick={testMailSettings} disabled={isTestingMail || isSavingMail}>
-              {isTestingMail ? "Enviando prueba..." : "Enviar prueba"}
+            <button className="btn-cancel" onClick={testMailSettings} disabled={isTestingMail || isSavingMail || isMailDirty}>
+              {isTestingMail ? "Enviando prueba..." : isMailDirty ? "Guarda antes de probar" : "Enviar prueba"}
             </button>
             <button className="btn-submit" onClick={saveMailSettings} disabled={isSavingMail || isTestingMail}>
               {isSavingMail ? "Guardando..." : "Guardar correo"}
