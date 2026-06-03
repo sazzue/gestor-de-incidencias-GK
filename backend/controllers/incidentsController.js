@@ -2,6 +2,7 @@ const Incident = require("../models/incident");
 const { hasPermission } = require("../utils/permissions");
 const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
 const { deleteIncidentFile, getIncidentFileUrl, isR2Configured, uploadIncidentFile } = require("../utils/r2Storage");
+const { notifyNewRecord } = require("../utils/notifications");
 
 const MAX_ATTACHMENTS_PER_INCIDENT = 10;
 const MAX_TOTAL_ATTACHMENT_SIZE = 30 * 1024 * 1024;
@@ -232,7 +233,17 @@ const createIncident = async (req, res) => {
       throw uploadError;
     }
 
-    res.status(201).json(incident);
+    const populatedIncident = await Incident.findById(incident._id)
+      .populate("createdBy", "nombre email")
+      .populate("branch", "name");
+
+    await notifyNewRecord({
+      type: "incident",
+      record: populatedIncident || incident,
+      organization: req.user.organization || null,
+    });
+
+    res.status(201).json(populatedIncident || incident);
   } catch (error) {
     console.error("ERROR CREATE INCIDENT:", error);
     const status = getAttachmentErrorStatus(error);

@@ -4,6 +4,7 @@ const router = express.Router();
 const auth = require("../middleware/authMiddleware");
 const Maintenance = require("../models/Maintenance");
 const { hasPermission } = require("../utils/permissions");
+const { notifyNewRecord } = require("../utils/notifications");
 
 const MAINTENANCE_DEPARTMENTS = ["sistemas", "mantenimiento"];
 
@@ -143,8 +144,16 @@ router.post("/", auth, async (req, res) => {
     });
 
     const populated = await Maintenance.findById(newMaintenance._id)
+      .populate("createdBy", "nombre email")
       .populate("confirmedBy", "nombre email")
       .populate("branch", "name");
+
+    await notifyNewRecord({
+      type: "maintenance",
+      record: populated || newMaintenance,
+      organization: req.user.organization || null,
+      createdByUser: req.user,
+    });
 
     res.json(populated);
   } catch (error) {
