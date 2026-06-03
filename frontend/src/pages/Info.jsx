@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import { DEFAULT_SETTINGS, useSystemSettings } from "../hooks/useSystemSettings";
+import { DEFAULT_SETTINGS } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const lines = (value = "") => value.split("\n").map((item) => item.trim()).filter(Boolean);
 
 function Info() {
-  const { settings } = useSystemSettings();
-  const [identity, setIdentity] = useState(DEFAULT_SETTINGS);
+  const [identity, setIdentity] = useState(null);
 
   useEffect(() => {
     const fetchIdentity = async () => {
@@ -23,12 +22,14 @@ function Info() {
           setIdentity({ ...DEFAULT_SETTINGS, ...data });
         }
       } catch {
-        setIdentity(settings);
+        setIdentity(DEFAULT_SETTINGS);
       }
     };
 
     fetchIdentity();
-  }, [settings]);
+  }, []);
+
+  const systemInfo = identity || {};
 
   return (
     <div style={styles.container}>
@@ -37,48 +38,48 @@ function Info() {
       <div style={styles.grid}>
         <div style={styles.card}>
           <h2>Nombre</h2>
-          <p>{identity.systemTitle}</p>
+          <p>{systemInfo.systemTitle || ""}</p>
         </div>
 
         <div style={styles.card}>
           <h2>Desarrollador</h2>
-          <p>{identity.developer}</p>
+          <p>{systemInfo.developer || ""}</p>
         </div>
 
         <div style={styles.card}>
           <h2>Descripcion</h2>
-          <p>{identity.systemDescription}</p>
+          <p>{systemInfo.systemDescription || ""}</p>
         </div>
 
         <div style={styles.card}>
           <h2>Modo de uso</h2>
           <ul>
-            {lines(identity.usageInfo).map((item) => <li key={item}>{item}</li>)}
+            {lines(systemInfo.usageInfo).map((item) => <li key={item}>{item}</li>)}
           </ul>
         </div>
 
         <div style={styles.card}>
           <h2>Roles del sistema</h2>
           <ul>
-            {lines(identity.rolesInfo).map((item) => <li key={item}>{item}</li>)}
+            {lines(systemInfo.rolesInfo).map((item) => <li key={item}>{item}</li>)}
           </ul>
         </div>
 
         <div style={styles.card}>
           <h2>Departamentos</h2>
           <ul>
-            {lines(identity.departmentsInfo).map((item) => <li key={item}><b>{item}</b></li>)}
+            {lines(systemInfo.departmentsInfo).map((item) => <li key={item}><b>{item}</b></li>)}
           </ul>
         </div>
 
         <div style={styles.card}>
           <h2>Contacto</h2>
-          <p>{identity.contactEmail}</p>
+          <p>{systemInfo.contactEmail || ""}</p>
         </div>
 
         <div style={styles.card}>
           <h2>Version</h2>
-          <p>v{identity.version}</p>
+          <p>{systemInfo.version ? `v${systemInfo.version}` : ""}</p>
         </div>
       </div>
     </div>
