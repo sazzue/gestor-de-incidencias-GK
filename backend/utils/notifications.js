@@ -1,6 +1,5 @@
-const nodemailer = require("nodemailer");
-const { Resend } = require("resend");
 const User = require("../models/User");
+const { sendMail } = require("./mailDelivery");
 
 const splitList = (value = "") =>
   value
@@ -24,31 +23,6 @@ const escapeHtml = (value = "") =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-
-const getMailTransporter = () => {
-  const port = Number(process.env.SMTP_PORT || 587);
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: process.env.SMTP_SECURE === "true" || port === 465,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-};
-
-const isSmtpConfigured = () =>
-  Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-
-const isResendConfigured = () =>
-  Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
-
-const isEmailConfigured = () => isResendConfigured() || isSmtpConfigured();
 
 const isWhatsappConfigured = () =>
   Boolean(
@@ -109,32 +83,6 @@ const getAlertEmails = async ({ organization, type, record, createdByUser }) => 
     ...configuredEmails,
     ...users.map((user) => user.email),
   ]);
-};
-
-const sendEmail = async ({ to, subject, text, html }) => {
-  if (!isEmailConfigured() || to.length === 0) return;
-
-  if (isResendConfigured()) {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const result = await resend.emails.send({
-      from: process.env.MAIL_FROM,
-      to,
-      subject,
-      text,
-      html,
-    });
-
-    if (result.error) throw result.error;
-    return;
-  }
-
-  await getMailTransporter().sendMail({
-    from: process.env.MAIL_FROM || `"Gestor de reportes" <${process.env.SMTP_USER}>`,
-    to,
-    subject,
-    text,
-    html,
-  });
 };
 
 const sendWhatsapp = async ({ text }) => {
@@ -218,7 +166,7 @@ const notifyNewRecord = async ({ type, record, organization, createdByUser }) =>
     });
 
     const results = await Promise.allSettled([
-      sendEmail({ to: emailRecipients, ...notification }),
+      sendMail({ organization, to: emailRecipients, ...notification }),
       sendWhatsapp({ text: notification.text }),
     ]);
 

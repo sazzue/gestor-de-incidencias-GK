@@ -54,6 +54,58 @@ const organizationSchema = new mongoose.Schema(
         default: false,
       },
     },
+    mailSettings: {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+      provider: {
+        type: String,
+        enum: ["smtp"],
+        default: "smtp",
+      },
+      fromName: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+      fromEmail: {
+        type: String,
+        default: "",
+        lowercase: true,
+        trim: true,
+      },
+      smtpHost: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+      smtpPort: {
+        type: Number,
+        default: 587,
+      },
+      smtpSecure: {
+        type: Boolean,
+        default: false,
+      },
+      smtpUser: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+      smtpPassEncrypted: {
+        type: String,
+        default: "",
+      },
+      lastTestedAt: {
+        type: Date,
+        default: null,
+      },
+      lastError: {
+        type: String,
+        default: "",
+      },
+    },
   },
   { timestamps: true }
 );

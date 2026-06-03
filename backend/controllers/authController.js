@@ -3,53 +3,9 @@ const Organization = require("../models/Organization");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
-const { Resend } = require("resend");
 const { getPermissionsForUser } = require("../utils/permissions");
 const { isPlatformAdminEmail } = require("../utils/platformAdmin");
-
-const getMailTransporter = () => {
-  const port = Number(process.env.SMTP_PORT || 587);
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: process.env.SMTP_SECURE === "true" || port === 465,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-};
-
-const isMailConfigured = () =>
-  Boolean(
-    process.env.SMTP_HOST &&
-    process.env.SMTP_PORT &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS &&
-    getFrontendUrl()
-  );
-
-const isResendConfigured = () =>
-  Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM && getFrontendUrl());
-
-const isPasswordResetDeliveryConfigured = () => isResendConfigured() || isMailConfigured();
-
-const getFrontendUrl = () => {
-  const frontendUrl = process.env.FRONTEND_URL?.trim().replace(/\/+$/, "");
-
-  if (!frontendUrl) return "";
-
-  try {
-    return new URL(frontendUrl).origin;
-  } catch {
-    return "";
-  }
-};
+const { getFrontendUrl, isMailDeliveryConfigured, sendMail } = require("../utils/mailDelivery");
 
 const buildPasswordResetHtml = (user, resetLink) => `
   <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;background:#f8fafc;border-radius:12px;">
@@ -73,29 +29,13 @@ const buildPasswordResetHtml = (user, resetLink) => `
 
 const sendPasswordResetEmail = async ({ user, resetLink }) => {
   const message = {
+    organization: user.organization || null,
     to: user.email,
     subject: "Restablecer contrasena - Sistema de Incidencias",
     html: buildPasswordResetHtml(user, resetLink),
   };
 
-  if (isResendConfigured()) {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const result = await resend.emails.send({
-      from: process.env.MAIL_FROM,
-      ...message,
-    });
-
-    if (result.error) {
-      throw result.error;
-    }
-
-    return result;
-  }
-
-  return getMailTransporter().sendMail({
-    from: `"Sistema de Incidencias" <${process.env.SMTP_USER}>`,
-    ...message,
-  });
+  return sendMail(message);
 };
 
 const buildUserPayload = async (user) => {
@@ -321,7 +261,7 @@ exports.forgotPassword = async (req, res) => {
 
     if (!user) return res.json({ msg: genericMsg });
 
-    if (!isPasswordResetDeliveryConfigured()) {
+    if (!getFrontendUrl() || !(await isMailDeliveryConfigured(user.organization || null))) {
       console.error("forgot-password error: email delivery configuration is incomplete");
       return res.status(503).json({
         msg: "El servicio de correo no esta configurado. Intenta mas tarde.",

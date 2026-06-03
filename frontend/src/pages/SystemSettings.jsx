@@ -38,6 +38,20 @@ const formatBytes = (bytes = 0) => {
 const pickAppearance = (settings) =>
   appearanceFields.reduce((payload, field) => ({ ...payload, [field]: settings[field] }), {});
 
+const DEFAULT_MAIL_SETTINGS = {
+  enabled: false,
+  fromName: "",
+  fromEmail: "",
+  smtpHost: "",
+  smtpPort: 587,
+  smtpSecure: false,
+  smtpUser: "",
+  smtpPassword: "",
+  hasPassword: false,
+  lastTestedAt: null,
+  lastError: "",
+};
+
 function SystemSettings() {
   const navigate = useNavigate();
   const { settings } = useSystemSettings();
@@ -45,6 +59,9 @@ function SystemSettings() {
   const [form, setForm] = useState(DEFAULT_SETTINGS);
   const [message, setMessage] = useState(null);
   const [storage, setStorage] = useState(null);
+  const [mailSettings, setMailSettings] = useState(DEFAULT_MAIL_SETTINGS);
+  const [isSavingMail, setIsSavingMail] = useState(false);
+  const [isTestingMail, setIsTestingMail] = useState(false);
   const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const token = localStorage.getItem("token");
@@ -89,9 +106,127 @@ function SystemSettings() {
     }
   }, [isAdmin, token]);
 
+  const fetchMailSettings = useCallback(async () => {
+    if (!token || !isAdmin) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/settings/mail`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setMailSettings({ ...DEFAULT_MAIL_SETTINGS, ...data, smtpPassword: "" });
+      }
+    } catch {
+      setMailSettings(DEFAULT_MAIL_SETTINGS);
+    }
+  }, [isAdmin, token]);
+
   useEffect(() => {
     fetchStorageUsage();
-  }, [fetchStorageUsage]);
+    fetchMailSettings();
+  }, [fetchMailSettings, fetchStorageUsage]);
+
+  const updateMailField = (field, value) => {
+    setMailSettings((current) => ({ ...current, [field]: value }));
+  };
+
+  const saveMailSettings = async () => {
+    setMessage(null);
+    setIsSavingMail(true);
+
+    try {
+      const payload = {
+        enabled: mailSettings.enabled,
+        fromName: mailSettings.fromName,
+        fromEmail: mailSettings.fromEmail,
+        smtpHost: mailSettings.smtpHost,
+        smtpPort: mailSettings.smtpPort,
+        smtpSecure: mailSettings.smtpSecure,
+        smtpUser: mailSettings.smtpUser,
+      };
+
+      if (mailSettings.smtpPassword) {
+        payload.smtpPassword = mailSettings.smtpPassword;
+      }
+
+      const res = await fetch(`${API_URL}/api/settings/mail`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: data.msg || "No se pudo guardar el correo",
+          detail: data.error || `Error ${res.status}`,
+        });
+        return;
+      }
+
+      setMailSettings({ ...DEFAULT_MAIL_SETTINGS, ...data, smtpPassword: "" });
+      setMessage({
+        type: "success",
+        title: "Correo guardado",
+        detail: "La empresa usara este SMTP antes del correo global.",
+      });
+    } catch {
+      setMessage({
+        type: "error",
+        title: "Error de conexion",
+        detail: "No se pudo guardar el correo de empresa.",
+      });
+    } finally {
+      setIsSavingMail(false);
+    }
+  };
+
+  const testMailSettings = async () => {
+    setMessage(null);
+    setIsTestingMail(true);
+
+    try {
+      const res = await fetch(`${API_URL}/api/settings/mail/test`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email: user?.email }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: data.msg || "No se pudo probar el correo",
+          detail: data.error || `Error ${res.status}`,
+        });
+        return;
+      }
+
+      setMailSettings({ ...DEFAULT_MAIL_SETTINGS, ...data.settings, smtpPassword: "" });
+      setMessage({
+        type: "success",
+        title: "Correo de prueba enviado",
+        detail: `Se envio a ${user?.email}.`,
+      });
+    } catch {
+      setMessage({
+        type: "error",
+        title: "Error de conexion",
+        detail: "No se pudo enviar la prueba.",
+      });
+    } finally {
+      setIsTestingMail(false);
+    }
+  };
 
   const downloadBackup = async () => {
     setMessage(null);
@@ -299,6 +434,101 @@ function SystemSettings() {
         </section>
 
         <section className="panel wide">
+          <h3>Correo de empresa</h3>
+          <p className="section-note">
+            Si esta activo, recuperacion de contrasena y alertas saldran desde este correo. Si no, se usara el correo global.
+          </p>
+
+          <label className="switch-row">
+            <input
+              type="checkbox"
+              checked={mailSettings.enabled}
+              onChange={(e) => updateMailField("enabled", e.target.checked)}
+            />
+            <span>Usar SMTP personalizado</span>
+          </label>
+
+          <div className="mail-grid">
+            <label>
+              Nombre remitente
+              <input
+                value={mailSettings.fromName}
+                onChange={(e) => updateMailField("fromName", e.target.value)}
+                placeholder="Empresa principal"
+              />
+            </label>
+            <label>
+              Correo remitente
+              <input
+                type="email"
+                value={mailSettings.fromEmail}
+                onChange={(e) => updateMailField("fromEmail", e.target.value)}
+                placeholder="notificaciones@empresa.com"
+              />
+            </label>
+            <label>
+              Servidor SMTP
+              <input
+                value={mailSettings.smtpHost}
+                onChange={(e) => updateMailField("smtpHost", e.target.value)}
+                placeholder="smtp.gmail.com"
+              />
+            </label>
+            <label>
+              Puerto
+              <input
+                type="number"
+                value={mailSettings.smtpPort}
+                onChange={(e) => updateMailField("smtpPort", e.target.value)}
+                placeholder="587"
+              />
+            </label>
+            <label>
+              Usuario SMTP
+              <input
+                value={mailSettings.smtpUser}
+                onChange={(e) => updateMailField("smtpUser", e.target.value)}
+                placeholder="usuario@empresa.com"
+              />
+            </label>
+            <label>
+              Contrasena SMTP
+              <input
+                type="password"
+                value={mailSettings.smtpPassword}
+                onChange={(e) => updateMailField("smtpPassword", e.target.value)}
+                placeholder={mailSettings.hasPassword ? "Guardada, escribe para cambiar" : "Contrasena o app password"}
+              />
+            </label>
+          </div>
+
+          <label className="switch-row">
+            <input
+              type="checkbox"
+              checked={mailSettings.smtpSecure}
+              onChange={(e) => updateMailField("smtpSecure", e.target.checked)}
+            />
+            <span>Usar conexion segura SSL/TLS directa</span>
+          </label>
+
+          {(mailSettings.lastTestedAt || mailSettings.lastError) && (
+            <p className="section-note">
+              {mailSettings.lastTestedAt && `Ultima prueba: ${new Date(mailSettings.lastTestedAt).toLocaleString("es-MX")}. `}
+              {mailSettings.lastError && `Ultimo error: ${mailSettings.lastError}`}
+            </p>
+          )}
+
+          <div className="panel-actions">
+            <button className="btn-cancel" onClick={testMailSettings} disabled={isTestingMail || isSavingMail}>
+              {isTestingMail ? "Enviando prueba..." : "Enviar prueba"}
+            </button>
+            <button className="btn-submit" onClick={saveMailSettings} disabled={isSavingMail || isTestingMail}>
+              {isSavingMail ? "Guardando..." : "Guardar correo"}
+            </button>
+          </div>
+        </section>
+
+        <section className="panel wide">
           <div className="storage-header">
             <div>
               <h3>{storageTitle}</h3>
@@ -371,6 +601,7 @@ function SystemSettings() {
         .panel { background: var(--app-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 20px; }
         .panel.wide { grid-column: 1 / -1; }
         .panel h3 { color: var(--app-title); font-size: 16px; margin-bottom: 16px; }
+        .section-note { color: var(--app-text); opacity: 0.7; font-size: 13px; line-height: 1.45; margin: -6px 0 14px; text-align: left; }
         input {
           width: 100%;
           padding: 10px 12px;
@@ -381,6 +612,42 @@ function SystemSettings() {
           outline: none;
         }
         input:focus { border-color: var(--app-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 28%, transparent); }
+        .switch-row {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 14px;
+          color: var(--app-text);
+          font-size: 13px;
+          cursor: pointer;
+        }
+        .switch-row input {
+          width: 18px;
+          height: 18px;
+          accent-color: var(--app-accent);
+        }
+        .mail-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+          margin-bottom: 14px;
+        }
+        .mail-grid label {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          color: var(--app-text);
+          font-size: 12px;
+          opacity: 0.78;
+          text-align: left;
+        }
+        .mail-grid label input { opacity: 1; }
+        .panel-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+          margin-top: 16px;
+        }
         .color-row { display: grid; grid-template-columns: 1fr 52px 140px; gap: 10px; align-items: center; margin-bottom: 12px; text-align: left; }
         .color-row label { font-size: 12px; color: var(--app-text); opacity: 0.75; }
         .color-row input[type="color"] { padding: 2px; height: 38px; }
@@ -440,14 +707,15 @@ function SystemSettings() {
         .btn-submit { border: none; background: var(--app-accent); color: white; font-weight: 600; }
         .btn-cancel, .btn-back { border: 1px solid rgba(255,255,255,0.12); background: transparent; color: var(--app-text); }
         .btn-cancel.small { width: 100%; }
+        .btn-submit:disabled, .btn-cancel:disabled { opacity: 0.55; cursor: not-allowed; }
         .notice { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; padding: 12px 14px; border-radius: 8px; font-size: 13px; border: 1px solid transparent; text-align: left; }
         .notice.success { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #86efac; }
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
         .notice span { color: var(--app-text); }
         @media (max-width: 900px) {
-          .settings-grid, .image-grid, .storage-grid { grid-template-columns: 1fr; }
+          .settings-grid, .image-grid, .storage-grid, .mail-grid { grid-template-columns: 1fr; }
           .color-row { grid-template-columns: 1fr; }
-          .actions-bar, .storage-actions, .storage-header { flex-direction: column; }
+          .actions-bar, .storage-actions, .storage-header, .panel-actions { flex-direction: column; }
         }
       `}</style>
     </div>

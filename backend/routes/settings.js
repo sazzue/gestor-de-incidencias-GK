@@ -6,6 +6,8 @@ const authMiddleware = require("../middleware/authMiddleware");
 const authorize = require("../middleware/authorize");
 const ROLES = require("../config/roles");
 const { isPlatformAdminEmail, requirePlatformAdmin } = require("../utils/platformAdmin");
+const { createSmtpTransporter } = require("../utils/mailDelivery");
+const { decryptSecret, encryptSecret } = require("../utils/secretCrypto");
 const multer = require("multer");
 
 const upload = multer({
@@ -60,6 +62,87 @@ const loginFields = [
 ];
 
 const identityResponseFields = [...identityFields, ...loginFields, "loginImageUrl", "createdAt", "updatedAt"];
+
+const serializeMailSettings = (organization) => {
+  const settings = organization?.mailSettings || {};
+
+  return {
+    enabled: Boolean(settings.enabled),
+    provider: settings.provider || "smtp",
+    fromName: settings.fromName || "",
+    fromEmail: settings.fromEmail || "",
+    smtpHost: settings.smtpHost || "",
+    smtpPort: settings.smtpPort || 587,
+    smtpSecure: Boolean(settings.smtpSecure),
+    smtpUser: settings.smtpUser || "",
+    hasPassword: Boolean(settings.smtpPassEncrypted),
+    lastTestedAt: settings.lastTestedAt || null,
+    lastError: settings.lastError || "",
+  };
+};
+
+const getUserOrganization = async (req) => {
+  const organization = await Organization.findById(req.user.organization || null);
+
+  if (!organization) {
+    const error = new Error("Empresa no encontrada");
+    error.status = 404;
+    throw error;
+  }
+
+  return organization;
+};
+
+const buildMailPayload = (body, currentSettings = {}) => {
+  const enabled = Boolean(body.enabled);
+  const smtpPort = Number(body.smtpPort || 587);
+  const payload = {
+    "mailSettings.enabled": enabled,
+    "mailSettings.provider": "smtp",
+    "mailSettings.fromName": body.fromName?.toString().trim() || "",
+    "mailSettings.fromEmail": body.fromEmail?.toString().trim().toLowerCase() || "",
+    "mailSettings.smtpHost": body.smtpHost?.toString().trim() || "",
+    "mailSettings.smtpPort": Number.isFinite(smtpPort) && smtpPort > 0 ? smtpPort : 587,
+    "mailSettings.smtpSecure": Boolean(body.smtpSecure),
+    "mailSettings.smtpUser": body.smtpUser?.toString().trim() || "",
+  };
+
+  if (Object.prototype.hasOwnProperty.call(body, "smtpPassword") && body.smtpPassword) {
+    payload["mailSettings.smtpPassEncrypted"] = encryptSecret(body.smtpPassword);
+  } else if (!currentSettings.smtpPassEncrypted) {
+    payload["mailSettings.smtpPassEncrypted"] = "";
+  }
+
+  return payload;
+};
+
+const assertCompleteMailSettings = (settings) => {
+  if (!settings.enabled) return;
+
+  const requiredFields = [
+    ["fromEmail", settings.fromEmail],
+    ["smtpHost", settings.smtpHost],
+    ["smtpUser", settings.smtpUser],
+    ["smtpPassEncrypted", settings.smtpPassEncrypted],
+  ];
+  const missing = requiredFields.filter(([, value]) => !value).map(([field]) => field);
+
+  if (missing.length > 0) {
+    const error = new Error(`Configuracion SMTP incompleta: ${missing.join(", ")}`);
+    error.status = 400;
+    throw error;
+  }
+};
+
+const toPlainMailSettings = (settings = {}, payload = {}) => ({
+  enabled: Object.prototype.hasOwnProperty.call(payload, "mailSettings.enabled")
+    ? payload["mailSettings.enabled"]
+    : Boolean(settings.enabled),
+  fromEmail: payload["mailSettings.fromEmail"] ?? settings.fromEmail,
+  smtpHost: payload["mailSettings.smtpHost"] ?? settings.smtpHost,
+  smtpUser: payload["mailSettings.smtpUser"] ?? settings.smtpUser,
+  smtpPassEncrypted: payload["mailSettings.smtpPassEncrypted"] ?? settings.smtpPassEncrypted,
+});
 
 const pickFields = (body, fields) => {
   const payload = {};
@@ -168,6 +251,103 @@ router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
     res.json(settings);
   } catch (error) {
     res.status(500).json({ msg: "Error al guardar configuracion de la empresa" });
+  }
+});
+
+router.get("/mail", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const organization = await getUserOrganization(req);
+
+    res.json(serializeMailSettings(organization));
+  } catch (error) {
+    res.status(error.status || 500).json({ msg: error.message || "Error al obtener correo de empresa" });
+  }
+});
+
+router.put("/mail", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const organization = await getUserOrganization(req);
+    const payload = buildMailPayload(req.body, organization.mailSettings || {});
+
+    assertCompleteMailSettings(toPlainMailSettings(organization.mailSettings, payload));
+
+    const updated = await Organization.findByIdAndUpdate(
+      organization._id,
+      {
+        $set: {
+          ...payload,
+          "mailSettings.lastError": "",
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.json(serializeMailSettings(updated));
+  } catch (error) {
+    res.status(error.status || 500).json({
+      msg: error.message || "Error al guardar correo de empresa",
+    });
+  }
+});
+
+router.post("/mail/test", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const organization = await getUserOrganization(req);
+    const settings = organization.mailSettings || {};
+
+    if (!settings.enabled) {
+      return res.status(400).json({
+        msg: "Activa el SMTP personalizado antes de enviar la prueba",
+      });
+    }
+
+    assertCompleteMailSettings(settings);
+
+    const transporter = createSmtpTransporter({
+      host: settings.smtpHost,
+      port: settings.smtpPort,
+      secure: settings.smtpSecure,
+      user: settings.smtpUser,
+      pass: decryptSecret(settings.smtpPassEncrypted),
+    });
+    const testEmail = req.body?.email || req.user.email;
+
+    await transporter.sendMail({
+      from: `"${(settings.fromName || organization.name || "Gestor de reportes").replace(/"/g, "'")}" <${settings.fromEmail}>`,
+      to: testEmail,
+      subject: "Prueba de correo - Gestor de reportes",
+      text: "La configuracion de correo de la empresa funciona correctamente.",
+    });
+
+    const updated = await Organization.findByIdAndUpdate(
+      organization._id,
+      {
+        $set: {
+          "mailSettings.lastTestedAt": new Date(),
+          "mailSettings.lastError": "",
+        },
+      },
+      { new: true }
+    );
+
+    res.json({
+      msg: "Correo de prueba enviado",
+      settings: serializeMailSettings(updated),
+    });
+  } catch (error) {
+    if (req.user?.organization) {
+      await Organization.findByIdAndUpdate(req.user.organization, {
+        $set: { "mailSettings.lastError": error.message || "Error al probar correo" },
+      }).catch(() => {});
+    }
+
+    res.status(error.status || 500).json({
+      msg: "No se pudo enviar el correo de prueba",
+      error: error.message,
+    });
   }
 });
 
