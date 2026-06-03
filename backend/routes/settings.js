@@ -76,36 +76,28 @@ const getGlobalIdentity = async (defaultOrganizationId) => {
     : {};
 };
 
-const mergeGlobalIdentity = async (settings, organizationId) => {
-  const defaultOrganizationId = await getDefaultOrganizationId();
-
-  if (!defaultOrganizationId || String(organizationId || "") === String(defaultOrganizationId)) {
-    return settings;
-  }
-
-  const globalIdentity = await getGlobalIdentity(defaultOrganizationId);
-  const base = typeof settings.toObject === "function" ? settings.toObject() : settings;
-  return { ...base, ...globalIdentity };
-};
-
 const getSettings = async (organization = null) => {
   const organizationId = organization || await getDefaultOrganizationId();
   let settings = await SystemSettings.findOne({ key: "global", organization: organizationId });
 
   if (!settings) {
-    const defaultOrganizationId = await getDefaultOrganizationId();
-    const inheritedIdentity = defaultOrganizationId && String(organizationId || "") !== String(defaultOrganizationId)
-      ? await getGlobalIdentity(defaultOrganizationId)
-      : {};
-
     settings = await SystemSettings.create({
-      ...inheritedIdentity,
       key: "global",
       organization: organizationId,
     });
   }
 
-  return mergeGlobalIdentity(settings, organizationId);
+  return settings;
+};
+
+const removeIdentityFields = (settings) => {
+  const base = typeof settings.toObject === "function" ? settings.toObject() : { ...(settings || {}) };
+
+  [...identityFields, "loginImageUrl"].forEach((field) => {
+    delete base[field];
+  });
+
+  return base;
 };
 
 router.get("/", async (req, res) => {
@@ -121,8 +113,12 @@ router.get("/", async (req, res) => {
 router.get("/current", authMiddleware, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
-    const settings = await getSettings(req.user.organization || null);
-    res.json(settings);
+    const organization = req.user.organization || null;
+    const settings = await getSettings(organization);
+    const defaultOrganizationId = await getDefaultOrganizationId();
+    const isDefaultOrganization = defaultOrganizationId && String(organization || "") === String(defaultOrganizationId);
+
+    res.json(isDefaultOrganization ? settings : removeIdentityFields(settings));
   } catch (error) {
     res.status(500).json({ msg: "Error al obtener configuracion de la empresa" });
   }
@@ -161,7 +157,7 @@ router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
 router.put("/identity", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
-    const organization = req.user.organization || null;
+    const organization = await getDefaultOrganizationId();
     const payload = pickFields(req.body, identityFields);
 
     if (!payload.systemName) {
@@ -171,14 +167,6 @@ router.put("/identity", authMiddleware, authorize(ROLES.ADMIN), requirePlatformA
     if (!payload.version) {
       return res.status(400).json({ msg: "La version es obligatoria" });
     }
-
-    const updatedAt = new Date();
-
-    await SystemSettings.updateMany(
-      { key: "global" },
-      { $set: { ...payload, updatedAt } },
-      { runValidators: true }
-    );
 
     const settings = await SystemSettings.findOneAndUpdate(
       { key: "global", organization },
@@ -213,19 +201,13 @@ router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), upload.sing
         return res.status(403).json({ msg: "Solo el super admin puede cambiar la imagen de login" });
       }
 
-      const updatedAt = new Date();
-
-      await SystemSettings.updateMany(
-        { key: "global" },
-        { $set: { loginImageUrl: imageData, updatedAt } },
-        { runValidators: true }
-      );
+      const defaultOrganization = await getDefaultOrganizationId();
 
       const settings = await SystemSettings.findOneAndUpdate(
-        { key: "global", organization },
+        { key: "global", organization: defaultOrganization },
         {
           $set: { loginImageUrl: imageData },
-          $setOnInsert: { key: "global", organization },
+          $setOnInsert: { key: "global", organization: defaultOrganization },
         },
         { new: true, upsert: true, runValidators: true }
       );
