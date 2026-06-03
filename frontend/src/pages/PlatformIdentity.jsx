@@ -20,8 +20,32 @@ const informationFields = [
   { name: "departmentsInfo", label: "Departamentos" },
 ];
 
+const loginTextFields = [
+  { name: "loginTitle", label: "Titulo del login" },
+  { name: "loginSubtitle", label: "Subtitulo del login" },
+  { name: "loginOrganizationPlaceholder", label: "Texto campo empresa" },
+  { name: "loginUserPlaceholder", label: "Texto campo usuario" },
+  { name: "loginPasswordPlaceholder", label: "Texto campo contrasena" },
+  { name: "loginButtonText", label: "Texto boton" },
+  { name: "loginLoadingText", label: "Texto cargando" },
+  { name: "loginForgotPasswordText", label: "Texto recuperar contrasena" },
+];
+
+const loginColorFields = [
+  { name: "loginBackgroundColor", label: "Fondo" },
+  { name: "loginCardColor", label: "Tarjeta" },
+  { name: "loginTextColor", label: "Texto" },
+  { name: "loginTitleColor", label: "Titulos" },
+  { name: "loginInputColor", label: "Campos" },
+  { name: "loginAccentColor", label: "Principal" },
+];
+
+const toColorInputValue = (value, fallback) => (
+  /^#[0-9a-fA-F]{6}$/.test(value || "") ? value : fallback
+);
+
 const pickIdentity = (settings) => (
-  [...identityFields, ...informationFields].reduce(
+  [...identityFields, ...informationFields, ...loginTextFields, ...loginColorFields].reduce(
     (payload, field) => ({ ...payload, [field.name]: settings[field.name] }),
     {}
   )
@@ -42,6 +66,8 @@ function PlatformIdentity() {
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
+
+  const loginSubtitle = (form.loginSubtitle || "").replace("{systemName}", form.systemName || "");
 
   const uploadLoginImage = async (file) => {
     if (!file) return;
@@ -209,6 +235,72 @@ function PlatformIdentity() {
         </section>
 
         <section className="panel wide">
+          <h3>Login</h3>
+          <div className="login-settings-grid">
+            <div>
+              {loginTextFields.map((field) => (
+                <div className="form-group" key={field.name}>
+                  <label>{field.label}</label>
+                  <input
+                    value={form[field.name] || ""}
+                    onChange={(e) => updateField(field.name, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div>
+              {loginColorFields.map((field) => (
+                <div className="color-row" key={field.name}>
+                  <label>{field.label}</label>
+                  <input
+                    type="color"
+                    value={toColorInputValue(form[field.name], DEFAULT_SETTINGS[field.name])}
+                    onChange={(e) => updateField(field.name, e.target.value)}
+                  />
+                  <input
+                    value={form[field.name] || ""}
+                    onChange={(e) => updateField(field.name, e.target.value)}
+                  />
+                </div>
+              ))}
+
+              <div
+                className="login-preview"
+                style={{
+                  background: form.loginBackgroundColor || DEFAULT_SETTINGS.loginBackgroundColor,
+                  color: form.loginTextColor || DEFAULT_SETTINGS.loginTextColor,
+                }}
+              >
+                <div
+                  className="login-preview-card"
+                  style={{ background: form.loginCardColor || DEFAULT_SETTINGS.loginCardColor }}
+                >
+                  <h4 style={{ color: form.loginTitleColor || DEFAULT_SETTINGS.loginTitleColor }}>
+                    {form.loginTitle}
+                  </h4>
+                  <p>{loginSubtitle}</p>
+                  <input
+                    readOnly
+                    value={form.loginUserPlaceholder || ""}
+                    style={{
+                      background: form.loginInputColor || DEFAULT_SETTINGS.loginInputColor,
+                      color: form.loginTextColor || DEFAULT_SETTINGS.loginTextColor,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    style={{ background: form.loginAccentColor || DEFAULT_SETTINGS.loginAccentColor }}
+                  >
+                    {form.loginButtonText}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel wide">
           <h3>Informacion del sistema</h3>
           <div className="textarea-grid">
             {informationFields.map((field) => (
@@ -259,6 +351,16 @@ function PlatformIdentity() {
         .preview strong { display: block; color: var(--app-title); margin-bottom: 8px; }
         .preview p { color: var(--app-text); font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
         .textarea-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .login-settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr); gap: 18px; }
+        .color-row { display: grid; grid-template-columns: 1fr 52px 128px; gap: 10px; align-items: center; margin-bottom: 12px; text-align: left; }
+        .color-row label { font-size: 12px; color: var(--app-text); opacity: 0.75; }
+        .color-row input[type="color"] { padding: 2px; height: 38px; }
+        .login-preview { border-radius: 8px; padding: 18px; margin-top: 16px; }
+        .login-preview-card { max-width: 300px; margin: 0 auto; border-radius: 8px; padding: 18px; border: 1px solid rgba(255,255,255,0.1); }
+        .login-preview-card h4 { margin: 0 0 6px; }
+        .login-preview-card p { font-size: 12px; margin-bottom: 12px; opacity: 0.8; }
+        .login-preview-card input { margin-bottom: 10px; }
+        .login-preview-card button { width: 100%; padding: 10px 14px; border: none; border-radius: 8px; color: white; font-weight: 600; }
         .image-picker { display: grid; grid-template-columns: minmax(220px, 360px) 180px; gap: 14px; align-items: end; text-align: left; }
         .image-preview {
           height: 150px;
@@ -300,7 +402,8 @@ function PlatformIdentity() {
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
         .notice span { color: var(--app-text); }
         @media (max-width: 900px) {
-          .settings-grid, .textarea-grid { grid-template-columns: 1fr; }
+          .settings-grid, .textarea-grid, .login-settings-grid { grid-template-columns: 1fr; }
+          .color-row { grid-template-columns: 1fr; }
           .image-picker { grid-template-columns: 1fr; }
           .actions-bar { flex-direction: column; }
         }

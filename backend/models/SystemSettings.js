@@ -74,6 +74,62 @@ const systemSettingsSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  loginTitle: {
+    type: String,
+    default: "Iniciar sesion",
+  },
+  loginSubtitle: {
+    type: String,
+    default: "Accede a {systemName}",
+  },
+  loginOrganizationPlaceholder: {
+    type: String,
+    default: "Empresa",
+  },
+  loginUserPlaceholder: {
+    type: String,
+    default: "Correo o usuario",
+  },
+  loginPasswordPlaceholder: {
+    type: String,
+    default: "Contrasena",
+  },
+  loginButtonText: {
+    type: String,
+    default: "Entrar",
+  },
+  loginLoadingText: {
+    type: String,
+    default: "Ingresando...",
+  },
+  loginForgotPasswordText: {
+    type: String,
+    default: "Olvidaste tu contrasena?",
+  },
+  loginBackgroundColor: {
+    type: String,
+    default: "#0b1220",
+  },
+  loginCardColor: {
+    type: String,
+    default: "#111827",
+  },
+  loginTextColor: {
+    type: String,
+    default: "#e2e8f0",
+  },
+  loginTitleColor: {
+    type: String,
+    default: "#ffffff",
+  },
+  loginInputColor: {
+    type: String,
+    default: "#020617",
+  },
+  loginAccentColor: {
+    type: String,
+    default: "#3b82f6",
+  },
   sidebarImageUrl: {
     type: String,
     default: "",

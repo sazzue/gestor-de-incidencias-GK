@@ -42,7 +42,24 @@ const identityFields = [
   "departmentsInfo",
 ];
 
-const identityResponseFields = [...identityFields, "loginImageUrl", "createdAt", "updatedAt"];
+const loginFields = [
+  "loginTitle",
+  "loginSubtitle",
+  "loginOrganizationPlaceholder",
+  "loginUserPlaceholder",
+  "loginPasswordPlaceholder",
+  "loginButtonText",
+  "loginLoadingText",
+  "loginForgotPasswordText",
+  "loginBackgroundColor",
+  "loginCardColor",
+  "loginTextColor",
+  "loginTitleColor",
+  "loginInputColor",
+  "loginAccentColor",
+];
+
+const identityResponseFields = [...identityFields, ...loginFields, "loginImageUrl", "createdAt", "updatedAt"];
 
 const pickFields = (body, fields) => {
   const payload = {};
@@ -72,7 +89,7 @@ const getGlobalIdentity = async (defaultOrganizationId) => {
   }).lean();
 
   return defaultSettings
-    ? pickFields(defaultSettings, [...identityFields, "loginImageUrl"])
+    ? pickFields(defaultSettings, [...identityFields, ...loginFields, "loginImageUrl"])
     : {};
 };
 
@@ -93,7 +110,7 @@ const getSettings = async (organization = null) => {
 const removeIdentityFields = (settings) => {
   const base = typeof settings.toObject === "function" ? settings.toObject() : { ...(settings || {}) };
 
-  [...identityFields, "loginImageUrl"].forEach((field) => {
+  [...identityFields, ...loginFields, "loginImageUrl"].forEach((field) => {
     delete base[field];
   });
 
@@ -158,7 +175,7 @@ router.put("/identity", authMiddleware, authorize(ROLES.ADMIN), requirePlatformA
   try {
     res.set("Cache-Control", "no-store");
     const organization = await getDefaultOrganizationId();
-    const payload = pickFields(req.body, identityFields);
+    const payload = pickFields(req.body, [...identityFields, ...loginFields]);
 
     if (!payload.systemName) {
       return res.status(400).json({ msg: "El nombre del sistema es obligatorio" });

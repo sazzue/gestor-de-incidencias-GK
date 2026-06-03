@@ -14,6 +14,7 @@ function Login() {
   const { settings } = useSystemSettings();
 
   const navigate = useNavigate();
+  const loginSubtitle = (settings.loginSubtitle || "").replace("{systemName}", settings.systemName || "");
 
   const validate = () => {
     if (!identifier || !password) {
@@ -67,27 +68,27 @@ function Login() {
     <div className="container">
       <div className="card">
         <img src={settings.loginImageUrl || logo} alt="Logo" className="logo" />
-        <h2>Iniciar sesion</h2>
-        <p className="subtitle">Accede a {settings.systemName}</p>
+        <h2>{settings.loginTitle}</h2>
+        <p className="subtitle">{loginSubtitle}</p>
 
         <form onSubmit={handleSubmit}>
           <input
             type="text"
-            placeholder="Empresa"
+            placeholder={settings.loginOrganizationPlaceholder}
             value={organizationSlug}
             onChange={(e) => setOrganizationSlug(e.target.value.toLowerCase().trim())}
           />
 
           <input
             type="text"
-            placeholder="Correo o usuario"
+            placeholder={settings.loginUserPlaceholder}
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
           />
 
           <input
             type="password"
-            placeholder="Contrasena"
+            placeholder={settings.loginPasswordPlaceholder}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -95,12 +96,12 @@ function Login() {
           {error && <p className="error">{error}</p>}
 
           <button type="submit" disabled={loading}>
-            {loading ? "Ingresando..." : "Entrar"}
+            {loading ? settings.loginLoadingText : settings.loginButtonText}
           </button>
         </form>
 
         <p className="forgot">
-          <a href="/forgot-password">Olvidaste tu contrasena?</a>
+          <a href="/forgot-password">{settings.loginForgotPasswordText}</a>
         </p>
       </div>
 
@@ -119,7 +120,7 @@ function Login() {
           display: flex;
           justify-content: center;
           align-items: center;
-          background: var(--app-bg);
+          background: ${settings.loginBackgroundColor || "var(--app-bg)"};
           font-family: 'Inter', sans-serif;
           padding: 20px;
         }
@@ -129,7 +130,7 @@ function Login() {
           max-width: 400px;
           padding: 35px;
           border-radius: 16px;
-          background: var(--app-card);
+          background: ${settings.loginCardColor || "var(--app-card)"};
           backdrop-filter: blur(12px);
           border: 1px solid rgba(255,255,255,0.08);
           box-shadow: 0 20px 60px rgba(0,0,0,0.6);
@@ -139,13 +140,13 @@ function Login() {
         h2 {
           text-align: center;
           margin-bottom: 5px;
-          color: var(--app-title);
+          color: ${settings.loginTitleColor || "var(--app-title)"};
         }
 
         .subtitle {
           text-align: center;
           font-size: 13px;
-          color: var(--app-text);
+          color: ${settings.loginTextColor || "var(--app-text)"};
           margin-bottom: 20px;
         }
 
@@ -159,15 +160,15 @@ function Login() {
           padding: 12px;
           border-radius: 10px;
           border: 1px solid rgba(255,255,255,0.1);
-          background: var(--app-input);
-          color: var(--app-text);
+          background: ${settings.loginInputColor || "var(--app-input)"};
+          color: ${settings.loginTextColor || "var(--app-text)"};
           outline: none;
           transition: 0.2s;
         }
 
         input:focus {
-          border-color: var(--app-accent);
-          box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 30%, transparent);
+          border-color: ${settings.loginAccentColor || "var(--app-accent)"};
+          box-shadow: 0 0 0 2px color-mix(in srgb, ${settings.loginAccentColor || "var(--app-accent)"} 30%, transparent);
         }
 
         button {
@@ -175,7 +176,7 @@ function Login() {
           padding: 12px;
           border-radius: 10px;
           border: none;
-          background: var(--app-accent);
+          background: ${settings.loginAccentColor || "var(--app-accent)"};
           color: white;
           font-weight: 600;
           cursor: pointer;
@@ -206,13 +207,13 @@ function Login() {
         }
 
         .forgot a {
-          color: var(--app-accent);
+          color: ${settings.loginAccentColor || "var(--app-accent)"};
           text-decoration: none;
           transition: color 0.2s;
         }
 
         .forgot a:hover {
-          color: var(--app-title);
+          color: ${settings.loginTitleColor || "var(--app-title)"};
           text-decoration: underline;
         }
 
