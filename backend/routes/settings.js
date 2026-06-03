@@ -42,6 +42,8 @@ const identityFields = [
   "departmentsInfo",
 ];
 
+const identityResponseFields = [...identityFields, "loginImageUrl", "createdAt", "updatedAt"];
+
 const pickFields = (body, fields) => {
   const payload = {};
 
@@ -123,6 +125,18 @@ router.get("/current", authMiddleware, async (req, res) => {
     res.json(settings);
   } catch (error) {
     res.status(500).json({ msg: "Error al obtener configuracion de la empresa" });
+  }
+});
+
+router.get("/identity", authMiddleware, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const defaultOrganizationId = await getDefaultOrganizationId();
+    const settings = await getSettings(defaultOrganizationId);
+    const base = typeof settings.toObject === "function" ? settings.toObject() : settings;
+    res.json(pickFields(base, identityResponseFields));
+  } catch (error) {
+    res.status(500).json({ msg: "Error al obtener identidad global del sistema" });
   }
 });
 
