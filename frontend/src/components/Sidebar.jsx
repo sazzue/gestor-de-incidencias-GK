@@ -82,8 +82,6 @@ function Sidebar() {
     <>
       <aside className="sidebar">
         <div>
-          <p className="version-tag"><b>v{settings.version}</b></p>
-
           <div className="logo-container">
             <img src={settings.sidebarImageUrl || logo} alt="Logo" />
             <h2>{settings.systemName}</h2>
@@ -211,13 +209,6 @@ function Sidebar() {
           flex-direction: column;
           justify-content: space-between;
           overflow-y: auto;
-        }
-
-        .version-tag {
-          font-size: 11px;
-          color: var(--app-text);
-          opacity: 0.55;
-          margin-bottom: 12px;
         }
 
         .logo-container {
