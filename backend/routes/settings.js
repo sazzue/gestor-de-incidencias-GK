@@ -61,17 +61,39 @@ const getDefaultOrganizationId = async () => {
   return organization?._id || null;
 };
 
+const getGlobalIdentity = async (defaultOrganizationId) => {
+  if (!defaultOrganizationId) return {};
+
+  const defaultSettings = await SystemSettings.findOne({
+    key: "global",
+    organization: defaultOrganizationId,
+  }).lean();
+
+  return defaultSettings
+    ? pickFields(defaultSettings, [...identityFields, "loginImageUrl"])
+    : {};
+};
+
+const mergeGlobalIdentity = async (settings, organizationId) => {
+  const defaultOrganizationId = await getDefaultOrganizationId();
+
+  if (!defaultOrganizationId || String(organizationId || "") === String(defaultOrganizationId)) {
+    return settings;
+  }
+
+  const globalIdentity = await getGlobalIdentity(defaultOrganizationId);
+  const base = typeof settings.toObject === "function" ? settings.toObject() : settings;
+  return { ...base, ...globalIdentity };
+};
+
 const getSettings = async (organization = null) => {
   const organizationId = organization || await getDefaultOrganizationId();
   let settings = await SystemSettings.findOne({ key: "global", organization: organizationId });
 
   if (!settings) {
     const defaultOrganizationId = await getDefaultOrganizationId();
-    const defaultSettings = defaultOrganizationId && String(organizationId || "") !== String(defaultOrganizationId)
-      ? await SystemSettings.findOne({ key: "global", organization: defaultOrganizationId }).lean()
-      : null;
-    const inheritedIdentity = defaultSettings
-      ? pickFields(defaultSettings, [...identityFields, "loginImageUrl"])
+    const inheritedIdentity = defaultOrganizationId && String(organizationId || "") !== String(defaultOrganizationId)
+      ? await getGlobalIdentity(defaultOrganizationId)
       : {};
 
     settings = await SystemSettings.create({
@@ -81,7 +103,7 @@ const getSettings = async (organization = null) => {
     });
   }
 
-  return settings;
+  return mergeGlobalIdentity(settings, organizationId);
 };
 
 router.get("/", async (req, res) => {

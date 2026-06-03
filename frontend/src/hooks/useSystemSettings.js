@@ -48,12 +48,6 @@ const getSettingsCacheKey = () => {
   }
 };
 
-const getSettingsTime = (settings) => {
-  const value = settings?.updatedAt || settings?.createdAt;
-  const time = value ? new Date(value).getTime() : 0;
-  return Number.isFinite(time) ? time : 0;
-};
-
 export const getCachedSystemSettings = () => {
   try {
     const token = localStorage.getItem("token");
@@ -87,15 +81,10 @@ export function useSystemSettings() {
 
       if (!res.ok) return;
 
-      const cachedSettings = getCachedSystemSettings();
       const serverSettings = normalizeSettings(data);
-      const nextSettings =
-        cachedSettings && getSettingsTime(cachedSettings) > getSettingsTime(serverSettings)
-          ? cachedSettings
-          : serverSettings;
 
-      cacheSystemSettings(nextSettings);
-      setSettings(nextSettings);
+      cacheSystemSettings(serverSettings);
+      setSettings(serverSettings);
     } catch {
       const cachedSettings = getCachedSystemSettings();
       const nextSettings = cachedSettings || DEFAULT_SETTINGS;
