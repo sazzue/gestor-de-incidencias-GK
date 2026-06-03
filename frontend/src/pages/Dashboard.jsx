@@ -29,10 +29,14 @@ function Dashboard() {
     fetchIncidents();
   }, [fetchIncidents]);
 
-  const getDaysWithoutResolution = (incident) => {
-    const lastChange = new Date(incident.updatedAt || incident.createdAt);
-    const diff = now - lastChange.getTime();
-    return Math.floor(diff / (1000 * 60 * 60 * 24));
+  const getDaysOpen = (incident) => {
+    const createdAt = new Date(incident.createdAt);
+    const createdTime = createdAt.getTime();
+
+    if (!Number.isFinite(createdTime)) return 0;
+
+    const diff = now - createdTime;
+    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
   };
 
   const total = incidents.length;
@@ -40,8 +44,8 @@ function Dashboard() {
   const proceso = incidents.filter(i => i.status === "en_proceso").length;
   const resueltas = incidents.filter(i => i.status === "resuelto").length;
   const urgentes = incidents
-    .filter((i) => i.status !== "resuelto" && getDaysWithoutResolution(i) > 3)
-    .sort((a, b) => getDaysWithoutResolution(b) - getDaysWithoutResolution(a));
+    .filter((i) => i.status !== "resuelto" && getDaysOpen(i) >= 3)
+    .sort((a, b) => getDaysOpen(b) - getDaysOpen(a));
 
   return (
     <div className="dashboard">
@@ -100,7 +104,7 @@ function Dashboard() {
 
         <div className="panel">
           <h3>Incidencias urgentes</h3>
-          <p className="panel-note">Mas de 3 dias sin resolverse.</p>
+          <p className="panel-note">3 dias o mas sin resolverse.</p>
 
           {urgentes.length === 0 ? (
             <div className="empty-state">
@@ -117,7 +121,7 @@ function Dashboard() {
                   <h4>{inc.title}</h4>
                   <span>{inc.department || "Sin departamento"}</span>
                 </div>
-                <strong>{getDaysWithoutResolution(inc)} dias</strong>
+                <strong>{getDaysOpen(inc)} dias</strong>
               </button>
             ))
           )}
