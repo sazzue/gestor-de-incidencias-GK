@@ -16,6 +16,7 @@ function Incidents() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [uploadingIncidentId, setUploadingIncidentId] = useState(null);
+  const [resolutionComments, setResolutionComments] = useState({});
 
   const navigate = useNavigate();
   const user = useAuthUser();
@@ -152,14 +153,41 @@ function Incidents() {
     });
   };
 
+  const canViewComments =
+    user?.role === "admin" ||
+    user?.role === "gerencia" ||
+    user?.role === "direccion" ||
+    user?.permissions?.includes("VIEW_INCIDENT_COMMENTS");
+
+  const canCommentIncident = (incident) => {
+    if (user?.role === "admin") return true;
+    if (!user?.permissions?.includes("COMMENT_INCIDENT")) return false;
+
+    return (
+      user?.role === "departamento" &&
+      user?.department?.toLowerCase().trim() === incident.department?.toLowerCase().trim()
+    );
+  };
+
   const updateStatus = async (id, status) => {
     try {
       const token = localStorage.getItem("token");
+      const incident = incidents.find((item) => item._id === id);
+      const comment = status === "resuelto" ? resolutionComments[id]?.trim() : "";
+
+      if (status === "resuelto" && incident && canCommentIncident(incident) && !comment) {
+        alert("Agrega un comentario antes de cerrar la incidencia.");
+        return;
+      }
+
       await fetch(`${API_URL}/api/incidents/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, comment }),
       });
+      if (status === "resuelto") {
+        setResolutionComments((current) => ({ ...current, [id]: "" }));
+      }
       fetchIncidents();
     } catch (error) {
       console.error(error);
@@ -303,6 +331,34 @@ function Incidents() {
               </div>
             )}
 
+            {canViewComments && inc.resolutionComment?.text && (
+              <div className="comment-box read-only">
+                <strong>Comentario de cierre</strong>
+                <p>{inc.resolutionComment.text}</p>
+                <small>
+                  {inc.resolutionComment.createdBy?.nombre || inc.resolutionComment.createdBy?.email || "Usuario"} · {" "}
+                  {inc.resolutionComment.createdAt ? formatDate(inc.resolutionComment.createdAt) : ""}
+                </small>
+              </div>
+            )}
+
+            {inc.status !== "resuelto" && canCommentIncident(inc) && (
+              <div className="comment-box">
+                <label>
+                  Comentario de cierre
+                  <textarea
+                    value={resolutionComments[inc._id] || ""}
+                    onChange={(e) => setResolutionComments((current) => ({
+                      ...current,
+                      [inc._id]: e.target.value,
+                    }))}
+                    placeholder="Describe que se realizo antes de cerrar..."
+                    rows={3}
+                  />
+                </label>
+              </div>
+            )}
+
             <label className={`upload-files ${uploadingIncidentId === inc._id ? "loading" : ""}`}>
               {uploadingIncidentId === inc._id ? "Subiendo..." : "Subir archivos"}
               <input
@@ -327,7 +383,7 @@ function Incidents() {
                     En proceso
                   </button>
                   <button className="btn-done" onClick={() => updateStatus(inc._id, "resuelto")}>
-                    Resuelto
+                    {canCommentIncident(inc) ? "Comentar y resolver" : "Resuelto"}
                   </button>
                 </>
               ) : (
@@ -487,6 +543,49 @@ function Incidents() {
           gap: 6px;
           font-size: 12px;
           color: #94a3b8;
+        }
+
+        .comment-box {
+          min-width: 0;
+          padding: 10px;
+          border: 1px solid rgba(96,165,250,0.18);
+          border-radius: 8px;
+          background: rgba(96,165,250,0.06);
+          font-size: 12px;
+        }
+        .comment-box label {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          color: #bfdbfe;
+          font-weight: 700;
+        }
+        .comment-box textarea {
+          width: 100%;
+          min-width: 0;
+          padding: 9px 10px;
+          border-radius: 7px;
+          border: 1px solid rgba(148,163,184,0.25);
+          background: var(--app-input);
+          color: #e2e8f0;
+          resize: vertical;
+          font-family: inherit;
+          font-size: 12px;
+        }
+        .comment-box.read-only strong {
+          display: block;
+          color: #bfdbfe;
+          margin-bottom: 6px;
+        }
+        .comment-box.read-only p {
+          color: #e2e8f0;
+          line-height: 1.45;
+          overflow-wrap: anywhere;
+        }
+        .comment-box.read-only small {
+          display: block;
+          color: #94a3b8;
+          margin-top: 6px;
         }
 
         .attachment-link {

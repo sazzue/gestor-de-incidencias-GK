@@ -34,6 +34,8 @@ function MaintenanceCalendar() {
   const [dateInput, setDateInput] = useState("");
   const [message, setMessage] = useState(null);
   const [modalMessage, setModalMessage] = useState(null);
+  const [confirmingMaintenance, setConfirmingMaintenance] = useState(null);
+  const [approvalComment, setApprovalComment] = useState("");
 
   const token = localStorage.getItem("token");
   const user = useAuthUser();
@@ -44,6 +46,16 @@ function MaintenanceCalendar() {
   const canConfirm =
     user?.role === "admin" ||
     user?.permissions?.includes("CONFIRM_MAINTENANCE");
+  const canViewMaintenanceComments =
+    user?.role === "admin" ||
+    user?.role === "gerencia" ||
+    user?.role === "direccion" ||
+    user?.permissions?.includes("VIEW_MAINTENANCE_COMMENTS");
+  const canCommentMaintenance =
+    user?.role === "admin" ||
+    user?.role === "gerencia" ||
+    user?.role === "direccion" ||
+    user?.permissions?.includes("COMMENT_MAINTENANCE");
 
   const userDepartment = normalizeDepartment(user?.department);
   const isDepartmentUser = user?.role === "departamento";
@@ -228,11 +240,12 @@ function MaintenanceCalendar() {
       .catch(err => console.error(err));
   }, []);
 
-  const confirmMaintenance = async (id) => {
+  const confirmMaintenance = async (id, comment = "") => {
     try {
       const res = await fetch(`${API_URL}/api/maintenance/${id}/confirm`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ comment }),
       });
       const updated = await res.json();
       if (!res.ok) {
@@ -249,6 +262,8 @@ function MaintenanceCalendar() {
         title: "Mantenimiento confirmado",
         detail: "El estado cambio a finalizado."
       });
+      setConfirmingMaintenance(null);
+      setApprovalComment("");
     } catch (error) {
       console.error("Error confirmando:", error);
       setMessage({
@@ -257,6 +272,16 @@ function MaintenanceCalendar() {
         detail: "No se pudo conectar con el servidor."
       });
     }
+  };
+
+  const openConfirmMaintenance = (maintenance) => {
+    if (canCommentMaintenance) {
+      setConfirmingMaintenance(maintenance);
+      setApprovalComment("");
+      return;
+    }
+
+    confirmMaintenance(maintenance._id);
   };
 
   return (
@@ -318,13 +343,25 @@ function MaintenanceCalendar() {
                 <p className="branch">{m.branch?.name}</p>
                 <p className="department">{getDepartmentLabel(m.department)}</p>
                 <p className="desc">{m.description}</p>
+                {canViewMaintenanceComments && m.approvalComment?.text && (
+                  <div className="approval-comment">
+                    <strong>Comentario de autorizacion</strong>
+                    <p>{m.approvalComment.text}</p>
+                    <small>
+                      {m.approvalComment.createdBy?.nombre || m.approvalComment.createdBy?.email || "Usuario"} · {" "}
+                      {m.approvalComment.createdAt ? new Date(m.approvalComment.createdAt).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" }) : ""}
+                    </small>
+                  </div>
+                )}
                 <div className="footer">
                   <small>{new Date(m.date).toLocaleDateString("es-MX")}</small>
                   {m.status === "finalizado" && m.confirmedBy && (
                     <small className="confirmed-text">Confirmado por: {m.confirmedBy.nombre || m.confirmedBy.email}</small>
                   )}
                   {canConfirmMaintenance(m) && m.status === "programado" && (
-                    <button className="confirm-btn" onClick={() => confirmMaintenance(m._id)}>Confirmar</button>
+                    <button className="confirm-btn" onClick={() => openConfirmMaintenance(m)}>
+                      {canCommentMaintenance ? "Autorizar y comentar" : "Confirmar"}
+                    </button>
                   )}
                 </div>
               </div>
@@ -364,6 +401,29 @@ function MaintenanceCalendar() {
             <div className="modal-buttons">
               <button onClick={createMaintenance}>Guardar</button>
               <button onClick={() => setShowModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmingMaintenance && (
+        <div className="modal">
+          <div className="modal-content">
+            <h3>Autorizar mantenimiento</h3>
+            <p className="modal-hint">{confirmingMaintenance.title}</p>
+            <textarea
+              placeholder="Comentario de autorizacion..."
+              value={approvalComment}
+              onChange={(e) => setApprovalComment(e.target.value)}
+              rows={4}
+            />
+            <div className="modal-buttons">
+              <button onClick={() => confirmMaintenance(confirmingMaintenance._id, approvalComment)}>
+                Autorizar
+              </button>
+              <button onClick={() => { setConfirmingMaintenance(null); setApprovalComment(""); }}>
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
@@ -484,6 +544,32 @@ function MaintenanceCalendar() {
 
         .confirmed-text { color: #22c55e; font-size: 12px; }
 
+        .approval-comment {
+          margin-top: 10px;
+          padding: 10px;
+          border-radius: 8px;
+          border: 1px solid rgba(96,165,250,0.2);
+          background: rgba(96,165,250,0.08);
+        }
+        .approval-comment strong {
+          display: block;
+          color: #bfdbfe;
+          font-size: 12px;
+          margin-bottom: 6px;
+        }
+        .approval-comment p {
+          color: #e2e8f0;
+          font-size: 12px;
+          line-height: 1.45;
+          overflow-wrap: anywhere;
+        }
+        .approval-comment small {
+          display: block;
+          color: #94a3b8;
+          font-size: 11px;
+          margin-top: 6px;
+        }
+
         .confirm-btn {
           background: #22c55e;
           border: none;
@@ -530,6 +616,12 @@ function MaintenanceCalendar() {
           display: flex;
           flex-direction: column;
           gap: 10px;
+        }
+
+        .modal-hint {
+          color: #cbd5e1;
+          font-size: 13px;
+          line-height: 1.4;
         }
 
         .modal-content input,

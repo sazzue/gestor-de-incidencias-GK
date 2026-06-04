@@ -76,6 +76,24 @@ const canAccessMaintenance = (user, maintenance) => {
   return false;
 };
 
+const canViewMaintenanceComments = (user) =>
+  ["admin", "gerencia", "direccion"].includes(user?.role) ||
+  hasPermission(user, "VIEW_MAINTENANCE_COMMENTS");
+
+const canCommentMaintenance = (user) =>
+  ["admin", "gerencia", "direccion"].includes(user?.role) ||
+  hasPermission(user, "COMMENT_MAINTENANCE");
+
+const hideMaintenanceCommentIfNeeded = (maintenance, user) => {
+  if (!maintenance || canViewMaintenanceComments(user)) return maintenance;
+
+  const output = typeof maintenance.toObject === "function"
+    ? maintenance.toObject()
+    : { ...maintenance };
+  delete output.approvalComment;
+  return output;
+};
+
 router.get("/", auth, async (req, res) => {
   try {
     const query = getMaintenanceQueryForUser(req.user);
@@ -86,10 +104,11 @@ router.get("/", auth, async (req, res) => {
 
     const data = await Maintenance.find(query)
       .populate("confirmedBy", "nombre email")
+      .populate("approvalComment.createdBy", "nombre email")
       .populate("branch", "name")
       .sort({ date: 1 });
 
-    res.json(data);
+    res.json(data.map((maintenance) => hideMaintenanceCommentIfNeeded(maintenance, req.user)));
   } catch (error) {
     res.status(500).json({ msg: "Error cargando mantenimientos", error: error.message });
   }
@@ -146,6 +165,7 @@ router.post("/", auth, async (req, res) => {
     const populated = await Maintenance.findById(newMaintenance._id)
       .populate("createdBy", "nombre email")
       .populate("confirmedBy", "nombre email")
+      .populate("approvalComment.createdBy", "nombre email")
       .populate("branch", "name");
 
     await notifyNewRecord({
@@ -182,6 +202,24 @@ router.put("/:id/confirm", auth, async (req, res) => {
       });
     }
 
+    const comment = req.body?.comment?.toString().trim();
+
+    if (comment) {
+      if (!canCommentMaintenance(req.user)) {
+        return res.status(403).json({ msg: "No tienes permisos para comentar la autorizacion" });
+      }
+
+      if (maintenance.approvalComment?.text) {
+        return res.status(400).json({ msg: "El comentario de autorizacion ya no se puede modificar" });
+      }
+
+      maintenance.approvalComment = {
+        text: comment,
+        createdBy: req.user.id,
+        createdAt: new Date(),
+      };
+    }
+
     maintenance.status = "finalizado";
     maintenance.confirmed = true;
     maintenance.confirmedBy = req.user.id;
@@ -189,9 +227,10 @@ router.put("/:id/confirm", auth, async (req, res) => {
 
     const updated = await Maintenance.findById(maintenance._id)
       .populate("confirmedBy", "nombre email")
+      .populate("approvalComment.createdBy", "nombre email")
       .populate("branch", "name");
 
-    res.json(updated);
+    res.json(hideMaintenanceCommentIfNeeded(updated, req.user));
   } catch (error) {
     res.status(500).json({ msg: "Error servidor", error: error.message });
   }

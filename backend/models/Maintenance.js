@@ -33,6 +33,23 @@ const maintenanceSchema = new mongoose.Schema({
   ref: "User",
 },
 
+  approvalComment: {
+    text: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    createdAt: {
+      type: Date,
+      default: null,
+    },
+  },
+
   date: String,
 
   createdBy: {

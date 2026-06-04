@@ -35,6 +35,22 @@ const incidentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    resolutionComment: {
+      text: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+      createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      createdAt: {
+        type: Date,
+        default: null,
+      },
+    },
     attachmentsPurgedAt: {
       type: Date,
       default: null,

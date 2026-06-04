@@ -78,6 +78,29 @@ const canViewIncident = (user, incident) => {
   return false;
 };
 
+const canViewIncidentComments = (user) =>
+  ["admin", "gerencia", "direccion"].includes(user?.role) ||
+  hasPermission(user, "VIEW_INCIDENT_COMMENTS");
+
+const canCommentIncident = (user, incident) => {
+  if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
+
+  if (user?.role === "admin") return true;
+
+  const userDepartment = user?.department?.toLowerCase().trim();
+  const incidentDepartment = incident?.department?.toLowerCase().trim();
+
+  return Boolean(userDepartment && incidentDepartment === userDepartment);
+};
+
+const hideIncidentCommentIfNeeded = (incident, user) => {
+  if (!incident || canViewIncidentComments(user)) return incident;
+
+  const output = typeof incident.toObject === "function" ? incident.toObject() : { ...incident };
+  delete output.resolutionComment;
+  return output;
+};
+
 const uploadFilesForIncident = async ({ incident, files, userId, organization }) => {
   if (!files || files.length === 0) return [];
 
@@ -177,10 +200,11 @@ const getIncidents = async (req, res) => {
 
     const incidents = await Incident.find(query)
       .populate("createdBy", "nombre email")
+      .populate("resolutionComment.createdBy", "nombre email")
       .populate("branch", "name")
       .sort({ createdAt: -1 });
 
-    res.json(incidents);
+    res.json(incidents.map((incident) => hideIncidentCommentIfNeeded(incident, req.user)));
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al obtener incidencias" });
@@ -235,6 +259,7 @@ const createIncident = async (req, res) => {
 
     const populatedIncident = await Incident.findById(incident._id)
       .populate("createdBy", "nombre email")
+      .populate("resolutionComment.createdBy", "nombre email")
       .populate("branch", "name");
 
     await notifyNewRecord({
@@ -335,7 +360,7 @@ const getAttachmentDownloadUrl = async (req, res) => {
 
 const updateStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, comment } = req.body;
     const { department } = req.user;
 
     if (!status) {
@@ -357,11 +382,40 @@ const updateStatus = async (req, res) => {
       });
     }
 
+    const isResolving = status === RESOLVED_STATUS && incident.status !== RESOLVED_STATUS;
+    const normalizedComment = comment?.toString().trim();
+
+    if (
+      isResolving &&
+      req.user?.role === "departamento" &&
+      canCommentIncident(req.user, incident) &&
+      !normalizedComment
+    ) {
+      return res.status(400).json({ msg: "Agrega un comentario antes de cerrar la incidencia" });
+    }
+
+    if (isResolving && normalizedComment) {
+      if (!canCommentIncident(req.user, incident)) {
+        return res.status(403).json({ msg: "No tienes permisos para comentar el cierre" });
+      }
+
+      if (incident.resolutionComment?.text) {
+        return res.status(400).json({ msg: "El comentario de cierre ya no se puede modificar" });
+      }
+
+      incident.resolutionComment = {
+        text: normalizedComment,
+        createdBy: req.user.id,
+        createdAt: new Date(),
+      };
+    }
+
     if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
       incident.status = status;
       incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
       await incident.save();
-      return res.json(incident);
+      await incident.populate("resolutionComment.createdBy", "nombre email");
+      return res.json(hideIncidentCommentIfNeeded(incident, req.user));
     }
 
     if (
@@ -373,7 +427,8 @@ const updateStatus = async (req, res) => {
       incident.status = status;
       incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
       await incident.save();
-      return res.json(incident);
+      await incident.populate("resolutionComment.createdBy", "nombre email");
+      return res.json(hideIncidentCommentIfNeeded(incident, req.user));
     }
 
     return res.status(403).json({
