@@ -5,7 +5,6 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 function ForgotPassword() {
   const [email,   setEmail]   = useState("");
-  const [organizationSlug, setOrganizationSlug] = useState(() => localStorage.getItem("organizationSlug") || "default");
   const [status,  setStatus]  = useState(""); // "loading" | "done" | "error"
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
@@ -18,7 +17,7 @@ function ForgotPassword() {
       const res  = await fetch(`${API_URL}/api/auth/forgot-password`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ email, organizationSlug }),
+        body:    JSON.stringify({ email }),
       });
       const data = await res.json();
 
@@ -51,14 +50,6 @@ function ForgotPassword() {
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <input
-              type="text"
-              required
-              placeholder="Empresa"
-              value={organizationSlug}
-              onChange={(e) => setOrganizationSlug(e.target.value.toLowerCase().trim())}
-            />
-
             <input
               type="email"
               required

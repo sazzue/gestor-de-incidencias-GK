@@ -153,7 +153,9 @@ exports.login = async (req, res) => {
     const users = await User.find(userQuery).limit(2);
 
     if (users.length > 1) {
-      return res.status(400).json({ msg: "Indica la empresa para iniciar sesion" });
+      return res.status(400).json({
+        msg: "Este usuario existe en mas de una empresa. Indica la empresa para iniciar sesion.",
+      });
     }
 
     const user = users[0];
