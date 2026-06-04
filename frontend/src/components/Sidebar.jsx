@@ -6,7 +6,7 @@ import { useSystemSettings } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-function Sidebar() {
+function Sidebar({ isOpen = false, onNavigate }) {
   const [user, setUser] = useState(null);
   const { settings } = useSystemSettings();
   const navigate = useNavigate();
@@ -78,9 +78,14 @@ function Sidebar() {
 
   const isActive = (path) => location.pathname === path;
 
+  const goTo = (path) => {
+    navigate(path);
+    onNavigate?.();
+  };
+
   return (
     <>
-      <aside className="sidebar">
+      <aside className={`sidebar ${isOpen ? "open" : ""}`}>
         <div>
           <div className="logo-container">
             <img src={settings.sidebarImageUrl || logo} alt="Logo" />
@@ -88,7 +93,7 @@ function Sidebar() {
           </div>
 
           <button
-            onClick={() => navigate("/info")}
+            onClick={() => goTo("/info")}
             className={`sidebar-btn info-btn ${isActive("/info") ? "active" : ""}`}
           >
             Informacion del sistema
@@ -96,7 +101,7 @@ function Sidebar() {
 
           <nav>
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => goTo("/dashboard")}
               className={`sidebar-btn ${isActive("/dashboard") ? "active" : ""}`}
             >
               Dashboard
@@ -104,7 +109,7 @@ function Sidebar() {
 
             <button
               disabled={!canViewIncidents}
-              onClick={() => navigate("/incidents")}
+              onClick={() => goTo("/incidents")}
               className={`sidebar-btn ${isActive("/incidents") ? "active" : ""} ${!canViewIncidents ? "disabled" : ""}`}
             >
               Incidencias
@@ -112,7 +117,7 @@ function Sidebar() {
 
             <button
               disabled={!canCreateIncidents}
-              onClick={() => navigate("/create")}
+              onClick={() => goTo("/create")}
               className={`sidebar-btn ${isActive("/create") ? "active" : ""} ${!canCreateIncidents ? "disabled" : ""}`}
             >
               Crear solicitud
@@ -120,7 +125,7 @@ function Sidebar() {
 
             <button
               disabled={!canViewMaintenance}
-              onClick={() => navigate("/maintenance")}
+              onClick={() => goTo("/maintenance")}
               className={`sidebar-btn ${isActive("/maintenance") ? "active" : ""} ${!canViewMaintenance ? "disabled" : ""}`}
             >
               Mantenimientos
@@ -128,7 +133,7 @@ function Sidebar() {
 
             <button
               disabled={!canViewInventory}
-              onClick={() => navigate("/inventory")}
+              onClick={() => goTo("/inventory")}
               className={`sidebar-btn ${isActive("/inventory") ? "active" : ""} ${!canViewInventory ? "disabled" : ""}`}
             >
               Inventario
@@ -136,7 +141,7 @@ function Sidebar() {
 
             <button
               disabled={!canAccessUsers}
-              onClick={() => navigate("/users")}
+              onClick={() => goTo("/users")}
               className={`sidebar-btn ${isActive("/users") ? "active" : ""} ${!canAccessUsers ? "disabled" : ""}`}
             >
               Usuarios
@@ -144,7 +149,7 @@ function Sidebar() {
 
             {canAccessCatalogs && (
               <button
-                onClick={() => navigate("/catalogs")}
+                onClick={() => goTo("/catalogs")}
                 className={`sidebar-btn ${isActive("/catalogs") ? "active" : ""}`}
               >
                 Catalogos
@@ -153,7 +158,7 @@ function Sidebar() {
 
             {canAccessSettings && (
               <button
-                onClick={() => navigate("/settings")}
+                onClick={() => goTo("/settings")}
                 className={`sidebar-btn ${isActive("/settings") ? "active" : ""}`}
               >
                 Configuracion
@@ -162,7 +167,7 @@ function Sidebar() {
 
             {canAccessOrganizations && (
               <button
-                onClick={() => navigate("/platform-identity")}
+                onClick={() => goTo("/platform-identity")}
                 className={`sidebar-btn ${isActive("/platform-identity") ? "active" : ""}`}
               >
                 Identidad
@@ -171,7 +176,7 @@ function Sidebar() {
 
             {canAccessOrganizations && (
               <button
-                onClick={() => navigate("/organizations")}
+                onClick={() => goTo("/organizations")}
                 className={`sidebar-btn ${isActive("/organizations") ? "active" : ""}`}
               >
                 Empresas
@@ -313,18 +318,25 @@ function Sidebar() {
 
         @media (max-width: 768px) {
           .sidebar {
-            width: 100%;
-            min-width: unset;
-            height: auto;
-            position: relative;
-            flex-direction: row;
-            flex-wrap: wrap;
-            overflow-x: auto;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1001;
+            width: min(82vw, 300px);
+            min-width: 0;
+            height: 100dvh;
+            transform: translateX(-105%);
+            transition: transform 0.24s ease;
+            box-shadow: 18px 0 42px rgba(0,0,0,0.38);
+            border-right: 1px solid rgba(255,255,255,0.12);
+          }
+
+          .sidebar.open {
+            transform: translateX(0);
           }
 
           nav {
-            flex-direction: row;
-            flex-wrap: wrap;
+            flex-direction: column;
           }
         }
       `}</style>
