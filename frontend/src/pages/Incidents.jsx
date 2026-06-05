@@ -172,13 +172,7 @@ function Incidents() {
   const updateStatus = async (id, status) => {
     try {
       const token = localStorage.getItem("token");
-      const incident = incidents.find((item) => item._id === id);
       const comment = status === "resuelto" ? resolutionComments[id]?.trim() : "";
-
-      if (status === "resuelto" && incident && canCommentIncident(incident) && !comment) {
-        alert("Agrega un comentario antes de cerrar la incidencia.");
-        return;
-      }
 
       await fetch(`${API_URL}/api/incidents/${id}/status`, {
         method: "PUT",
@@ -383,7 +377,7 @@ function Incidents() {
                     En proceso
                   </button>
                   <button className="btn-done" onClick={() => updateStatus(inc._id, "resuelto")}>
-                    {canCommentIncident(inc) ? "Comentar y resolver" : "Resuelto"}
+                    Resolver
                   </button>
                 </>
               ) : (

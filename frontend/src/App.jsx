@@ -19,9 +19,11 @@ import ChangePassword      from "./pages/ChangePassword.jsx";
 
 import PrivateRoute        from "./components/PrivateRoute.jsx";
 import { useNoAutoTranslate } from "./hooks/useNoAutoTranslate.js";
+import { useTextInputAssist } from "./hooks/useTextInputAssist.js";
 
 function App() {
   useNoAutoTranslate();
+  useTextInputAssist();
 
   return (
     <BrowserRouter>

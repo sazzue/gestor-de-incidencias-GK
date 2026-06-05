@@ -385,15 +385,6 @@ const updateStatus = async (req, res) => {
     const isResolving = status === RESOLVED_STATUS && incident.status !== RESOLVED_STATUS;
     const normalizedComment = comment?.toString().trim();
 
-    if (
-      isResolving &&
-      req.user?.role === "departamento" &&
-      canCommentIncident(req.user, incident) &&
-      !normalizedComment
-    ) {
-      return res.status(400).json({ msg: "Agrega un comentario antes de cerrar la incidencia" });
-    }
-
     if (isResolving && normalizedComment) {
       if (!canCommentIncident(req.user, incident)) {
         return res.status(403).json({ msg: "No tienes permisos para comentar el cierre" });
