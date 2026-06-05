@@ -11,6 +11,7 @@ function CreateIncidencia() {
   const [branch, setBranch] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState("media");
   const [attachments, setAttachments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
@@ -57,6 +58,7 @@ function CreateIncidencia() {
       formData.append("description", description);
       formData.append("branch", branch);
       formData.append("department", department);
+      formData.append("priority", priority);
       attachments.forEach((file) => formData.append("attachments", file));
 
       const res = await fetch(`${API_URL}/api/incidents`, {
@@ -86,6 +88,7 @@ function CreateIncidencia() {
       setDescription("");
       setBranch("");
       setDepartment("");
+      setPriority("media");
       setAttachments([]);
     } catch (error) {
       console.error("Error conexion:", error);
@@ -149,6 +152,16 @@ function CreateIncidencia() {
             {departments.map((dep) => (
               <option key={dep._id} value={dep.name.toLowerCase()}>{dep.name}</option>
             ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label>Prioridad</label>
+          <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <option value="baja">Baja - 7 dias</option>
+            <option value="media">Media - 3 dias</option>
+            <option value="alta">Alta - 1 dia</option>
+            <option value="critica">Critica - hoy</option>
           </select>
         </div>
 

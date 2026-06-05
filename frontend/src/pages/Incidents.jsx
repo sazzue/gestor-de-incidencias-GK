@@ -4,6 +4,12 @@ import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const priorityLabels = {
+  baja: "Baja",
+  media: "Media",
+  alta: "Alta",
+  critica: "Critica",
+};
 
 function Incidents() {
   const [incidents, setIncidents] = useState([]);
@@ -25,6 +31,11 @@ function Incidents() {
     new Date(date).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" });
   const getResolvedDate = (incident) =>
     incident.resolvedAt || (incident.status === "resuelto" ? incident.updatedAt : null);
+  const getFolio = (incident) => incident.folio || `INC-${incident._id.slice(-6).toUpperCase()}`;
+  const isOverdue = (incident) =>
+    incident.status !== "resuelto" &&
+    incident.dueAt &&
+    new Date(incident.dueAt).getTime() < Date.now();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -125,7 +136,9 @@ function Incidents() {
       branch: i.branch?.name || i.branch || "Sin sucursal",
       department: i.department?.name || i.department || "Sin departamento",
       status: i.status?.replace("_", " ") || "",
+      priority: priorityLabels[i.priority] || "Media",
       createdAt: new Date(i.createdAt).toLocaleDateString("es-MX"),
+      dueAt: i.dueAt ? new Date(i.dueAt).toLocaleDateString("es-MX") : "",
       resolvedAt: getResolvedDate(i)
         ? new Date(getResolvedDate(i)).toLocaleDateString("es-MX")
         : "",
@@ -145,8 +158,10 @@ function Incidents() {
         { key: "description", label: "Descripcion" },
         { key: "branch", label: "Sucursal" },
         { key: "department", label: "Departamento" },
+        { key: "priority", label: "Prioridad" },
         { key: "status", label: "Estado" },
         { key: "createdAt", label: "Fecha" },
+        { key: "dueAt", label: "Limite SLA" },
         { key: "resolvedAt", label: "Resuelto" },
       ],
       rows,
@@ -252,12 +267,12 @@ function Incidents() {
       {/* HEADER */}
       <div className="page-header">
         <div>
-          <h1>📋 Incidencias</h1>
+          <h1>Incidencias</h1>
           <p>Mostrando {filteredIncidents.length} resultados</p>
         </div>
         {canCreate && (
           <button className="btn-primary" onClick={() => navigate("/create")}>
-            ➕ Crear solicitud
+            Crear solicitud
           </button>
         )}
       </div>
@@ -294,20 +309,32 @@ function Incidents() {
         {filteredIncidents.map((inc) => (
           <div key={inc._id} className="card">
             <div className="card-top">
-              <h3>{inc.title}</h3>
-              <span className={`status ${inc.status}`}>
-                {inc.status.replace("_", " ")}
-              </span>
+              <div>
+                <span className="folio">{getFolio(inc)}</span>
+                <h3>{inc.title}</h3>
+              </div>
+              <div className="badges">
+                <span className={`priority ${inc.priority || "media"}`}>
+                  {priorityLabels[inc.priority] || "Media"}
+                </span>
+                <span className={`status ${inc.status}`}>
+                  {inc.status.replace("_", " ")}
+                </span>
+              </div>
             </div>
 
             <p className="desc">{inc.description}</p>
 
             <div className="meta">
               {getResolvedDate(inc) && <span>Resuelto: {formatDate(getResolvedDate(inc))}</span>}
-              <span>📍 {inc.branch?.name || inc.branch || "Sin sucursal"}</span>
-              <span>🏢 {inc.department || "Sin departamento"}</span>
-              <span>📅 {formatDate(inc.createdAt)}</span>
-              <span>👤 {inc.createdBy?.nombre || inc.createdBy?.email}</span>
+              <span>Sucursal: {inc.branch?.name || inc.branch || "Sin sucursal"}</span>
+              <span>Departamento: {inc.department || "Sin departamento"}</span>
+              <span>Creacion: {formatDate(inc.createdAt)}</span>
+              <span className={isOverdue(inc) ? "sla late" : "sla"}>
+                SLA: {inc.dueAt ? formatDate(inc.dueAt) : "Sin limite"}
+                {isOverdue(inc) ? " - vencido" : ""}
+              </span>
+              <span>Solicitante: {inc.createdBy?.nombre || inc.createdBy?.email}</span>
             </div>
 
             {inc.attachments?.length > 0 && (
@@ -369,6 +396,9 @@ function Incidents() {
             <span className="upload-hint">Max. 5 MB por archivo, 10 archivos, 30 MB por incidencia.</span>
 
             <div className="actions">
+              <button className="btn-view" onClick={() => navigate(`/incidents/${inc._id}`)}>
+                Ver ticket
+              </button>
               {inc.status === "resuelto" ? (
                 <span className="closed-status">Cerrada</span>
               ) : canUpdate ? (
@@ -381,7 +411,7 @@ function Incidents() {
                   </button>
                 </>
               ) : (
-                <span className="no-perm">🔒 Sin autorización</span>
+                <span className="no-perm">Sin autorizacion</span>
               )}
             </div>
           </div>
@@ -500,6 +530,21 @@ function Incidents() {
           gap: 10px;
           min-width: 0;
         }
+        .folio {
+          display: block;
+          color: #93c5fd;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          margin-bottom: 4px;
+        }
+        .badges {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 6px;
+          flex-shrink: 0;
+        }
         .card-top h3 {
           flex: 1 1 auto;
           min-width: 0;
@@ -529,6 +574,8 @@ function Incidents() {
           min-width: 0;
           overflow-wrap: anywhere;
         }
+        .meta .sla { color: #86efac; }
+        .meta .sla.late { color: #fca5a5; font-weight: 700; }
 
         .attachments {
           min-width: 0;
@@ -636,6 +683,17 @@ function Incidents() {
           text-transform: capitalize;
           white-space: nowrap;
         }
+        .priority {
+          padding: 4px 10px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+        .priority.baja { background: rgba(34,197,94,0.14); color: #86efac; }
+        .priority.media { background: rgba(96,165,250,0.14); color: #93c5fd; }
+        .priority.alta { background: rgba(245,158,11,0.16); color: #fbbf24; }
+        .priority.critica { background: rgba(239,68,68,0.18); color: #fca5a5; }
         .pendiente  { background: rgba(239,68,68,0.15);  color: #ef4444; }
         .en_proceso { background: rgba(245,158,11,0.15); color: #f59e0b; }
         .resuelto   { background: rgba(34,197,94,0.15);  color: #22c55e; }
@@ -654,6 +712,17 @@ function Incidents() {
           padding: 6px 12px; border-radius: 7px;
           color: #f59e0b; cursor: pointer; font-size: 13px; transition: 0.2s;
         }
+        .btn-view {
+          background: rgba(96,165,250,0.12);
+          border: 1px solid rgba(96,165,250,0.35);
+          padding: 6px 12px;
+          border-radius: 7px;
+          color: #bfdbfe;
+          cursor: pointer;
+          font-size: 13px;
+          transition: 0.2s;
+        }
+        .btn-view:hover { background: #3b82f6; color: white; }
         .btn-process:hover { background: #f59e0b; color: #000; }
 
         .btn-done {

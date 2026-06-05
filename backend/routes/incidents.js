@@ -5,6 +5,7 @@ const router = express.Router();
 const {
   addAttachments,
   getIncidents,
+  getIncidentById,
   getAttachmentDownloadUrl,
   createIncident,
   updateStatus,
@@ -52,6 +53,7 @@ const handleUploadErrors = (err, req, res, next) => {
 };
 
 router.get("/", authMiddleware, getIncidents);
+router.get("/:id", authMiddleware, getIncidentById);
 
 router.post(
   "/",

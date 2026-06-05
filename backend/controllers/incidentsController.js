@@ -8,6 +8,7 @@ const MAX_ATTACHMENTS_PER_INCIDENT = 10;
 const MAX_TOTAL_ATTACHMENT_SIZE = 30 * 1024 * 1024;
 const DEFAULT_R2_STORAGE_LIMIT_GB = 9;
 const RESOLVED_STATUS = "resuelto";
+const VALID_PRIORITIES = new Set(["baja", "media", "alta", "critica"]);
 
 const getTotalAttachmentSize = (attachments = []) =>
   attachments.reduce((total, attachment) => total + (attachment.size || 0), 0);
@@ -211,9 +212,35 @@ const getIncidents = async (req, res) => {
   }
 };
 
+const getIncidentById = async (req, res) => {
+  try {
+    const incident = await Incident.findOne({
+      _id: req.params.id,
+      ...getOrganizationFilter(req),
+    })
+      .populate("createdBy", "nombre email")
+      .populate("resolutionComment.createdBy", "nombre email")
+      .populate("branch", "name")
+      .populate("attachments.uploadedBy", "nombre email");
+
+    if (!incident) {
+      return res.status(404).json({ msg: "Incidencia no encontrada" });
+    }
+
+    if (!canViewIncident(req.user, incident)) {
+      return res.status(403).json({ msg: "No autorizado para ver esta incidencia" });
+    }
+
+    res.json(hideIncidentCommentIfNeeded(incident, req.user));
+  } catch (error) {
+    console.error("ERROR GET INCIDENT:", error);
+    res.status(500).json({ msg: "Error al obtener incidencia" });
+  }
+};
+
 const createIncident = async (req, res) => {
   try {
-    const { title, description, branch, department } = req.body;
+    const { title, description, branch, department, priority = "media" } = req.body;
 
     if (!hasPermission(req.user, "CREATE_INCIDENT")) {
       return res.status(403).json({
@@ -223,6 +250,12 @@ const createIncident = async (req, res) => {
 
     if (!title || !description || !branch || !department) {
       return res.status(400).json({ msg: "Datos incompletos" });
+    }
+
+    const normalizedPriority = priority.toString().toLowerCase().trim();
+
+    if (!VALID_PRIORITIES.has(normalizedPriority)) {
+      return res.status(400).json({ msg: "Prioridad no valida" });
     }
 
     await assertWithinPlanLimit({
@@ -237,6 +270,7 @@ const createIncident = async (req, res) => {
       organization: req.user.organization || null,
       branch,
       department: department.toLowerCase().trim(),
+      priority: normalizedPriority,
       createdBy: req.user.id,
     });
 
@@ -438,6 +472,7 @@ const updateStatus = async (req, res) => {
 module.exports = {
   addAttachments,
   getIncidents,
+  getIncidentById,
   getAttachmentDownloadUrl,
   createIncident,
   updateStatus,

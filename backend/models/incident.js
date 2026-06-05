@@ -27,6 +27,20 @@ const incidentSchema = new mongoose.Schema(
     },
     title: String,
     description: String,
+    folio: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    priority: {
+      type: String,
+      enum: ["baja", "media", "alta", "critica"],
+      default: "media",
+    },
+    dueAt: {
+      type: Date,
+      default: null,
+    },
     status: {
       type: String,
       default: "pendiente",
@@ -68,5 +82,36 @@ const incidentSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+incidentSchema.pre("validate", function setTicketDefaults(next) {
+  if (!this.folio) {
+    const date = new Date();
+    const stamp = date.toISOString().slice(0, 10).replace(/-/g, "");
+    const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+    this.folio = `INC-${stamp}-${suffix}`;
+  }
+
+  if (!this.dueAt) {
+    const slaDaysByPriority = {
+      baja: 7,
+      media: 3,
+      alta: 1,
+      critica: 0,
+    };
+    const days = slaDaysByPriority[this.priority] ?? slaDaysByPriority.media;
+    const due = new Date();
+
+    if (days === 0) {
+      due.setHours(23, 59, 59, 999);
+    } else {
+      due.setDate(due.getDate() + days);
+      due.setHours(18, 0, 0, 0);
+    }
+
+    this.dueAt = due;
+  }
+
+  next();
+});
 
 module.exports = mongoose.model("Incident", incidentSchema);
