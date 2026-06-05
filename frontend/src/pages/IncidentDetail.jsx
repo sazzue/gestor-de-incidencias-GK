@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuthUser } from "../hooks/useAuthUser";
 
@@ -20,8 +20,6 @@ function IncidentDetail() {
   const [message, setMessage] = useState(null);
   const [resolutionComment, setResolutionComment] = useState("");
   const [updating, setUpdating] = useState(false);
-
-  const token = localStorage.getItem("token");
 
   const canViewComments =
     user?.role === "admin" ||
@@ -52,16 +50,19 @@ function IncidentDetail() {
   const getResolvedDate = (item) =>
     item?.resolvedAt || (item?.status === "resuelto" ? item?.updatedAt : null);
 
+  const [now] = useState(() => Date.now());
+
   const slaState = useMemo(() => {
     if (!incident?.dueAt || incident.status === "resuelto") return "ok";
-    return new Date(incident.dueAt).getTime() < Date.now() ? "late" : "ok";
-  }, [incident]);
+    return new Date(incident.dueAt).getTime() < now ? "late" : "ok";
+  }, [incident, now]);
 
-  const fetchIncident = async () => {
+  const fetchIncident = useCallback(async ({ showLoader = false } = {}) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
+      const currentToken = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/api/incidents/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${currentToken}` },
       });
       const data = await res.json();
 
@@ -75,21 +76,24 @@ function IncidentDetail() {
     } catch {
       setMessage({ type: "error", title: "Error de conexion con el servidor" });
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
-    if (token) fetchIncident();
-  }, [id, token]);
+    if (localStorage.getItem("token")) {
+      fetchIncident({ showLoader: true });
+    }
+  }, [fetchIncident]);
 
   const updateStatus = async (status) => {
     try {
       setUpdating(true);
       setMessage(null);
+      const currentToken = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/api/incidents/${id}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
         body: JSON.stringify({
           status,
           comment: status === "resuelto" ? resolutionComment : "",
@@ -114,8 +118,9 @@ function IncidentDetail() {
 
   const downloadAttachment = async (attachmentId) => {
     try {
+      const currentToken = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/api/incidents/${id}/attachments/${attachmentId}/download`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${currentToken}` },
       });
       const data = await res.json();
 
