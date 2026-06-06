@@ -4,7 +4,10 @@ const router = express.Router();
 
 const {
   addAttachments,
+  addComment,
+  assignIncident,
   getIncidents,
+  getAssignableUsers,
   getIncidentById,
   getAttachmentDownloadUrl,
   createIncident,
@@ -53,6 +56,7 @@ const handleUploadErrors = (err, req, res, next) => {
 };
 
 router.get("/", authMiddleware, getIncidents);
+router.get("/assignees", authMiddleware, getAssignableUsers);
 router.get("/:id", authMiddleware, getIncidentById);
 
 router.post(
@@ -78,5 +82,7 @@ router.get(
 );
 
 router.put("/:id/status", authMiddleware, updateStatus);
+router.put("/:id/assign", authMiddleware, assignIncident);
+router.post("/:id/comments", authMiddleware, addComment);
 
 module.exports = router;

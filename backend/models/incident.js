@@ -18,6 +18,51 @@ const attachmentSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const commentSchema = new mongoose.Schema(
+  {
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }
+);
+
+const activitySchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    message: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }
+);
+
 const incidentSchema = new mongoose.Schema(
   {
     organization: {
@@ -74,11 +119,18 @@ const incidentSchema = new mongoose.Schema(
       ref: "Branch",
     },
     department: String,
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
     attachments: [attachmentSchema],
+    comments: [commentSchema],
+    activityLog: [activitySchema],
   },
   { timestamps: true }
 );

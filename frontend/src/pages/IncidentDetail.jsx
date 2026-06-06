@@ -19,7 +19,11 @@ function IncidentDetail() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
   const [resolutionComment, setResolutionComment] = useState("");
+  const [followUpComment, setFollowUpComment] = useState("");
+  const [assignableUsers, setAssignableUsers] = useState([]);
   const [updating, setUpdating] = useState(false);
+  const [commenting, setCommenting] = useState(false);
+  const [assigning, setAssigning] = useState(false);
 
   const canViewComments =
     user?.role === "admin" ||
@@ -80,11 +84,28 @@ function IncidentDetail() {
     }
   }, [id]);
 
+  const fetchAssignableUsers = useCallback(async () => {
+    try {
+      const currentToken = localStorage.getItem("token");
+      const res = await fetch(`${API_URL}/api/incidents/assignees`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setAssignableUsers(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      setAssignableUsers([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (localStorage.getItem("token")) {
       fetchIncident({ showLoader: true });
+      fetchAssignableUsers();
     }
-  }, [fetchIncident]);
+  }, [fetchAssignableUsers, fetchIncident]);
 
   const updateStatus = async (status) => {
     try {
@@ -113,6 +134,66 @@ function IncidentDetail() {
       setMessage({ type: "error", title: "Error de conexion con el servidor" });
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const assignIncident = async (assignedTo) => {
+    try {
+      setAssigning(true);
+      setMessage(null);
+      const currentToken = localStorage.getItem("token");
+      const res = await fetch(`${API_URL}/api/incidents/${id}/assign`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
+        body: JSON.stringify({ assignedTo: assignedTo || null }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({ type: "error", title: data.msg || "No se pudo asignar el ticket" });
+        return;
+      }
+
+      setIncident(data);
+      setMessage({ type: "success", title: "Responsable actualizado" });
+    } catch {
+      setMessage({ type: "error", title: "Error de conexion con el servidor" });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const addFollowUpComment = async () => {
+    const text = followUpComment.trim();
+
+    if (!text) {
+      setMessage({ type: "error", title: "Escribe un comentario de seguimiento" });
+      return;
+    }
+
+    try {
+      setCommenting(true);
+      setMessage(null);
+      const currentToken = localStorage.getItem("token");
+      const res = await fetch(`${API_URL}/api/incidents/${id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({ type: "error", title: data.msg || "No se pudo agregar el comentario" });
+        return;
+      }
+
+      setIncident(data);
+      setFollowUpComment("");
+      setMessage({ type: "success", title: "Comentario agregado" });
+    } catch {
+      setMessage({ type: "error", title: "Error de conexion con el servidor" });
+    } finally {
+      setCommenting(false);
     }
   };
 
@@ -182,6 +263,39 @@ function IncidentDetail() {
             </div>
           )}
 
+          <div className="section-title">
+            <h2>Seguimiento</h2>
+            <span>{incident.comments?.length || 0} comentario(s)</span>
+          </div>
+
+          <div className="follow-up-form">
+            <textarea
+              rows={3}
+              placeholder="Agrega una nota de seguimiento para este ticket..."
+              value={followUpComment}
+              onChange={(e) => setFollowUpComment(e.target.value)}
+            />
+            <button disabled={commenting} onClick={addFollowUpComment}>
+              {commenting ? "Guardando..." : "Agregar comentario"}
+            </button>
+          </div>
+
+          {incident.comments?.length > 0 ? (
+            <div className="conversation">
+              {[...incident.comments].reverse().map((comment) => (
+                <article key={comment._id} className="conversation-item">
+                  <div>
+                    <strong>{comment.createdBy?.nombre || comment.createdBy?.email || "Usuario"}</strong>
+                    <small>{formatDate(comment.createdAt)}</small>
+                  </div>
+                  <p>{comment.text}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">Aun no hay comentarios de seguimiento.</div>
+          )}
+
           <h2>Archivos</h2>
           {incident.attachments?.length > 0 ? (
             <div className="attachments">
@@ -205,12 +319,31 @@ function IncidentDetail() {
           </div>
 
           <div className="meta-list">
+            <span><b>Responsable</b>{incident.assignedTo?.nombre || incident.assignedTo?.email || "Sin asignar"}</span>
             <span><b>Sucursal</b>{incident.branch?.name || incident.branch || "Sin sucursal"}</span>
             <span><b>Departamento</b>{incident.department || "Sin departamento"}</span>
             <span><b>Creado por</b>{incident.createdBy?.nombre || incident.createdBy?.email || "Usuario"}</span>
             <span><b>Creacion</b>{formatDate(incident.createdAt)}</span>
             <span><b>Resolucion</b>{getResolvedDate(incident) ? formatDate(getResolvedDate(incident)) : "Pendiente"}</span>
           </div>
+
+          {canUpdate && (
+            <label className="assignment-box">
+              Responsable
+              <select
+                value={incident.assignedTo?._id || ""}
+                disabled={assigning}
+                onChange={(e) => assignIncident(e.target.value)}
+              >
+                <option value="">Sin asignar</option>
+                {assignableUsers.map((item) => (
+                  <option key={item._id} value={item._id}>
+                    {item.nombre || item.email} {item.department ? `- ${item.department}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {incident.status !== "resuelto" && canCommentIncident && (
             <label className="close-comment">
@@ -230,6 +363,25 @@ function IncidentDetail() {
               <button disabled={updating} className="done" onClick={() => updateStatus("resuelto")}>Resolver ticket</button>
             </div>
           )}
+
+          <div className="timeline">
+            <h2>Bitacora</h2>
+            {incident.activityLog?.length > 0 ? (
+              [...incident.activityLog].reverse().map((event) => (
+                <div key={event._id} className="timeline-item">
+                  <span />
+                  <div>
+                    <strong>{event.message}</strong>
+                    <small>
+                      {event.createdBy?.nombre || event.createdBy?.email || "Sistema"} · {formatDate(event.createdAt)}
+                    </small>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state">Sin actividad registrada.</div>
+            )}
+          </div>
         </aside>
       </div>
 
@@ -301,6 +453,76 @@ function IncidentDetail() {
         .meta-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
         .meta-list span { display: flex; flex-direction: column; gap: 3px; color: #e2e8f0; font-size: 13px; }
         .meta-list b { color: #94a3b8; font-size: 11px; text-transform: uppercase; }
+        .section-title {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          margin-top: 8px;
+        }
+        .section-title span {
+          color: #94a3b8;
+          font-size: 12px;
+        }
+        .follow-up-form {
+          display: grid;
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+        .follow-up-form textarea,
+        .assignment-box select {
+          width: 100%;
+          padding: 10px;
+          border-radius: 8px;
+          border: 1px solid #334155;
+          background: var(--app-input);
+          color: #e2e8f0;
+          resize: vertical;
+          font: inherit;
+        }
+        .follow-up-form button {
+          justify-self: flex-start;
+          padding: 9px 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(96,165,250,0.35);
+          background: rgba(96,165,250,0.12);
+          color: #bfdbfe;
+          cursor: pointer;
+          font-weight: 700;
+        }
+        .conversation {
+          display: grid;
+          gap: 10px;
+          margin-bottom: 22px;
+        }
+        .conversation-item {
+          padding: 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.035);
+        }
+        .conversation-item div {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 7px;
+        }
+        .conversation-item strong { color: #e2e8f0; font-size: 13px; }
+        .conversation-item small { color: #94a3b8; font-size: 11px; white-space: nowrap; }
+        .conversation-item p { margin: 0; color: #cbd5e1; font-size: 13px; line-height: 1.45; }
+        .assignment-box {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(96,165,250,0.2);
+          background: rgba(96,165,250,0.07);
+          margin-bottom: 16px;
+          color: #bfdbfe;
+          font-size: 13px;
+          font-weight: 700;
+        }
         .attachments { display: grid; gap: 8px; }
         .attachments button {
           display: flex;
@@ -352,6 +574,37 @@ function IncidentDetail() {
           border-color: rgba(34,197,94,0.35);
           background: rgba(34,197,94,0.12);
           color: #86efac;
+        }
+        .timeline {
+          margin-top: 18px;
+          padding-top: 16px;
+          border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .timeline h2 { font-size: 14px; margin-bottom: 12px; color: #e2e8f0; }
+        .timeline-item {
+          display: grid;
+          grid-template-columns: 12px minmax(0, 1fr);
+          gap: 10px;
+          padding-bottom: 13px;
+        }
+        .timeline-item > span {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #60a5fa;
+          margin-top: 5px;
+        }
+        .timeline-item strong {
+          display: block;
+          color: #e2e8f0;
+          font-size: 12px;
+          overflow-wrap: anywhere;
+        }
+        .timeline-item small {
+          display: block;
+          color: #94a3b8;
+          font-size: 11px;
+          margin-top: 3px;
         }
         .empty-state {
           background: rgba(255,255,255,0.04);

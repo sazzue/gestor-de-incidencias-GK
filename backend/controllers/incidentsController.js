@@ -1,4 +1,5 @@
 const Incident = require("../models/incident");
+const User = require("../models/User");
 const { hasPermission } = require("../utils/permissions");
 const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
 const { deleteIncidentFile, getIncidentFileUrl, isR2Configured, uploadIncidentFile } = require("../utils/r2Storage");
@@ -59,6 +60,10 @@ const getAttachmentErrorStatus = (error) => {
 const canViewIncident = (user, incident) => {
   if (hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
 
+  if (incident?.assignedTo && String(incident.assignedTo?._id || incident.assignedTo) === String(user?.id)) {
+    return true;
+  }
+
   if (hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
     const userDepartment = user?.department?.toLowerCase().trim();
     const incidentDepartment = incident?.department?.toLowerCase().trim();
@@ -92,6 +97,27 @@ const canCommentIncident = (user, incident) => {
   const incidentDepartment = incident?.department?.toLowerCase().trim();
 
   return Boolean(userDepartment && incidentDepartment === userDepartment);
+};
+
+const canManageIncident = (user, incident) => {
+  if (hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
+
+  if (hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
+    const userDepartment = user?.department?.toLowerCase().trim();
+    const incidentDepartment = incident?.department?.toLowerCase().trim();
+    return Boolean(userDepartment && incidentDepartment === userDepartment);
+  }
+
+  return false;
+};
+
+const addActivity = (incident, { type, message, userId }) => {
+  incident.activityLog.push({
+    type,
+    message,
+    createdBy: userId || null,
+    createdAt: new Date(),
+  });
 };
 
 const hideIncidentCommentIfNeeded = (incident, user) => {
@@ -188,6 +214,8 @@ const getIncidents = async (req, res) => {
         filters.push({ branch: { $in: branchIds } });
       }
 
+      filters.push({ assignedTo: req.user.id });
+
       if (filters.length === 0) {
         return res.status(403).json({ msg: "No tienes permisos para ver incidencias" });
       }
@@ -201,6 +229,7 @@ const getIncidents = async (req, res) => {
 
     const incidents = await Incident.find(query)
       .populate("createdBy", "nombre email")
+      .populate("assignedTo", "nombre email role department")
       .populate("resolutionComment.createdBy", "nombre email")
       .populate("branch", "name")
       .sort({ createdAt: -1 });
@@ -212,6 +241,30 @@ const getIncidents = async (req, res) => {
   }
 };
 
+const getAssignableUsers = async (req, res) => {
+  try {
+    const canView =
+      hasPermission(req.user, "VIEW_INCIDENTS_ALL") ||
+      hasPermission(req.user, "VIEW_INCIDENTS_DEPARTMENT");
+
+    if (!canView) {
+      return res.status(403).json({ msg: "No autorizado para ver responsables" });
+    }
+
+    const users = await User.find({
+      ...getOrganizationFilter(req),
+      role: { $in: ["admin", "direccion", "gerencia", "departamento"] },
+    })
+      .select("nombre email role department")
+      .sort({ nombre: 1, email: 1 });
+
+    res.json(users);
+  } catch (error) {
+    console.error("ERROR GET ASSIGNEES:", error);
+    res.status(500).json({ msg: "Error al obtener responsables" });
+  }
+};
+
 const getIncidentById = async (req, res) => {
   try {
     const incident = await Incident.findOne({
@@ -219,9 +272,12 @@ const getIncidentById = async (req, res) => {
       ...getOrganizationFilter(req),
     })
       .populate("createdBy", "nombre email")
+      .populate("assignedTo", "nombre email role department")
       .populate("resolutionComment.createdBy", "nombre email")
       .populate("branch", "name")
-      .populate("attachments.uploadedBy", "nombre email");
+      .populate("attachments.uploadedBy", "nombre email")
+      .populate("comments.createdBy", "nombre email")
+      .populate("activityLog.createdBy", "nombre email");
 
     if (!incident) {
       return res.status(404).json({ msg: "Incidencia no encontrada" });
@@ -272,6 +328,12 @@ const createIncident = async (req, res) => {
       department: department.toLowerCase().trim(),
       priority: normalizedPriority,
       createdBy: req.user.id,
+      activityLog: [{
+        type: "created",
+        message: "Ticket creado",
+        createdBy: req.user.id,
+        createdAt: new Date(),
+      }],
     });
 
     try {
@@ -341,6 +403,11 @@ const addAttachments = async (req, res) => {
     }
 
     incident.attachments.push(...attachments);
+    addActivity(incident, {
+      type: "attachments",
+      message: `${attachments.length} archivo(s) agregado(s)`,
+      userId: req.user.id,
+    });
     await incident.save();
 
     res.status(201).json(incident);
@@ -352,6 +419,110 @@ const addAttachments = async (req, res) => {
       msg: "Error al cargar archivos",
       error: error.message,
     });
+  }
+};
+
+const addComment = async (req, res) => {
+  try {
+    const text = req.body.text?.toString().trim();
+
+    if (!text) {
+      return res.status(400).json({ msg: "Comentario requerido" });
+    }
+
+    const incident = await Incident.findOne({
+      _id: req.params.id,
+      ...getOrganizationFilter(req),
+    });
+
+    if (!incident) {
+      return res.status(404).json({ msg: "Incidencia no encontrada" });
+    }
+
+    if (!canViewIncident(req.user, incident)) {
+      return res.status(403).json({ msg: "No autorizado para comentar esta incidencia" });
+    }
+
+    incident.comments.push({
+      text,
+      createdBy: req.user.id,
+      createdAt: new Date(),
+    });
+    addActivity(incident, {
+      type: "comment",
+      message: "Comentario de seguimiento agregado",
+      userId: req.user.id,
+    });
+    await incident.save();
+
+    const updated = await Incident.findById(incident._id)
+      .populate("createdBy", "nombre email")
+      .populate("assignedTo", "nombre email role department")
+      .populate("resolutionComment.createdBy", "nombre email")
+      .populate("branch", "name")
+      .populate("attachments.uploadedBy", "nombre email")
+      .populate("comments.createdBy", "nombre email")
+      .populate("activityLog.createdBy", "nombre email");
+
+    res.status(201).json(hideIncidentCommentIfNeeded(updated, req.user));
+  } catch (error) {
+    console.error("ERROR ADD COMMENT:", error);
+    res.status(500).json({ msg: "Error al agregar comentario", error: error.message });
+  }
+};
+
+const assignIncident = async (req, res) => {
+  try {
+    const assignedTo = req.body.assignedTo || null;
+    const incident = await Incident.findOne({
+      _id: req.params.id,
+      ...getOrganizationFilter(req),
+    });
+
+    if (!incident) {
+      return res.status(404).json({ msg: "Incidencia no encontrada" });
+    }
+
+    if (!canManageIncident(req.user, incident)) {
+      return res.status(403).json({ msg: "No autorizado para asignar esta incidencia" });
+    }
+
+    let assignedUser = null;
+
+    if (assignedTo) {
+      assignedUser = await User.findOne({
+        _id: assignedTo,
+        ...getOrganizationFilter(req),
+      }).select("nombre email");
+
+      if (!assignedUser) {
+        return res.status(404).json({ msg: "Responsable no encontrado" });
+      }
+    }
+
+    incident.assignedTo = assignedUser?._id || null;
+    addActivity(incident, {
+      type: "assignment",
+      message: assignedUser
+        ? `Responsable asignado: ${assignedUser.nombre || assignedUser.email}`
+        : "Responsable removido",
+      userId: req.user.id,
+    });
+    await incident.save();
+
+    const updated = await Incident.findById(incident._id)
+      .populate("createdBy", "nombre email")
+      .populate("assignedTo", "nombre email role department")
+      .populate("resolutionComment.createdBy", "nombre email")
+      .populate("branch", "name")
+      .populate("attachments.uploadedBy", "nombre email")
+      .populate("comments.createdBy", "nombre email")
+      .populate("activityLog.createdBy", "nombre email");
+
+    res.json(hideIncidentCommentIfNeeded(updated, req.user));
+  } catch (error) {
+    console.error("ERROR ASSIGN INCIDENT:", error);
+    res.status(500).json({ msg: "Error al asignar incidencia", error: error.message });
   }
 };
 
@@ -433,13 +604,26 @@ const updateStatus = async (req, res) => {
         createdBy: req.user.id,
         createdAt: new Date(),
       };
+      addActivity(incident, {
+        type: "resolution-comment",
+        message: "Comentario de cierre agregado",
+        userId: req.user.id,
+      });
     }
 
     if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
+      if (incident.status !== status) {
+        addActivity(incident, {
+          type: "status",
+          message: `Estado cambiado a ${status.replace("_", " ")}`,
+          userId: req.user.id,
+        });
+      }
       incident.status = status;
       incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
       await incident.save();
       await incident.populate("resolutionComment.createdBy", "nombre email");
+      await incident.populate("activityLog.createdBy", "nombre email");
       return res.json(hideIncidentCommentIfNeeded(incident, req.user));
     }
 
@@ -449,10 +633,18 @@ const updateStatus = async (req, res) => {
       department &&
       incident.department.toLowerCase().trim() === department.toLowerCase().trim()
     ) {
+      if (incident.status !== status) {
+        addActivity(incident, {
+          type: "status",
+          message: `Estado cambiado a ${status.replace("_", " ")}`,
+          userId: req.user.id,
+        });
+      }
       incident.status = status;
       incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
       await incident.save();
       await incident.populate("resolutionComment.createdBy", "nombre email");
+      await incident.populate("activityLog.createdBy", "nombre email");
       return res.json(hideIncidentCommentIfNeeded(incident, req.user));
     }
 
@@ -471,7 +663,10 @@ const updateStatus = async (req, res) => {
 
 module.exports = {
   addAttachments,
+  addComment,
+  assignIncident,
   getIncidents,
+  getAssignableUsers,
   getIncidentById,
   getAttachmentDownloadUrl,
   createIncident,

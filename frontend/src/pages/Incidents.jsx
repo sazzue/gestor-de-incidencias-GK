@@ -135,6 +135,7 @@ function Incidents() {
       description: i.description,
       branch: i.branch?.name || i.branch || "Sin sucursal",
       department: i.department?.name || i.department || "Sin departamento",
+      assignedTo: i.assignedTo?.nombre || i.assignedTo?.email || "Sin asignar",
       status: i.status?.replace("_", " ") || "",
       priority: priorityLabels[i.priority] || "Media",
       createdAt: new Date(i.createdAt).toLocaleDateString("es-MX"),
@@ -158,6 +159,7 @@ function Incidents() {
         { key: "description", label: "Descripcion" },
         { key: "branch", label: "Sucursal" },
         { key: "department", label: "Departamento" },
+        { key: "assignedTo", label: "Responsable" },
         { key: "priority", label: "Prioridad" },
         { key: "status", label: "Estado" },
         { key: "createdAt", label: "Fecha" },
@@ -329,6 +331,7 @@ function Incidents() {
               {getResolvedDate(inc) && <span>Resuelto: {formatDate(getResolvedDate(inc))}</span>}
               <span>Sucursal: {inc.branch?.name || inc.branch || "Sin sucursal"}</span>
               <span>Departamento: {inc.department || "Sin departamento"}</span>
+              <span>Responsable: {inc.assignedTo?.nombre || inc.assignedTo?.email || "Sin asignar"}</span>
               <span>Creacion: {formatDate(inc.createdAt)}</span>
               <span className={isOverdue(inc) ? "sla late" : "sla"}>
                 SLA: {inc.dueAt ? formatDate(inc.dueAt) : "Sin limite"}
