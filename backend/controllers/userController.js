@@ -5,6 +5,7 @@ const { getAccessScopesForUser, hasPermission, normalizePermissions } = require(
 const { assertWithinPlanLimit } = require("../utils/planLimits");
 const { getPlatformAdminEmails, isPlatformAdminEmail } = require("../utils/platformAdmin");
 const { ACCESS_SCOPES, DEFAULT_ACCESS_SCOPES } = require("../config/permissions");
+const { PLATFORM_ONLY_PERMISSIONS } = require("../config/permissions");
 
 const canManageUsers = (req, res) => {
   if (!req.user) {
@@ -20,7 +21,7 @@ const canManageUsers = (req, res) => {
   return true;
 };
 
-const normalizeUserInput = (body) => {
+const normalizeUserInput = (body, actor) => {
   const role = body.role?.trim();
   const department = body.department?.trim().toLowerCase();
   const branch = typeof body.branch === "object" ? body.branch?._id || null : body.branch || null;
@@ -39,6 +40,9 @@ const normalizeUserInput = (body) => {
     return Object.values(ACCESS_SCOPES).includes(value) ? value : defaultScopes[moduleName];
   };
 
+  const normalizedPermissions = normalizePermissions(Array.isArray(body.permissions) ? body.permissions : []);
+  const canAssignPlatformPermissions = isPlatformAdminEmail(actor?.email);
+
   return {
     nombre: body.nombre?.trim(),
     username: username || undefined,
@@ -48,7 +52,9 @@ const normalizeUserInput = (body) => {
     department: role === "departamento" ? department : null,
     branch,
     branches,
-    permissions: normalizePermissions(Array.isArray(body.permissions) ? body.permissions : []),
+    permissions: canAssignPlatformPermissions
+      ? normalizedPermissions
+      : normalizedPermissions.filter((permission) => !PLATFORM_ONLY_PERMISSIONS.includes(permission)),
     accessScopes: {
       incidents: normalizeScope("incidents"),
       maintenance: normalizeScope("maintenance"),
@@ -128,7 +134,7 @@ const updateUser = async (req, res) => {
 
     if (!canManagePlatformUser(req, res, currentUser)) return;
 
-    const input = normalizeUserInput(req.body);
+    const input = normalizeUserInput(req.body, req.user);
 
     if (!input.nombre || !input.email || !input.role) {
       return res.status(400).json({ msg: "Datos incompletos" });
@@ -225,7 +231,7 @@ const createUser = async (req, res) => {
   try {
     if (!canManageUsers(req, res)) return;
 
-    const input = normalizeUserInput(req.body);
+    const input = normalizeUserInput(req.body, req.user);
 
     if (!input.nombre || !input.email || !input.password || !input.role) {
       return res.status(400).json({ msg: "Datos incompletos" });

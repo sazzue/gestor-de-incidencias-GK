@@ -3,9 +3,11 @@ const {
   DEFAULT_ACCESS_SCOPES,
   LEGACY_BY_PERMISSION,
   LEGACY_PERMISSION_ALIASES,
+  PLATFORM_ONLY_PERMISSIONS,
   PERMISSIONS,
   VIEW_SCOPE_LEGACY,
 } = require("../config/permissions");
+const { isPlatformAdminEmail } = require("./platformAdmin");
 
 const normalizePermissions = (permissions = []) => {
   const items = Array.isArray(permissions) ? permissions : [];
@@ -61,11 +63,22 @@ const getPermissionsForUser = async (user) => {
     ...userPermissions,
   ]);
 
-  return expandLegacyPermissions(normalized, accessScopes);
+  const expanded = expandLegacyPermissions(normalized, accessScopes);
+
+  if (isPlatformAdminEmail(user?.email)) return expanded;
+
+  return expanded.filter((permission) => !PLATFORM_ONLY_PERMISSIONS.includes(permission));
 };
 
 const hasPermission = (user, permission) => {
   if (user?.role === ROLES.ADMIN) {
+    if (
+      PLATFORM_ONLY_PERMISSIONS.includes(LEGACY_PERMISSION_ALIASES[permission] || permission) &&
+      !isPlatformAdminEmail(user?.email)
+    ) {
+      return false;
+    }
+
     return true;
   }
 

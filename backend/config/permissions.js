@@ -29,6 +29,10 @@ const PERMISSIONS = {
   ORGANIZATIONS_MANAGE: "ORGANIZATIONS_MANAGE",
 };
 
+const PLATFORM_ONLY_PERMISSIONS = [
+  PERMISSIONS.ORGANIZATIONS_MANAGE,
+];
+
 const ACCESS_SCOPES = {
   ALL: "all",
   BRANCH: "branch",
@@ -110,8 +114,12 @@ const PERMISSION_GROUPS = [
     label: "Administracion",
     permissions: [
       { value: PERMISSIONS.CATALOGS_MANAGE, label: "Administrar catalogos" },
-      { value: PERMISSIONS.SETTINGS_MANAGE, label: "Configurar sistema" },
-      { value: PERMISSIONS.ORGANIZATIONS_MANAGE, label: "Administrar empresas" },
+      { value: PERMISSIONS.SETTINGS_MANAGE, label: "Configurar empresa" },
+      {
+        value: PERMISSIONS.ORGANIZATIONS_MANAGE,
+        label: "Administrar empresas",
+        platformOnly: true,
+      },
     ],
   },
 ];
@@ -182,6 +190,7 @@ module.exports = {
   LEGACY_PERMISSION_ALIASES,
   PERMISSION_GROUPS,
   PERMISSIONS,
+  PLATFORM_ONLY_PERMISSIONS,
   VIEW_SCOPE_LEGACY,
   getAllPermissionValues,
 };

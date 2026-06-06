@@ -86,11 +86,13 @@ export const PERMISSION_GROUPS = [
     label: "Administracion",
     permissions: [
       { value: "CATALOGS_MANAGE", label: "Administrar catalogos" },
-      { value: "SETTINGS_MANAGE", label: "Configurar sistema" },
-      { value: "ORGANIZATIONS_MANAGE", label: "Administrar empresas" },
+      { value: "SETTINGS_MANAGE", label: "Configurar empresa" },
+      { value: "ORGANIZATIONS_MANAGE", label: "Administrar empresas", platformOnly: true },
     ],
   },
 ];
+
+export const PLATFORM_ONLY_PERMISSIONS = ["ORGANIZATIONS_MANAGE"];
 
 export const LEGACY_PERMISSION_LABELS = {
   CREATE_USERS: "Administrar usuarios",

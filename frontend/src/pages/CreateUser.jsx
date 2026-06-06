@@ -5,6 +5,7 @@ import { ROLES } from "../config/roles";
 import {
   ACCESS_SCOPE_OPTIONS,
   PERMISSION_GROUPS,
+  PLATFORM_ONLY_PERMISSIONS,
   getAccessScopesForForm,
   getDefaultAccessScopes,
   normalizePermissionsForForm,
@@ -39,6 +40,11 @@ function CreateUser() {
   const token = localStorage.getItem("token");
   const currentUser = token ? jwtDecode(token) : null;
   const headers = { Authorization: `Bearer ${token}` };
+  const canManagePlatformPermissions = Boolean(currentUser?.isPlatformAdmin);
+  const sanitizeAssignablePermissions = (permissions = []) =>
+    canManagePlatformPermissions
+      ? permissions
+      : permissions.filter((permission) => !PLATFORM_ONLY_PERMISSIONS.includes(permission));
 
   const updateForm = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -151,7 +157,7 @@ function CreateUser() {
           role: form.role,
           department: form.department,
           branches: form.branches,
-          permissions: form.permissions,
+          permissions: sanitizeAssignablePermissions(form.permissions),
           accessScopes: form.accessScopes,
         }),
       });
@@ -191,7 +197,7 @@ function CreateUser() {
     setEditingUser({
       ...user,
       branches: getUserBranches(user),
-      permissions: normalizePermissionsForForm(user?.permissions),
+      permissions: sanitizeAssignablePermissions(normalizePermissionsForForm(user?.permissions)),
       accessScopes: getAccessScopesForForm(user),
     });
   };
@@ -212,7 +218,7 @@ function CreateUser() {
       department: editingUser.department || "",
       branch: editingUser.branches?.[0] || null,
       branches: editingUser.branches || [],
-      permissions: editingUser.role === "admin" ? [] : editingUser.permissions || [],
+      permissions: editingUser.role === "admin" ? [] : sanitizeAssignablePermissions(editingUser.permissions || []),
       accessScopes: editingUser.accessScopes || getDefaultAccessScopes(editingUser.role),
     };
 
@@ -297,11 +303,18 @@ function CreateUser() {
 
   const renderPermissionCheckboxes = ({ selected, roleName, onChange }) => (
     <div className="permission-modules">
-      {PERMISSION_GROUPS.map((group) => (
+      {PERMISSION_GROUPS.map((group) => {
+        const visiblePermissions = group.permissions.filter(
+          (permission) => !permission.platformOnly || canManagePlatformPermissions
+        );
+
+        if (visiblePermissions.length === 0) return null;
+
+        return (
         <div className="permission-module" key={group.key}>
           <h4>{group.label}</h4>
           <div className="permissions-grid">
-            {group.permissions.map((permission) => {
+            {visiblePermissions.map((permission) => {
               const inherited = getRolePermissions(roleName).includes(permission.value);
               const checked = inherited || selected.includes(permission.value);
 
@@ -320,7 +333,8 @@ function CreateUser() {
             })}
           </div>
         </div>
-      ))}
+      );
+      })}
     </div>
   );
 
