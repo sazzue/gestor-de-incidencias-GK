@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { ROLES } from "../config/roles";
-import { ACCESS_SCOPE_OPTIONS, PERMISSION_GROUPS, getDefaultAccessScopes } from "../config/permissions";
+import {
+  ACCESS_SCOPE_OPTIONS,
+  PERMISSION_GROUPS,
+  getAccessScopesForForm,
+  getDefaultAccessScopes,
+  normalizePermissionsForForm,
+} from "../config/permissions";
 import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -185,8 +191,8 @@ function CreateUser() {
     setEditingUser({
       ...user,
       branches: getUserBranches(user),
-      permissions: Array.isArray(user?.permissions) ? user.permissions : [],
-      accessScopes: user?.accessScopes || getDefaultAccessScopes(user?.role),
+      permissions: normalizePermissionsForForm(user?.permissions),
+      accessScopes: getAccessScopesForForm(user),
     });
   };
 

@@ -74,6 +74,22 @@ const canManagePlatformUser = (req, res, user) => {
   return false;
 };
 
+const serializeUserForManagement = (user) => {
+  const output = user.toObject();
+  const branches = Array.isArray(output.branches) ? output.branches : [];
+  const branchId = output.branch?._id || output.branch;
+  const hasSingleBranchInList = branchId &&
+    branches.some((branch) => String(branch?._id || branch) === String(branchId));
+
+  return {
+    ...output,
+    branches: branchId && !hasSingleBranchInList
+      ? [output.branch, ...branches].filter(Boolean)
+      : branches,
+    accessScopes: getAccessScopesForUser(user),
+  };
+};
+
 const deleteUser = async (req, res) => {
   try {
     if (!canManageUsers(req, res)) return;
@@ -177,10 +193,7 @@ const updateUser = async (req, res) => {
       return res.status(404).json({ msg: "Usuario no encontrado" });
     }
 
-    res.json({
-      ...updatedUser.toObject(),
-      accessScopes: getAccessScopesForUser(updatedUser),
-    });
+    res.json(serializeUserForManagement(updatedUser));
   } catch (error) {
     console.error("ERROR UPDATE USER:", error);
     res.status(500).json({ msg: "Error al actualizar usuario", error: error.message });
@@ -202,10 +215,7 @@ const getUsers = async (req, res) => {
       .select("-password")
       .populate("branch", "name")
       .populate("branches", "name");
-    res.json(users.map((user) => ({
-      ...user.toObject(),
-      accessScopes: getAccessScopesForUser(user),
-    })));
+    res.json(users.map(serializeUserForManagement));
   } catch (error) {
     res.status(500).json({ msg: "Error al obtener usuarios", error: error.message });
   }
@@ -287,10 +297,7 @@ const createUser = async (req, res) => {
       .populate("branch", "name")
       .populate("branches", "name");
 
-    res.status(201).json({
-      ...createdUser.toObject(),
-      accessScopes: getAccessScopesForUser(createdUser),
-    });
+    res.status(201).json(serializeUserForManagement(createdUser));
   } catch (error) {
     if (error.code === "PLAN_LIMIT_EXCEEDED") {
       return res.status(error.status || 403).json({ msg: error.message });

@@ -115,6 +115,61 @@ export const LEGACY_PERMISSION_LABELS = {
   DELETE_MAINTENANCE: "Eliminar mantenimientos",
 };
 
+export const LEGACY_PERMISSION_ALIASES = {
+  CREATE_USERS: "USERS_MANAGE",
+  CREATE_INCIDENT: "INCIDENTS_CREATE",
+  COMMENT_INCIDENT: "INCIDENTS_COMMENT",
+  VIEW_INCIDENT_COMMENTS: "INCIDENTS_VIEW_COMMENTS",
+  CREATE_MAINTENANCE: "MAINTENANCE_CREATE",
+  CONFIRM_MAINTENANCE: "MAINTENANCE_CONFIRM",
+  COMMENT_MAINTENANCE: "MAINTENANCE_COMMENT",
+  VIEW_MAINTENANCE_COMMENTS: "MAINTENANCE_VIEW_COMMENTS",
+  DELETE_MAINTENANCE: "MAINTENANCE_DELETE",
+  CREATE_INVENTORY: "INVENTORY_CREATE",
+  DISPOSE_INVENTORY: "INVENTORY_DISPOSE",
+};
+
+export const LEGACY_SCOPE_PERMISSIONS = {
+  VIEW_INCIDENTS_ALL: { module: "incidents", scope: ACCESS_SCOPES.ALL, permission: "INCIDENTS_VIEW" },
+  VIEW_INCIDENTS_BRANCH: { module: "incidents", scope: ACCESS_SCOPES.BRANCH, permission: "INCIDENTS_VIEW" },
+  VIEW_INCIDENTS_DEPARTMENT: { module: "incidents", scope: ACCESS_SCOPES.DEPARTMENT, permission: "INCIDENTS_VIEW" },
+  VIEW_MAINTENANCE_ALL: { module: "maintenance", scope: ACCESS_SCOPES.ALL, permission: "MAINTENANCE_VIEW" },
+  VIEW_MAINTENANCE_BRANCH: { module: "maintenance", scope: ACCESS_SCOPES.BRANCH, permission: "MAINTENANCE_VIEW" },
+  VIEW_MAINTENANCE_DEPARTMENT: { module: "maintenance", scope: ACCESS_SCOPES.DEPARTMENT, permission: "MAINTENANCE_VIEW" },
+  VIEW_INVENTORY_ALL: { module: "inventory", scope: ACCESS_SCOPES.ALL, permission: "INVENTORY_VIEW" },
+  VIEW_INVENTORY_BRANCH: { module: "inventory", scope: ACCESS_SCOPES.BRANCH, permission: "INVENTORY_VIEW" },
+  VIEW_INVENTORY_DEPARTMENT: { module: "inventory", scope: ACCESS_SCOPES.DEPARTMENT, permission: "INVENTORY_VIEW" },
+};
+
+export const normalizePermissionsForForm = (permissions = []) => {
+  const normalized = permissions.flatMap((permission) => {
+    const cleanPermission = permission?.toString().trim();
+    const scopePermission = LEGACY_SCOPE_PERMISSIONS[cleanPermission];
+
+    if (scopePermission) return [scopePermission.permission];
+
+    return [LEGACY_PERMISSION_ALIASES[cleanPermission] || cleanPermission].filter(Boolean);
+  });
+
+  return [...new Set(normalized.filter(Boolean))];
+};
+
+export const getAccessScopesForForm = (user) => {
+  const scopes = {
+    ...getDefaultAccessScopes(user?.role),
+    ...(user?.accessScopes || {}),
+  };
+
+  (user?.permissions || []).forEach((permission) => {
+    const scopePermission = LEGACY_SCOPE_PERMISSIONS[permission];
+    if (scopePermission) {
+      scopes[scopePermission.module] = scopePermission.scope;
+    }
+  });
+
+  return scopes;
+};
+
 export const getDefaultAccessScopes = (role) => ({
   ...(DEFAULT_ACCESS_SCOPES[role] || DEFAULT_ACCESS_SCOPES.departamento),
 });
