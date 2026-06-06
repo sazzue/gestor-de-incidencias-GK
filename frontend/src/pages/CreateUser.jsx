@@ -2,31 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { ROLES } from "../config/roles";
+import { ACCESS_SCOPE_OPTIONS, PERMISSION_GROUPS, getDefaultAccessScopes } from "../config/permissions";
 import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
-
-const USER_PERMISSIONS = [
-  { value: "CREATE_USERS", label: "Crear usuarios" },
-  { value: "CREATE_INCIDENT", label: "Crear solicitud" },
-  { value: "VIEW_INCIDENTS_ALL", label: "Ver incidencias: todas" },
-  { value: "VIEW_INCIDENTS_DEPARTMENT", label: "Ver incidencias: departamento" },
-  { value: "VIEW_INCIDENTS_BRANCH", label: "Ver incidencias: sucursales" },
-  { value: "COMMENT_INCIDENT", label: "Comentar cierre de incidencias" },
-  { value: "VIEW_INCIDENT_COMMENTS", label: "Ver comentarios de incidencias" },
-  { value: "CREATE_MAINTENANCE", label: "Crear mantenimientos" },
-  { value: "CONFIRM_MAINTENANCE", label: "Confirmar mantenimientos" },
-  { value: "VIEW_MAINTENANCE_ALL", label: "Ver mantenimientos: todos" },
-  { value: "VIEW_MAINTENANCE_DEPARTMENT", label: "Ver mantenimientos: departamento" },
-  { value: "VIEW_MAINTENANCE_BRANCH", label: "Ver mantenimientos: sucursales" },
-  { value: "COMMENT_MAINTENANCE", label: "Comentar autorizacion de mantenimiento" },
-  { value: "VIEW_MAINTENANCE_COMMENTS", label: "Ver comentarios de mantenimiento" },
-  { value: "CREATE_INVENTORY", label: "Crear inventario" },
-  { value: "VIEW_INVENTORY_ALL", label: "Ver inventario: todo" },
-  { value: "VIEW_INVENTORY_DEPARTMENT", label: "Ver inventario: departamento" },
-  { value: "VIEW_INVENTORY_BRANCH", label: "Ver inventario: sucursales" },
-  { value: "DISPOSE_INVENTORY", label: "Dar de baja equipos" },
-];
 
 const EMPTY_FORM = {
   nombre: "",
@@ -37,6 +16,7 @@ const EMPTY_FORM = {
   department: "",
   branches: [],
   permissions: [],
+  accessScopes: getDefaultAccessScopes("departamento"),
 };
 
 function CreateUser() {
@@ -56,6 +36,14 @@ function CreateUser() {
 
   const updateForm = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateRole = (role) => {
+    setForm((prev) => ({
+      ...prev,
+      role,
+      accessScopes: getDefaultAccessScopes(role),
+    }));
   };
 
   const toggleListItem = (items, item) =>
@@ -158,6 +146,7 @@ function CreateUser() {
           department: form.department,
           branches: form.branches,
           permissions: form.permissions,
+          accessScopes: form.accessScopes,
         }),
       });
       const data = await res.json();
@@ -197,6 +186,7 @@ function CreateUser() {
       ...user,
       branches: getUserBranches(user),
       permissions: Array.isArray(user?.permissions) ? user.permissions : [],
+      accessScopes: user?.accessScopes || getDefaultAccessScopes(user?.role),
     });
   };
 
@@ -217,6 +207,7 @@ function CreateUser() {
       branch: editingUser.branches?.[0] || null,
       branches: editingUser.branches || [],
       permissions: editingUser.role === "admin" ? [] : editingUser.permissions || [],
+      accessScopes: editingUser.accessScopes || getDefaultAccessScopes(editingUser.role),
     };
 
     const res = await fetch(`${API_URL}/api/users/${editingUser._id}`, {
@@ -299,24 +290,56 @@ function CreateUser() {
   );
 
   const renderPermissionCheckboxes = ({ selected, roleName, onChange }) => (
-    <div className="permissions-grid">
-      {USER_PERMISSIONS.map((permission) => {
-        const inherited = roleName === "admin" && getRolePermissions(roleName).includes(permission.value);
-        const checked = inherited || selected.includes(permission.value);
+    <div className="permission-modules">
+      {PERMISSION_GROUPS.map((group) => (
+        <div className="permission-module" key={group.key}>
+          <h4>{group.label}</h4>
+          <div className="permissions-grid">
+            {group.permissions.map((permission) => {
+              const inherited = getRolePermissions(roleName).includes(permission.value);
+              const checked = inherited || selected.includes(permission.value);
 
-        return (
-          <label key={permission.value} className="option-row">
-            <input
-              type="checkbox"
-              checked={checked}
-              disabled={inherited}
-              onChange={() => onChange(togglePermission(selected, permission.value))}
-            />
-            <span>{permission.label}</span>
-            {inherited && <small>Rol</small>}
-          </label>
-        );
-      })}
+              return (
+                <label key={permission.value} className="option-row">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={inherited}
+                    onChange={() => onChange(togglePermission(selected, permission.value))}
+                  />
+                  <span>{permission.label}</span>
+                  {inherited && <small>Rol</small>}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderAccessScopes = (accessScopes, onChange) => (
+    <div className="scope-grid">
+      {[
+        { key: "incidents", label: "Incidencias" },
+        { key: "maintenance", label: "Mantenimientos" },
+        { key: "inventory", label: "Inventario" },
+      ].map((scope) => (
+        <label key={scope.key}>
+          {scope.label}
+          <select
+            value={accessScopes?.[scope.key] || "department"}
+            onChange={(event) => onChange({
+              ...(accessScopes || {}),
+              [scope.key]: event.target.value,
+            })}
+          >
+            {ACCESS_SCOPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+      ))}
     </div>
   );
 
@@ -369,7 +392,7 @@ function CreateUser() {
             </label>
             <label>
               Rol
-              <select value={form.role} onChange={(e) => updateForm("role", e.target.value)}>
+              <select value={form.role} onChange={(e) => updateRole(e.target.value)}>
                 <option value="">Selecciona rol</option>
                 {roles.map((roleItem) => <option key={roleItem._id || roleItem.name} value={roleItem.name}>{roleItem.name}</option>)}
               </select>
@@ -395,8 +418,16 @@ function CreateUser() {
 
           <div className="form-section">
             <div>
+              <h3>Alcance operativo</h3>
+              <p>Define sobre que registros aplican los permisos de cada modulo.</p>
+            </div>
+            {renderAccessScopes(form.accessScopes, (next) => updateForm("accessScopes", next))}
+          </div>
+
+          <div className="form-section">
+            <div>
               <h3>Permisos</h3>
-              <p>El rol admin hereda todos los permisos automaticamente.</p>
+              <p>Los permisos marcados como Rol se heredan automaticamente.</p>
             </div>
             {renderPermissionCheckboxes({
               selected: form.permissions,
@@ -468,7 +499,17 @@ function CreateUser() {
               </label>
               <label>
                 Rol
-                <select value={editingUser.role || ""} onChange={(e) => updateEditingUser("role", e.target.value)}>
+                <select
+                  value={editingUser.role || ""}
+                  onChange={(e) => {
+                    const role = e.target.value;
+                    setEditingUser((prev) => ({
+                      ...prev,
+                      role,
+                      accessScopes: getDefaultAccessScopes(role),
+                    }));
+                  }}
+                >
                   <option value="">Selecciona rol</option>
                   {roles.map((roleItem) => <option key={roleItem._id || roleItem.name} value={roleItem.name}>{roleItem.name}</option>)}
                 </select>
@@ -487,6 +528,14 @@ function CreateUser() {
             <div className="form-section">
               <h3>Sucursales</h3>
               {renderBranchCheckboxes(editingUser.branches || [], (next) => updateEditingUser("branches", next))}
+            </div>
+
+            <div className="form-section">
+              <h3>Alcance operativo</h3>
+              {renderAccessScopes(
+                editingUser.accessScopes || getDefaultAccessScopes(editingUser.role),
+                (next) => updateEditingUser("accessScopes", next)
+              )}
             </div>
 
             <div className="form-section">
@@ -523,6 +572,23 @@ function CreateUser() {
         .form-section { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
         .option-grid, .permissions-grid { display: grid; gap: 8px; max-height: 190px; overflow: auto; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; background: var(--app-input); }
         .permissions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .permission-modules { display: grid; gap: 12px; }
+        .permission-module {
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 8px;
+          padding: 12px;
+          background: rgba(255,255,255,0.03);
+        }
+        .permission-module h4 {
+          margin: 0 0 9px;
+          color: var(--app-title);
+          font-size: 13px;
+        }
+        .scope-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
         .option-row { flex-direction: row; align-items: center; gap: 8px; color: var(--app-text); opacity: 0.86; }
         .option-row input { width: auto; accent-color: var(--app-accent); }
         .option-row small { margin-left: auto; color: var(--app-accent); font-weight: 700; }
@@ -553,7 +619,7 @@ function CreateUser() {
         @media (max-width: 720px) {
           .users-page { padding: 16px; }
           .page-header, .header-actions, .modal-actions { flex-direction: column; align-items: stretch; }
-          .field-grid, .permissions-grid { grid-template-columns: 1fr; }
+          .field-grid, .permissions-grid, .scope-grid { grid-template-columns: 1fr; }
           .user-row { grid-template-columns: 40px minmax(0, 1fr); }
           .role-pill, .row-actions { grid-column: 2; }
         }

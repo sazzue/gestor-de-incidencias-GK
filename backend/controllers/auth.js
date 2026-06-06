@@ -1,7 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { getPermissionsForUser } = require("../utils/permissions");
+const { getAccessScopesForUser, getPermissionsForUser } = require("../utils/permissions");
 
 exports.register = async (req, res) => {
   res.json({ msg: "register ok" });
@@ -27,6 +27,7 @@ exports.login = async (req, res) => {
     if (!valid) return res.status(400).json({ message: "Invalid" });
 
     const permissions = await getPermissionsForUser(user);
+    const accessScopes = getAccessScopesForUser(user);
 
     // =========================
     // 🎟 TOKEN FINAL
@@ -39,6 +40,8 @@ exports.login = async (req, res) => {
         role: user.role,
         department: user.department || null,
         branch: user.branch || null,
+        branches: user.branches || [],
+        accessScopes,
         permissions,
       },
       process.env.JWT_SECRET,

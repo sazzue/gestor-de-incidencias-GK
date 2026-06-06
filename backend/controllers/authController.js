@@ -3,7 +3,7 @@ const Organization = require("../models/Organization");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { getPermissionsForUser } = require("../utils/permissions");
+const { getAccessScopesForUser, getPermissionsForUser } = require("../utils/permissions");
 const { isPlatformAdminEmail } = require("../utils/platformAdmin");
 const { getFrontendUrl, isMailDeliveryConfigured, sendMail } = require("../utils/mailDelivery");
 
@@ -40,6 +40,7 @@ const sendPasswordResetEmail = async ({ user, resetLink }) => {
 
 const buildUserPayload = async (user) => {
   const permissions = await getPermissionsForUser(user);
+  const accessScopes = getAccessScopesForUser(user);
   const isPlatformAdmin = isPlatformAdminEmail(user.email);
 
   return {
@@ -54,6 +55,7 @@ const buildUserPayload = async (user) => {
       department: user.department || null,
       branch: user.branch || null,
       branches: user.branches || [],
+      accessScopes,
       permissions,
       mustChangePassword: user.mustChangePassword,
     },
@@ -68,6 +70,7 @@ const buildUserPayload = async (user) => {
       department: user.department || null,
       branch: user.branch || null,
       branches: user.branches || [],
+      accessScopes,
       permissions,
       mustChangePassword: user.mustChangePassword,
     },
@@ -100,7 +103,7 @@ const getActiveOrganization = async (user) => {
 // POST /api/auth/register
 exports.register = async (req, res) => {
   try {
-    const { nombre, email, password, role, department, permissions, organization } = req.body;
+    const { nombre, email, password, role, department, permissions, accessScopes, organization } = req.body;
 
     const existing = await User.findOne({
       email: email.toLowerCase(),
@@ -120,6 +123,7 @@ exports.register = async (req, res) => {
       organization: organization || null,
       department,
       permissions,
+      accessScopes,
       mustChangePassword: true,
     });
 

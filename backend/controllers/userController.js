@@ -1,9 +1,10 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const Role = require("../models/Role");
-const { hasPermission, normalizePermissions } = require("../utils/permissions");
+const { getAccessScopesForUser, hasPermission, normalizePermissions } = require("../utils/permissions");
 const { assertWithinPlanLimit } = require("../utils/planLimits");
 const { getPlatformAdminEmails, isPlatformAdminEmail } = require("../utils/platformAdmin");
+const { ACCESS_SCOPES, DEFAULT_ACCESS_SCOPES } = require("../config/permissions");
 
 const canManageUsers = (req, res) => {
   if (!req.user) {
@@ -31,6 +32,12 @@ const normalizeUserInput = (body) => {
     : branch
       ? [branch]
       : [];
+  const defaultScopes = DEFAULT_ACCESS_SCOPES[role] || DEFAULT_ACCESS_SCOPES.departamento;
+  const inputScopes = body.accessScopes && typeof body.accessScopes === "object" ? body.accessScopes : {};
+  const normalizeScope = (moduleName) => {
+    const value = inputScopes[moduleName];
+    return Object.values(ACCESS_SCOPES).includes(value) ? value : defaultScopes[moduleName];
+  };
 
   return {
     nombre: body.nombre?.trim(),
@@ -42,6 +49,11 @@ const normalizeUserInput = (body) => {
     branch,
     branches,
     permissions: normalizePermissions(Array.isArray(body.permissions) ? body.permissions : []),
+    accessScopes: {
+      incidents: normalizeScope("incidents"),
+      maintenance: normalizeScope("maintenance"),
+      inventory: normalizeScope("inventory"),
+    },
   };
 };
 
@@ -135,6 +147,7 @@ const updateUser = async (req, res) => {
       branch: input.branch,
       branches: input.branches,
       permissions: input.permissions,
+      accessScopes: input.accessScopes,
     };
     const unset = {};
 
@@ -164,7 +177,10 @@ const updateUser = async (req, res) => {
       return res.status(404).json({ msg: "Usuario no encontrado" });
     }
 
-    res.json(updatedUser);
+    res.json({
+      ...updatedUser.toObject(),
+      accessScopes: getAccessScopesForUser(updatedUser),
+    });
   } catch (error) {
     console.error("ERROR UPDATE USER:", error);
     res.status(500).json({ msg: "Error al actualizar usuario", error: error.message });
@@ -186,7 +202,10 @@ const getUsers = async (req, res) => {
       .select("-password")
       .populate("branch", "name")
       .populate("branches", "name");
-    res.json(users);
+    res.json(users.map((user) => ({
+      ...user.toObject(),
+      accessScopes: getAccessScopesForUser(user),
+    })));
   } catch (error) {
     res.status(500).json({ msg: "Error al obtener usuarios", error: error.message });
   }
@@ -254,6 +273,7 @@ const createUser = async (req, res) => {
       branch: input.branch,
       branches: input.branches,
       permissions: input.permissions,
+      accessScopes: input.accessScopes,
     };
 
     if (input.username) {
@@ -267,7 +287,10 @@ const createUser = async (req, res) => {
       .populate("branch", "name")
       .populate("branches", "name");
 
-    res.status(201).json(createdUser);
+    res.status(201).json({
+      ...createdUser.toObject(),
+      accessScopes: getAccessScopesForUser(createdUser),
+    });
   } catch (error) {
     if (error.code === "PLAN_LIMIT_EXCEEDED") {
       return res.status(error.status || 403).json({ msg: error.message });

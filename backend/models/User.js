@@ -52,6 +52,24 @@ const userSchema = new mongoose.Schema({
 
   permissions: [String],
 
+  accessScopes: {
+    incidents: {
+      type: String,
+      enum: ["all", "branch", "department", "assigned"],
+      default: "department"
+    },
+    maintenance: {
+      type: String,
+      enum: ["all", "branch", "department", "assigned"],
+      default: "department"
+    },
+    inventory: {
+      type: String,
+      enum: ["all", "branch", "department", "assigned"],
+      default: "department"
+    }
+  },
+
   // 🔐 Forzar cambio de contraseña en primer inicio de sesión
   mustChangePassword: {
     type: Boolean,

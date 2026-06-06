@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const { sendMail } = require("./mailDelivery");
+const { LEGACY_PERMISSION_ALIASES } = require("../config/permissions");
 
 const splitList = (value = "") =>
   value
@@ -42,12 +43,14 @@ const getDepartmentRecipientQueries = ({ department, permission }) => {
   if (!department) return [];
 
   const departmentMatcher = new RegExp(`^${escapeRegExp(department)}$`, "i");
+  const modernPermission = LEGACY_PERMISSION_ALIASES[permission] || permission;
+  const permissionOptions = [...new Set([permission, modernPermission])];
 
   return [{
     role: "departamento",
     department: departmentMatcher,
   }, {
-    permissions: permission,
+    permissions: { $in: permissionOptions },
     department: departmentMatcher,
   }];
 };

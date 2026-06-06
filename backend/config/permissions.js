@@ -1,0 +1,187 @@
+const PERMISSIONS = {
+  USERS_MANAGE: "USERS_MANAGE",
+
+  INCIDENTS_VIEW: "INCIDENTS_VIEW",
+  INCIDENTS_CREATE: "INCIDENTS_CREATE",
+  INCIDENTS_UPDATE_STATUS: "INCIDENTS_UPDATE_STATUS",
+  INCIDENTS_ASSIGN: "INCIDENTS_ASSIGN",
+  INCIDENTS_COMMENT: "INCIDENTS_COMMENT",
+  INCIDENTS_CLOSE: "INCIDENTS_CLOSE",
+  INCIDENTS_VIEW_COMMENTS: "INCIDENTS_VIEW_COMMENTS",
+  INCIDENTS_EXPORT: "INCIDENTS_EXPORT",
+
+  MAINTENANCE_VIEW: "MAINTENANCE_VIEW",
+  MAINTENANCE_CREATE: "MAINTENANCE_CREATE",
+  MAINTENANCE_CONFIRM: "MAINTENANCE_CONFIRM",
+  MAINTENANCE_COMMENT: "MAINTENANCE_COMMENT",
+  MAINTENANCE_VIEW_COMMENTS: "MAINTENANCE_VIEW_COMMENTS",
+  MAINTENANCE_EXPORT: "MAINTENANCE_EXPORT",
+  MAINTENANCE_DELETE: "MAINTENANCE_DELETE",
+
+  INVENTORY_VIEW: "INVENTORY_VIEW",
+  INVENTORY_CREATE: "INVENTORY_CREATE",
+  INVENTORY_UPDATE: "INVENTORY_UPDATE",
+  INVENTORY_DISPOSE: "INVENTORY_DISPOSE",
+  INVENTORY_EXPORT: "INVENTORY_EXPORT",
+
+  CATALOGS_MANAGE: "CATALOGS_MANAGE",
+  SETTINGS_MANAGE: "SETTINGS_MANAGE",
+  ORGANIZATIONS_MANAGE: "ORGANIZATIONS_MANAGE",
+};
+
+const ACCESS_SCOPES = {
+  ALL: "all",
+  BRANCH: "branch",
+  DEPARTMENT: "department",
+  ASSIGNED: "assigned",
+};
+
+const DEFAULT_ACCESS_SCOPES = {
+  admin: {
+    incidents: ACCESS_SCOPES.ALL,
+    maintenance: ACCESS_SCOPES.ALL,
+    inventory: ACCESS_SCOPES.ALL,
+  },
+  direccion: {
+    incidents: ACCESS_SCOPES.ALL,
+    maintenance: ACCESS_SCOPES.ALL,
+    inventory: ACCESS_SCOPES.ALL,
+  },
+  gerencia: {
+    incidents: ACCESS_SCOPES.BRANCH,
+    maintenance: ACCESS_SCOPES.BRANCH,
+    inventory: ACCESS_SCOPES.BRANCH,
+  },
+  departamento: {
+    incidents: ACCESS_SCOPES.DEPARTMENT,
+    maintenance: ACCESS_SCOPES.DEPARTMENT,
+    inventory: ACCESS_SCOPES.DEPARTMENT,
+  },
+};
+
+const PERMISSION_GROUPS = [
+  {
+    key: "users",
+    label: "Usuarios y seguridad",
+    permissions: [
+      { value: PERMISSIONS.USERS_MANAGE, label: "Administrar usuarios y permisos" },
+    ],
+  },
+  {
+    key: "incidents",
+    label: "Incidencias",
+    permissions: [
+      { value: PERMISSIONS.INCIDENTS_VIEW, label: "Ver incidencias" },
+      { value: PERMISSIONS.INCIDENTS_CREATE, label: "Crear incidencias" },
+      { value: PERMISSIONS.INCIDENTS_UPDATE_STATUS, label: "Cambiar estado" },
+      { value: PERMISSIONS.INCIDENTS_ASSIGN, label: "Asignar responsable" },
+      { value: PERMISSIONS.INCIDENTS_COMMENT, label: "Comentar seguimiento/cierre" },
+      { value: PERMISSIONS.INCIDENTS_CLOSE, label: "Cerrar incidencias" },
+      { value: PERMISSIONS.INCIDENTS_VIEW_COMMENTS, label: "Ver comentarios privados" },
+      { value: PERMISSIONS.INCIDENTS_EXPORT, label: "Exportar reportes" },
+    ],
+  },
+  {
+    key: "maintenance",
+    label: "Mantenimientos",
+    permissions: [
+      { value: PERMISSIONS.MAINTENANCE_VIEW, label: "Ver mantenimientos" },
+      { value: PERMISSIONS.MAINTENANCE_CREATE, label: "Programar mantenimientos" },
+      { value: PERMISSIONS.MAINTENANCE_CONFIRM, label: "Confirmar/finalizar" },
+      { value: PERMISSIONS.MAINTENANCE_COMMENT, label: "Comentar autorizacion" },
+      { value: PERMISSIONS.MAINTENANCE_VIEW_COMMENTS, label: "Ver comentarios" },
+      { value: PERMISSIONS.MAINTENANCE_EXPORT, label: "Exportar reportes" },
+      { value: PERMISSIONS.MAINTENANCE_DELETE, label: "Eliminar mantenimientos" },
+    ],
+  },
+  {
+    key: "inventory",
+    label: "Inventario",
+    permissions: [
+      { value: PERMISSIONS.INVENTORY_VIEW, label: "Ver inventario" },
+      { value: PERMISSIONS.INVENTORY_CREATE, label: "Registrar equipos" },
+      { value: PERMISSIONS.INVENTORY_UPDATE, label: "Actualizar equipos/facturas" },
+      { value: PERMISSIONS.INVENTORY_DISPOSE, label: "Dar de baja equipos" },
+      { value: PERMISSIONS.INVENTORY_EXPORT, label: "Exportar reportes" },
+    ],
+  },
+  {
+    key: "administration",
+    label: "Administracion",
+    permissions: [
+      { value: PERMISSIONS.CATALOGS_MANAGE, label: "Administrar catalogos" },
+      { value: PERMISSIONS.SETTINGS_MANAGE, label: "Configurar sistema" },
+      { value: PERMISSIONS.ORGANIZATIONS_MANAGE, label: "Administrar empresas" },
+    ],
+  },
+];
+
+const LEGACY_PERMISSION_ALIASES = {
+  CREATE_USERS: PERMISSIONS.USERS_MANAGE,
+
+  CREATE_INCIDENT: PERMISSIONS.INCIDENTS_CREATE,
+  COMMENT_INCIDENT: PERMISSIONS.INCIDENTS_COMMENT,
+  VIEW_INCIDENT_COMMENTS: PERMISSIONS.INCIDENTS_VIEW_COMMENTS,
+
+  CREATE_MAINTENANCE: PERMISSIONS.MAINTENANCE_CREATE,
+  CONFIRM_MAINTENANCE: PERMISSIONS.MAINTENANCE_CONFIRM,
+  COMMENT_MAINTENANCE: PERMISSIONS.MAINTENANCE_COMMENT,
+  VIEW_MAINTENANCE_COMMENTS: PERMISSIONS.MAINTENANCE_VIEW_COMMENTS,
+  DELETE_MAINTENANCE: PERMISSIONS.MAINTENANCE_DELETE,
+
+  CREATE_INVENTORY: PERMISSIONS.INVENTORY_CREATE,
+  DISPOSE_INVENTORY: PERMISSIONS.INVENTORY_DISPOSE,
+};
+
+const LEGACY_BY_PERMISSION = {
+  [PERMISSIONS.USERS_MANAGE]: ["CREATE_USERS"],
+
+  [PERMISSIONS.INCIDENTS_CREATE]: ["CREATE_INCIDENT"],
+  [PERMISSIONS.INCIDENTS_UPDATE_STATUS]: ["VIEW_INCIDENTS_ALL", "VIEW_INCIDENTS_DEPARTMENT"],
+  [PERMISSIONS.INCIDENTS_ASSIGN]: ["VIEW_INCIDENTS_ALL", "VIEW_INCIDENTS_DEPARTMENT"],
+  [PERMISSIONS.INCIDENTS_COMMENT]: ["COMMENT_INCIDENT"],
+  [PERMISSIONS.INCIDENTS_CLOSE]: ["VIEW_INCIDENTS_ALL", "VIEW_INCIDENTS_DEPARTMENT"],
+  [PERMISSIONS.INCIDENTS_VIEW_COMMENTS]: ["VIEW_INCIDENT_COMMENTS"],
+
+  [PERMISSIONS.MAINTENANCE_CREATE]: ["CREATE_MAINTENANCE"],
+  [PERMISSIONS.MAINTENANCE_CONFIRM]: ["CONFIRM_MAINTENANCE"],
+  [PERMISSIONS.MAINTENANCE_COMMENT]: ["COMMENT_MAINTENANCE"],
+  [PERMISSIONS.MAINTENANCE_VIEW_COMMENTS]: ["VIEW_MAINTENANCE_COMMENTS"],
+  [PERMISSIONS.MAINTENANCE_DELETE]: ["DELETE_MAINTENANCE"],
+
+  [PERMISSIONS.INVENTORY_CREATE]: ["CREATE_INVENTORY"],
+  [PERMISSIONS.INVENTORY_UPDATE]: ["CREATE_INVENTORY"],
+  [PERMISSIONS.INVENTORY_DISPOSE]: ["DISPOSE_INVENTORY"],
+};
+
+const VIEW_SCOPE_LEGACY = {
+  incidents: {
+    all: "VIEW_INCIDENTS_ALL",
+    branch: "VIEW_INCIDENTS_BRANCH",
+    department: "VIEW_INCIDENTS_DEPARTMENT",
+  },
+  maintenance: {
+    all: "VIEW_MAINTENANCE_ALL",
+    branch: "VIEW_MAINTENANCE_BRANCH",
+    department: "VIEW_MAINTENANCE_DEPARTMENT",
+  },
+  inventory: {
+    all: "VIEW_INVENTORY_ALL",
+    branch: "VIEW_INVENTORY_BRANCH",
+    department: "VIEW_INVENTORY_DEPARTMENT",
+  },
+};
+
+const getAllPermissionValues = () =>
+  PERMISSION_GROUPS.flatMap((group) => group.permissions.map((permission) => permission.value));
+
+module.exports = {
+  ACCESS_SCOPES,
+  DEFAULT_ACCESS_SCOPES,
+  LEGACY_BY_PERMISSION,
+  LEGACY_PERMISSION_ALIASES,
+  PERMISSION_GROUPS,
+  PERMISSIONS,
+  VIEW_SCOPE_LEGACY,
+  getAllPermissionValues,
+};
