@@ -8,6 +8,7 @@ import {
   PLATFORM_ONLY_PERMISSIONS,
   getAccessScopesForForm,
   getDefaultAccessScopes,
+  hasPermission,
   normalizePermissionsForForm,
 } from "../config/permissions";
 import { exportPdfReport } from "../utils/pdfReport";
@@ -275,7 +276,7 @@ function CreateUser() {
     });
   };
 
-  if (currentUser?.role !== "admin" && !currentUser?.permissions?.includes("CREATE_USERS")) {
+  if (!hasPermission(currentUser, "CREATE_USERS")) {
     return (
       <div className="users-page">
         <div className="empty-panel">

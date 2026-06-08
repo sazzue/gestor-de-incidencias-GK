@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 import { useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
+import { hasPermission } from "../config/permissions";
 import { useSystemSettings } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -51,30 +52,27 @@ function Sidebar({ isOpen = false, onNavigate }) {
     navigate("/");
   };
 
-  const hasPermission = (permission) =>
-    user?.role === "admin" || user?.permissions?.includes(permission);
-
-  const canCreateIncidents = hasPermission("CREATE_INCIDENT");
+  const canCreateIncidents = hasPermission(user, "CREATE_INCIDENT");
   const canViewIncidents =
-    hasPermission("VIEW_INCIDENTS_ALL") ||
-    hasPermission("VIEW_INCIDENTS_DEPARTMENT") ||
-    hasPermission("VIEW_INCIDENTS_BRANCH");
-  const canAccessUsers = hasPermission("CREATE_USERS");
+    hasPermission(user, "VIEW_INCIDENTS_ALL") ||
+    hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT") ||
+    hasPermission(user, "VIEW_INCIDENTS_BRANCH");
+  const canAccessUsers = hasPermission(user, "CREATE_USERS");
   const canAccessCatalogs = user?.role === "admin";
   const canAccessSettings = user?.role === "admin";
   const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
   const canViewMaintenance =
-    hasPermission("VIEW_MAINTENANCE_ALL") ||
-    hasPermission("VIEW_MAINTENANCE_DEPARTMENT") ||
-    hasPermission("VIEW_MAINTENANCE_BRANCH") ||
-    hasPermission("CREATE_MAINTENANCE") ||
-    hasPermission("CONFIRM_MAINTENANCE");
+    hasPermission(user, "VIEW_MAINTENANCE_ALL") ||
+    hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") ||
+    hasPermission(user, "VIEW_MAINTENANCE_BRANCH") ||
+    hasPermission(user, "CREATE_MAINTENANCE") ||
+    hasPermission(user, "CONFIRM_MAINTENANCE");
   const canViewInventory =
-    hasPermission("VIEW_INVENTORY_ALL") ||
-    hasPermission("VIEW_INVENTORY_DEPARTMENT") ||
-    hasPermission("VIEW_INVENTORY_BRANCH") ||
-    hasPermission("CREATE_INVENTORY") ||
-    hasPermission("DISPOSE_INVENTORY");
+    hasPermission(user, "VIEW_INVENTORY_ALL") ||
+    hasPermission(user, "VIEW_INVENTORY_DEPARTMENT") ||
+    hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
+    hasPermission(user, "CREATE_INVENTORY") ||
+    hasPermission(user, "DISPOSE_INVENTORY");
 
   const isActive = (path) => location.pathname === path;
 

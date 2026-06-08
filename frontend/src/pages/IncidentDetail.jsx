@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -29,16 +30,16 @@ function IncidentDetail() {
     user?.role === "admin" ||
     user?.role === "gerencia" ||
     user?.role === "direccion" ||
-    user?.permissions?.includes("VIEW_INCIDENT_COMMENTS");
+    hasPermission(user, "VIEW_INCIDENT_COMMENTS");
 
   const canUpdate =
     user?.role === "admin" ||
-    user?.permissions?.includes("VIEW_INCIDENTS_ALL") ||
-    user?.permissions?.includes("VIEW_INCIDENTS_DEPARTMENT");
+    hasPermission(user, "VIEW_INCIDENTS_ALL") ||
+    hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT");
 
   const canCommentIncident = useMemo(() => {
     if (user?.role === "admin") return true;
-    if (!user?.permissions?.includes("COMMENT_INCIDENT")) return false;
+    if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
 
     return (
       user?.role === "departamento" &&

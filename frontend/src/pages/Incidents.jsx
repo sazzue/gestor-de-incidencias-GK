@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
 
@@ -47,9 +48,9 @@ function Incidents() {
 
   useEffect(() => {
     if (
-      user?.permissions?.includes("VIEW_INCIDENTS_DEPARTMENT") &&
-      !user?.permissions?.includes("VIEW_INCIDENTS_ALL") &&
-      !user?.permissions?.includes("VIEW_INCIDENTS_BRANCH")
+      hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT") &&
+      !hasPermission(user, "VIEW_INCIDENTS_ALL") &&
+      !hasPermission(user, "VIEW_INCIDENTS_BRANCH")
     ) {
       setFilterDept(user.department?.toLowerCase().trim());
     }
@@ -174,11 +175,11 @@ function Incidents() {
     user?.role === "admin" ||
     user?.role === "gerencia" ||
     user?.role === "direccion" ||
-    user?.permissions?.includes("VIEW_INCIDENT_COMMENTS");
+    hasPermission(user, "VIEW_INCIDENT_COMMENTS");
 
   const canCommentIncident = (incident) => {
     if (user?.role === "admin") return true;
-    if (!user?.permissions?.includes("COMMENT_INCIDENT")) return false;
+    if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
 
     return (
       user?.role === "departamento" &&
@@ -258,10 +259,10 @@ function Incidents() {
 
   const canUpdate =
     user?.role === "admin" ||
-    user?.permissions?.includes("VIEW_INCIDENTS_ALL") ||
-    user?.permissions?.includes("VIEW_INCIDENTS_DEPARTMENT");
+    hasPermission(user, "VIEW_INCIDENTS_ALL") ||
+    hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT");
   const canCreate =
-    user?.role === "admin" || user?.permissions?.includes("CREATE_INCIDENT");
+    hasPermission(user, "CREATE_INCIDENT");
 
   return (
     <div className="page">

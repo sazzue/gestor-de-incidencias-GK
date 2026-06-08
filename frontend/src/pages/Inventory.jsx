@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
 
@@ -35,14 +36,11 @@ function Inventory() {
   const token = localStorage.getItem("token");
   const user = useAuthUser();
 
-  const hasPermission = (permission) =>
-    user?.role === "admin" || user?.permissions?.includes(permission);
-
-  const canViewAll = user?.role === "direccion" || hasPermission("VIEW_INVENTORY_ALL");
-  const canViewDepartment = hasPermission("VIEW_INVENTORY_DEPARTMENT");
-  const canCreate = hasPermission("CREATE_INVENTORY");
-  const canDispose = hasPermission("DISPOSE_INVENTORY");
-  const canView = canViewAll || canViewDepartment || hasPermission("VIEW_INVENTORY_BRANCH") || canCreate || canDispose;
+  const canViewAll = user?.role === "direccion" || hasPermission(user, "VIEW_INVENTORY_ALL");
+  const canViewDepartment = hasPermission(user, "VIEW_INVENTORY_DEPARTMENT");
+  const canCreate = hasPermission(user, "CREATE_INVENTORY");
+  const canDispose = hasPermission(user, "DISPOSE_INVENTORY");
+  const canView = canViewAll || canViewDepartment || hasPermission(user, "VIEW_INVENTORY_BRANCH") || canCreate || canDispose;
   const userDepartment = user?.department?.toString().trim().toLowerCase() || "";
   const isDepartmentLocked = !canViewAll && canViewDepartment && Boolean(userDepartment);
 

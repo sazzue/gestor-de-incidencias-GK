@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
+import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
 
@@ -41,21 +42,20 @@ function MaintenanceCalendar() {
   const user = useAuthUser();
 
   const canCreate =
-    user?.role === "admin" || user?.permissions?.includes("CREATE_MAINTENANCE");
+    hasPermission(user, "CREATE_MAINTENANCE");
 
   const canConfirm =
-    user?.role === "admin" ||
-    user?.permissions?.includes("CONFIRM_MAINTENANCE");
+    hasPermission(user, "CONFIRM_MAINTENANCE");
   const canViewMaintenanceComments =
     user?.role === "admin" ||
     user?.role === "gerencia" ||
     user?.role === "direccion" ||
-    user?.permissions?.includes("VIEW_MAINTENANCE_COMMENTS");
+    hasPermission(user, "VIEW_MAINTENANCE_COMMENTS");
   const canCommentMaintenance =
     user?.role === "admin" ||
     user?.role === "gerencia" ||
     user?.role === "direccion" ||
-    user?.permissions?.includes("COMMENT_MAINTENANCE");
+    hasPermission(user, "COMMENT_MAINTENANCE");
 
   const userDepartment = normalizeDepartment(user?.department);
   const isDepartmentUser = user?.role === "departamento";

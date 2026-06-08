@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -104,7 +105,7 @@ function CreateIncidencia() {
 
   if (
     !user ||
-    (user.role !== "admin" && !user.permissions?.includes("CREATE_INCIDENT"))
+    !hasPermission(user, "CREATE_INCIDENT")
   ) {
     return (
       <div className="page center">

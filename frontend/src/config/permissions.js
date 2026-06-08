@@ -131,6 +131,34 @@ export const LEGACY_PERMISSION_ALIASES = {
   DISPOSE_INVENTORY: "INVENTORY_DISPOSE",
 };
 
+const getPermissionSet = (permissions = []) =>
+  new Set(
+    permissions
+      .map((permission) => permission?.toString().trim())
+      .filter(Boolean)
+  );
+
+export const hasPermission = (user, permission) => {
+  if (user?.role === "admin") return true;
+
+  const permissions = getPermissionSet(user?.permissions || []);
+  const cleanPermission = permission?.toString().trim();
+  const normalizedPermission = LEGACY_PERMISSION_ALIASES[cleanPermission] || cleanPermission;
+
+  if (permissions.has(cleanPermission) || permissions.has(normalizedPermission)) return true;
+
+  const scopePermission = LEGACY_SCOPE_PERMISSIONS[cleanPermission];
+  if (scopePermission) {
+    const scope = user?.accessScopes?.[scopePermission.module];
+    return permissions.has(scopePermission.permission) && scope === scopePermission.scope;
+  }
+
+  return Object.entries(LEGACY_SCOPE_PERMISSIONS).some(([legacyPermission, scope]) => (
+    scope.permission === normalizedPermission &&
+    permissions.has(legacyPermission)
+  ));
+};
+
 export const LEGACY_SCOPE_PERMISSIONS = {
   VIEW_INCIDENTS_ALL: { module: "incidents", scope: ACCESS_SCOPES.ALL, permission: "INCIDENTS_VIEW" },
   VIEW_INCIDENTS_BRANCH: { module: "incidents", scope: ACCESS_SCOPES.BRANCH, permission: "INCIDENTS_VIEW" },
