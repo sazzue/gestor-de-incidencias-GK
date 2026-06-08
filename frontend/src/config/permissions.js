@@ -139,11 +139,15 @@ const getPermissionSet = (permissions = []) =>
   );
 
 export const hasPermission = (user, permission) => {
-  if (user?.role === "admin") return true;
-
   const permissions = getPermissionSet(user?.permissions || []);
   const cleanPermission = permission?.toString().trim();
   const normalizedPermission = LEGACY_PERMISSION_ALIASES[cleanPermission] || cleanPermission;
+
+  if (PLATFORM_ONLY_PERMISSIONS.includes(normalizedPermission) && !user?.isPlatformAdmin) {
+    return false;
+  }
+
+  if (user?.role === "admin") return true;
 
   if (permissions.has(cleanPermission) || permissions.has(normalizedPermission)) return true;
 

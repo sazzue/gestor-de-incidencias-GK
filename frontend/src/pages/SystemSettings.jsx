@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { hasPermission } from "../config/permissions";
 import { DEFAULT_SETTINGS, applySystemTheme, cacheSystemSettings, useSystemSettings } from "../hooks/useSystemSettings";
 import { useAuthUser } from "../hooks/useAuthUser";
 
@@ -67,7 +68,7 @@ function SystemSettings() {
   const [isDirty, setIsDirty] = useState(false);
   const isMailDirtyRef = useRef(false);
   const token = localStorage.getItem("token");
-  const isAdmin = user?.role === "admin";
+  const canManageSettings = hasPermission(user, "SETTINGS_MANAGE");
 
   const storageTitle = useMemo(() => {
     const company = user?.organizationName || user?.organizationSlug;
@@ -95,7 +96,7 @@ function SystemSettings() {
   };
 
   const fetchStorageUsage = useCallback(async () => {
-    if (!token || !isAdmin) return;
+    if (!token || !canManageSettings) return;
 
     try {
       const res = await fetch(`${API_URL}/api/storage/usage`, {
@@ -106,10 +107,10 @@ function SystemSettings() {
     } catch {
       setStorage(null);
     }
-  }, [isAdmin, token]);
+  }, [canManageSettings, token]);
 
   const fetchMailSettings = useCallback(async () => {
-    if (!token || !isAdmin) return;
+    if (!token || !canManageSettings) return;
 
     try {
       const res = await fetch(`${API_URL}/api/settings/mail`, {
@@ -125,7 +126,7 @@ function SystemSettings() {
         setMailSettings(DEFAULT_MAIL_SETTINGS);
       }
     }
-  }, [isAdmin, token]);
+  }, [canManageSettings, token]);
 
   useEffect(() => {
     fetchStorageUsage();
@@ -363,11 +364,11 @@ function SystemSettings() {
     });
   };
 
-  if (!isAdmin) {
+  if (!canManageSettings) {
     return (
       <div style={{ minHeight: "100vh", padding: 28, color: "var(--app-text)", background: "var(--app-bg)" }}>
         <h2 style={{ color: "var(--app-title)", marginBottom: 8 }}>Sin acceso</h2>
-        <p>Solo un administrador puede modificar la apariencia de la empresa.</p>
+        <p>No tienes permiso para modificar la configuracion de la empresa.</p>
       </div>
     );
   }

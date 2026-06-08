@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
-const authorize = require("../middleware/authorize");
-const ROLES = require("../config/roles");
+const requirePermission = require("../middleware/requirePermission");
 const { requirePlatformAdmin } = require("../utils/platformAdmin");
 const {
   createOrganization,
@@ -10,8 +9,8 @@ const {
   updateOrganization,
 } = require("../controllers/organizationController");
 
-router.get("/", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, getOrganizations);
-router.post("/", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, createOrganization);
-router.put("/:id", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, updateOrganization);
+router.get("/", authMiddleware, requirePermission("ORGANIZATIONS_MANAGE"), requirePlatformAdmin, getOrganizations);
+router.post("/", authMiddleware, requirePermission("ORGANIZATIONS_MANAGE"), requirePlatformAdmin, createOrganization);
+router.put("/:id", authMiddleware, requirePermission("ORGANIZATIONS_MANAGE"), requirePlatformAdmin, updateOrganization);
 
 module.exports = router;

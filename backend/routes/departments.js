@@ -3,8 +3,7 @@ const express = require("express");
 const router = express.Router();
 const Department = require("../models/Department");
 const authMiddleware = require("../middleware/authMiddleware");
-const authorize = require("../middleware/authorize");
-const ROLES = require("../config/roles");
+const requirePermission = require("../middleware/requirePermission");
 const { normalizePermissions } = require("../utils/permissions");
 
 router.get("/", authMiddleware, async (req, res) => {
@@ -12,7 +11,7 @@ router.get("/", authMiddleware, async (req, res) => {
   res.json(deps);
 });
 
-router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.post("/", authMiddleware, requirePermission("CATALOGS_MANAGE"), async (req, res) => {
   try {
     const name = req.body.name?.toLowerCase().trim();
     const organization = req.user.organization || null;
@@ -37,7 +36,7 @@ router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   }
 });
 
-router.put("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.put("/:id", authMiddleware, requirePermission("CATALOGS_MANAGE"), async (req, res) => {
   try {
     const name = req.body.name?.toLowerCase().trim();
     const organization = req.user.organization || null;
@@ -46,7 +45,7 @@ router.put("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
       return res.status(400).json({ msg: "El nombre del departamento es obligatorio" });
     }
 
-    const department = await Department.findByIdAndUpdate(
+    const department = await Department.findOneAndUpdate(
       {
         _id: req.params.id,
         organization,
@@ -72,7 +71,7 @@ router.put("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   }
 });
 
-router.delete("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.delete("/:id", authMiddleware, requirePermission("CATALOGS_MANAGE"), async (req, res) => {
   try {
     const department = await Department.findOneAndDelete({
       _id: req.params.id,

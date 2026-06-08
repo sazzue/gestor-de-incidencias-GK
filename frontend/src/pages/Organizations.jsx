@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -113,13 +114,13 @@ function Organizations() {
   };
 
   useEffect(() => {
-    if (!user?.isPlatformAdmin) {
+    if (!hasPermission(user, "ORGANIZATIONS_MANAGE")) {
       setLoading(false);
       return;
     }
 
     loadOrganizations();
-  }, [user?.isPlatformAdmin]);
+  }, [user]);
 
   const updateField = (field, value) => {
     setForm((prev) => {
@@ -222,7 +223,7 @@ function Organizations() {
     await updateOrganization(organization, "addOns", nextAddOns);
   };
 
-  if (!user?.isPlatformAdmin) {
+  if (!hasPermission(user, "ORGANIZATIONS_MANAGE")) {
     return (
       <div style={{ minHeight: "100vh", padding: 28, color: "var(--app-text)", background: "var(--app-bg)" }}>
         <h2 style={{ color: "var(--app-title)", marginBottom: 8 }}>Sin acceso</h2>

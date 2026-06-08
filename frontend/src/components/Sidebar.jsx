@@ -58,9 +58,9 @@ function Sidebar({ isOpen = false, onNavigate }) {
     hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT") ||
     hasPermission(user, "VIEW_INCIDENTS_BRANCH");
   const canAccessUsers = hasPermission(user, "CREATE_USERS");
-  const canAccessCatalogs = user?.role === "admin";
-  const canAccessSettings = user?.role === "admin";
-  const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
+  const canAccessCatalogs = hasPermission(user, "CATALOGS_MANAGE");
+  const canAccessSettings = hasPermission(user, "SETTINGS_MANAGE");
+  const canAccessOrganizations = hasPermission(user, "ORGANIZATIONS_MANAGE");
   const canViewMaintenance =
     hasPermission(user, "VIEW_MAINTENANCE_ALL") ||
     hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") ||

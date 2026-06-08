@@ -6,11 +6,10 @@ const Incident = require("../models/incident");
 const Maintenance = require("../models/Maintenance");
 const InventoryItem = require("../models/InventoryItem");
 const authMiddleware = require("../middleware/authMiddleware");
-const authorize = require("../middleware/authorize");
-const ROLES = require("../config/roles");
+const requirePermission = require("../middleware/requirePermission");
 const { assertWithinPlanLimit } = require("../utils/planLimits");
 
-router.post("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.post("/", authMiddleware, requirePermission("CATALOGS_MANAGE"), async (req, res) => {
   try {
     const name = req.body.name?.toLowerCase().trim();
 
@@ -56,7 +55,7 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
-router.delete("/:id", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.delete("/:id", authMiddleware, requirePermission("CATALOGS_MANAGE"), async (req, res) => {
   try {
     const organization = req.user.organization || null;
     const branch = await Branch.findOne({ _id: req.params.id, organization });

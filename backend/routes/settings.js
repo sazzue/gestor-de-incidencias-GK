@@ -3,8 +3,7 @@ const router = express.Router();
 const SystemSettings = require("../models/SystemSettings");
 const Organization = require("../models/Organization");
 const authMiddleware = require("../middleware/authMiddleware");
-const authorize = require("../middleware/authorize");
-const ROLES = require("../config/roles");
+const requirePermission = require("../middleware/requirePermission");
 const { isPlatformAdminEmail, requirePlatformAdmin } = require("../utils/platformAdmin");
 const { createSmtpTransporter } = require("../utils/mailDelivery");
 const { decryptSecret, encryptSecret } = require("../utils/secretCrypto");
@@ -236,7 +235,7 @@ router.get("/identity", authMiddleware, async (req, res) => {
   }
 });
 
-router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.put("/", authMiddleware, requirePermission("SETTINGS_MANAGE"), async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const organization = req.user.organization || null;
@@ -254,7 +253,7 @@ router.put("/", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
   }
 });
 
-router.get("/mail", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.get("/mail", authMiddleware, requirePermission("SETTINGS_MANAGE"), async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const organization = await getUserOrganization(req);
@@ -265,7 +264,7 @@ router.get("/mail", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => 
   }
 });
 
-router.put("/mail", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.put("/mail", authMiddleware, requirePermission("SETTINGS_MANAGE"), async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const organization = await getUserOrganization(req);
@@ -292,7 +291,7 @@ router.put("/mail", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => 
   }
 });
 
-router.post("/mail/test", authMiddleware, authorize(ROLES.ADMIN), async (req, res) => {
+router.post("/mail/test", authMiddleware, requirePermission("SETTINGS_MANAGE"), async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const organization = await getUserOrganization(req);
@@ -351,7 +350,7 @@ router.post("/mail/test", authMiddleware, authorize(ROLES.ADMIN), async (req, re
   }
 });
 
-router.put("/identity", authMiddleware, authorize(ROLES.ADMIN), requirePlatformAdmin, async (req, res) => {
+router.put("/identity", authMiddleware, requirePermission("ORGANIZATIONS_MANAGE"), requirePlatformAdmin, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const organization = await getDefaultOrganizationId();
@@ -377,7 +376,12 @@ router.put("/identity", authMiddleware, authorize(ROLES.ADMIN), requirePlatformA
   }
 });
 
-router.post("/image/:field", authMiddleware, authorize(ROLES.ADMIN), upload.single("image"), async (req, res) => {
+router.post(
+  "/image/:field",
+  authMiddleware,
+  requirePermission("SETTINGS_MANAGE", "ORGANIZATIONS_MANAGE"),
+  upload.single("image"),
+  async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const allowedFields = ["loginImageUrl", "sidebarImageUrl"];

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { jwtDecode } from "jwt-decode";
+import { hasPermission } from "../config/permissions";
+import { useAuthUser } from "../hooks/useAuthUser";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -13,7 +14,7 @@ function Catalogs() {
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
-  const currentUser = token ? jwtDecode(token) : null;
+  const currentUser = useAuthUser();
   const headers = { Authorization: `Bearer ${token}` };
 
   const refreshSession = async () => {
@@ -128,12 +129,12 @@ function Catalogs() {
     await refreshSession();
   };
 
-  if (currentUser?.role !== "admin") {
+  if (!hasPermission(currentUser, "CATALOGS_MANAGE")) {
     return (
       <div className="catalogs-page">
         <div className="panel">
           <h2>Sin acceso</h2>
-          <p>Solo administradores pueden gestionar catalogos.</p>
+          <p>No tienes permiso para gestionar catalogos.</p>
         </div>
       </div>
     );

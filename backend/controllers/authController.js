@@ -3,7 +3,7 @@ const Organization = require("../models/Organization");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { getAccessScopesForUser, getPermissionsForUser } = require("../utils/permissions");
+const { getAccessScopesForUser, getPermissionsForUser, hasPermission } = require("../utils/permissions");
 const { isPlatformAdminEmail } = require("../utils/platformAdmin");
 const { getFrontendUrl, isMailDeliveryConfigured, sendMail } = require("../utils/mailDelivery");
 
@@ -219,7 +219,7 @@ exports.changePassword = async (req, res) => {
 
     const hashed = await bcrypt.hash(newPassword, 12);
 
-    const targetUserId = req.user.role === "admin" && userId ? userId : req.user.id;
+    const targetUserId = hasPermission(req.user, "CREATE_USERS") && userId ? userId : req.user.id;
     const updatedUser = await User.findOneAndUpdate(
       {
         _id: targetUserId,
