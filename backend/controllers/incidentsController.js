@@ -59,9 +59,15 @@ const getAttachmentErrorStatus = (error) => {
 };
 
 const canViewIncident = (user, incident) => {
+  if (!hasPermission(user, PERMISSIONS.INCIDENTS_VIEW)) return false;
+
   if (hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
 
-  if (incident?.assignedTo && String(incident.assignedTo?._id || incident.assignedTo) === String(user?.id)) {
+  if (
+    user?.accessScopes?.incidents === ACCESS_SCOPES.ASSIGNED &&
+    incident?.assignedTo &&
+    String(incident.assignedTo?._id || incident.assignedTo) === String(user?.id)
+  ) {
     return true;
   }
 
@@ -93,13 +99,23 @@ const canCommentIncident = (user, incident) => {
   return canViewIncident(user, incident);
 };
 
-const canManageIncident = (user, incident) => {
-  if (hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
+const canUseIncidentScope = (user, incident) => {
+  const scope = user?.accessScopes?.incidents;
 
-  if (hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
+  if (scope === ACCESS_SCOPES.ALL) return true;
+
+  if (scope === ACCESS_SCOPES.BRANCH) {
+    return getAssignedBranchIds(user).includes(String(incident.branch?._id || incident.branch));
+  }
+
+  if (scope === ACCESS_SCOPES.DEPARTMENT) {
     const userDepartment = user?.department?.toLowerCase().trim();
     const incidentDepartment = incident?.department?.toLowerCase().trim();
     return Boolean(userDepartment && incidentDepartment === userDepartment);
+  }
+
+  if (scope === ACCESS_SCOPES.ASSIGNED) {
+    return String(incident.assignedTo?._id || incident.assignedTo || "") === String(user?.id);
   }
 
   return false;
@@ -150,27 +166,7 @@ const getAssignableUserFilter = (user) => {
 
 const canAssignIncident = (user, incident) => {
   if (!hasPermission(user, PERMISSIONS.INCIDENTS_ASSIGN)) return false;
-
-  const scope = user?.accessScopes?.incidents;
-
-  if (scope === ACCESS_SCOPES.ALL) return true;
-
-  if (scope === ACCESS_SCOPES.BRANCH) {
-    return getAssignedBranchIds(user).includes(String(incident.branch?._id || incident.branch));
-  }
-
-  if (scope === ACCESS_SCOPES.DEPARTMENT) {
-    const userDepartment = user?.department?.toLowerCase().trim();
-    const incidentDepartment = incident?.department?.toLowerCase().trim();
-
-    return Boolean(userDepartment && incidentDepartment === userDepartment);
-  }
-
-  if (scope === ACCESS_SCOPES.ASSIGNED) {
-    return String(incident.assignedTo?._id || incident.assignedTo || "") === String(user?.id);
-  }
-
-  return false;
+  return canUseIncidentScope(user, incident);
 };
 
 const addActivity = (incident, { type, message, userId }) => {
@@ -246,6 +242,10 @@ const uploadFilesForIncident = async ({ incident, files, userId, organization })
 
 const getIncidents = async (req, res) => {
   try {
+    if (!hasPermission(req.user, PERMISSIONS.INCIDENTS_VIEW)) {
+      return res.status(403).json({ msg: "No tienes permisos para ver incidencias" });
+    }
+
     const department = req.user?.department;
     const branch = req.user?.branch;
     const branches = Array.isArray(req.user?.branches) ? req.user.branches : [];
@@ -506,7 +506,7 @@ const addComment = async (req, res) => {
       return res.status(404).json({ msg: "Incidencia no encontrada" });
     }
 
-    if (!canViewIncident(req.user, incident)) {
+    if (!canCommentIncident(req.user, incident)) {
       return res.status(403).json({ msg: "No autorizado para comentar esta incidencia" });
     }
 
@@ -634,7 +634,6 @@ const getAttachmentDownloadUrl = async (req, res) => {
 const updateStatus = async (req, res) => {
   try {
     const { status, comment } = req.body;
-    const { department } = req.user;
 
     if (!status) {
       return res.status(400).json({ msg: "Status requerido" });
@@ -658,6 +657,18 @@ const updateStatus = async (req, res) => {
     const isResolving = status === RESOLVED_STATUS && incident.status !== RESOLVED_STATUS;
     const normalizedComment = comment?.toString().trim();
 
+    if (isResolving) {
+      if (!hasPermission(req.user, PERMISSIONS.INCIDENTS_CLOSE)) {
+        return res.status(403).json({ msg: "No tienes permisos para cerrar incidencias" });
+      }
+    } else if (!hasPermission(req.user, PERMISSIONS.INCIDENTS_UPDATE_STATUS)) {
+      return res.status(403).json({ msg: "No tienes permisos para cambiar el estatus" });
+    }
+
+    if (!canUseIncidentScope(req.user, incident)) {
+      return res.status(403).json({ msg: "No autorizado para cambiar este estatus" });
+    }
+
     if (isResolving && normalizedComment) {
       if (!canCommentIncident(req.user, incident)) {
         return res.status(403).json({ msg: "No tienes permisos para comentar el cierre" });
@@ -679,46 +690,20 @@ const updateStatus = async (req, res) => {
       });
     }
 
-    if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
-      if (incident.status !== status) {
-        addActivity(incident, {
-          type: "status",
-          message: `Estado cambiado a ${status.replace("_", " ")}`,
-          userId: req.user.id,
-        });
-      }
-      incident.status = status;
-      incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
-      await incident.save();
-      await incident.populate("resolutionComment.createdBy", "nombre email");
-      await incident.populate("activityLog.createdBy", "nombre email");
-      return res.json(hideIncidentCommentIfNeeded(incident, req.user));
+    if (incident.status !== status) {
+      addActivity(incident, {
+        type: "status",
+        message: `Estado cambiado a ${status.replace("_", " ")}`,
+        userId: req.user.id,
+      });
     }
 
-    if (
-      hasPermission(req.user, "VIEW_INCIDENTS_DEPARTMENT") &&
-      incident.department &&
-      department &&
-      incident.department.toLowerCase().trim() === department.toLowerCase().trim()
-    ) {
-      if (incident.status !== status) {
-        addActivity(incident, {
-          type: "status",
-          message: `Estado cambiado a ${status.replace("_", " ")}`,
-          userId: req.user.id,
-        });
-      }
-      incident.status = status;
-      incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
-      await incident.save();
-      await incident.populate("resolutionComment.createdBy", "nombre email");
-      await incident.populate("activityLog.createdBy", "nombre email");
-      return res.json(hideIncidentCommentIfNeeded(incident, req.user));
-    }
-
-    return res.status(403).json({
-      msg: "No autorizado para cambiar este estatus",
-    });
+    incident.status = status;
+    incident.resolvedAt = status === RESOLVED_STATUS ? (incident.resolvedAt || new Date()) : null;
+    await incident.save();
+    await incident.populate("resolutionComment.createdBy", "nombre email");
+    await incident.populate("activityLog.createdBy", "nombre email");
+    return res.json(hideIncidentCommentIfNeeded(incident, req.user));
   } catch (error) {
     console.error("ERROR UPDATE STATUS:", error);
 

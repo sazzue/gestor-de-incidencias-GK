@@ -58,10 +58,7 @@ function Sidebar({ isOpen = false, onNavigate }) {
   };
 
   const canCreateIncidents = hasPermission(user, "CREATE_INCIDENT");
-  const canViewIncidents =
-    hasPermission(user, "VIEW_INCIDENTS_ALL") ||
-    hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT") ||
-    hasPermission(user, "VIEW_INCIDENTS_BRANCH");
+  const canViewIncidents = hasPermission(user, "INCIDENTS_VIEW");
   const canAccessUsers = hasPermission(user, "CREATE_USERS");
   const canAccessCatalogs = hasPermission(user, "CATALOGS_MANAGE");
   const canAccessSettings = hasPermission(user, "SETTINGS_MANAGE");
@@ -80,10 +77,10 @@ function Sidebar({ isOpen = false, onNavigate }) {
     hasPermission(user, "DISPOSE_INVENTORY");
   const permissionKey = (user?.permissions || []).join("|");
   const scopeKey = JSON.stringify(user?.accessScopes || {});
+  const displayedFollowUpCount = canViewIncidents ? followUpCount : 0;
 
   useEffect(() => {
     if (!user || !canViewIncidents) {
-      setFollowUpCount(0);
       return;
     }
 
@@ -122,7 +119,7 @@ function Sidebar({ isOpen = false, onNavigate }) {
       window.removeEventListener("auth-refresh", fetchFollowUps);
       window.removeEventListener(FOLLOW_UP_READ_EVENT, fetchFollowUps);
     };
-  }, [user?.id, canViewIncidents, permissionKey, scopeKey]);
+  }, [user, canViewIncidents, permissionKey, scopeKey]);
 
   const isActive = (path) => location.pathname === path;
 
@@ -161,13 +158,13 @@ function Sidebar({ isOpen = false, onNavigate }) {
               className={`sidebar-btn ${isActive("/incidents") ? "active" : ""} ${!canViewIncidents ? "disabled" : ""}`}
             >
               <span>Incidencias</span>
-              {followUpCount > 0 && (
-                <span className="follow-up-badge" title={`${followUpCount} incidencia(s) con seguimiento`}>
+              {displayedFollowUpCount > 0 && (
+                <span className="follow-up-badge" title={`${displayedFollowUpCount} incidencia(s) con seguimiento`}>
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16l-2-2Z" />
                     <path d="M9.5 21h5" />
                   </svg>
-                  <b>{followUpCount}</b>
+                  <b>{displayedFollowUpCount}</b>
                 </span>
               )}
             </button>

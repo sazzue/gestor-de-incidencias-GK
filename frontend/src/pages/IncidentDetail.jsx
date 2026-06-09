@@ -30,20 +30,41 @@ function IncidentDetail() {
   const canViewComments =
     hasPermission(user, "VIEW_INCIDENT_COMMENTS");
 
-  const canUpdate =
-    hasPermission(user, "VIEW_INCIDENTS_ALL") ||
-    hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT");
+  const canUpdateStatus =
+    hasPermission(user, "INCIDENTS_UPDATE_STATUS");
+  const canClose =
+    hasPermission(user, "INCIDENTS_CLOSE");
 
   const canAssign =
     hasPermission(user, "INCIDENTS_ASSIGN");
 
   const canCommentIncident = useMemo(() => {
     if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
-    if (hasPermission(user, "VIEW_INCIDENTS_ALL") || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) return true;
+    const scope = user?.accessScopes?.incidents;
 
-    return (
-      user?.department?.toLowerCase().trim() === incident?.department?.toLowerCase().trim()
-    );
+    if (scope === "all") return true;
+
+    if (scope === "branch") {
+      const branchIds = Array.isArray(user?.branches) && user.branches.length > 0
+        ? user.branches.map((branch) => String(branch?._id || branch))
+        : user?.branch
+          ? [String(user.branch?._id || user.branch)]
+          : [];
+
+      return branchIds.includes(String(incident?.branch?._id || incident?.branch));
+    }
+
+    if (scope === "department") {
+      return (
+        user?.department?.toLowerCase().trim() === incident?.department?.toLowerCase().trim()
+      );
+    }
+
+    if (scope === "assigned") {
+      return String(incident?.assignedTo?._id || incident?.assignedTo || "") === String(user?.id);
+    }
+
+    return false;
   }, [incident, user]);
 
   const formatDate = (date) =>
@@ -274,17 +295,19 @@ function IncidentDetail() {
             <span>{incident.comments?.length || 0} comentario(s)</span>
           </div>
 
-          <div className="follow-up-form">
-            <textarea
-              rows={3}
-              placeholder="Agrega una nota de seguimiento para este ticket..."
-              value={followUpComment}
-              onChange={(e) => setFollowUpComment(e.target.value)}
-            />
-            <button disabled={commenting} onClick={addFollowUpComment}>
-              {commenting ? "Guardando..." : "Agregar comentario"}
-            </button>
-          </div>
+          {canCommentIncident && (
+            <div className="follow-up-form">
+              <textarea
+                rows={3}
+                placeholder="Agrega una nota de seguimiento para este ticket..."
+                value={followUpComment}
+                onChange={(e) => setFollowUpComment(e.target.value)}
+              />
+              <button disabled={commenting} onClick={addFollowUpComment}>
+                {commenting ? "Guardando..." : "Agregar comentario"}
+              </button>
+            </div>
+          )}
 
           {incident.comments?.length > 0 ? (
             <div className="conversation">
@@ -351,7 +374,7 @@ function IncidentDetail() {
             </label>
           )}
 
-          {incident.status !== "resuelto" && canCommentIncident && (
+          {incident.status !== "resuelto" && canClose && canCommentIncident && (
             <label className="close-comment">
               Comentario de cierre
               <textarea
@@ -363,10 +386,14 @@ function IncidentDetail() {
             </label>
           )}
 
-          {incident.status !== "resuelto" && canUpdate && (
+          {incident.status !== "resuelto" && (canUpdateStatus || canClose) && (
             <div className="actions">
-              <button disabled={updating} onClick={() => updateStatus("en_proceso")}>Marcar en proceso</button>
-              <button disabled={updating} className="done" onClick={() => updateStatus("resuelto")}>Resolver ticket</button>
+              {canUpdateStatus && (
+                <button disabled={updating} onClick={() => updateStatus("en_proceso")}>Marcar en proceso</button>
+              )}
+              {canClose && (
+                <button disabled={updating} className="done" onClick={() => updateStatus("resuelto")}>Resolver ticket</button>
+              )}
             </div>
           )}
 

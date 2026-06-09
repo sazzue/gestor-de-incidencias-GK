@@ -42,24 +42,59 @@ function Incidents() {
     incident.status !== "resuelto" &&
     incident.dueAt &&
     new Date(incident.dueAt).getTime() < Date.now();
+  const canViewIncidents = hasPermission(user, "INCIDENTS_VIEW");
+  const canExportIncidents = hasPermission(user, "INCIDENTS_EXPORT");
+  const canUpdateStatus = hasPermission(user, "INCIDENTS_UPDATE_STATUS");
+  const canCloseIncidents = hasPermission(user, "INCIDENTS_CLOSE");
+  const canCreate = hasPermission(user, "CREATE_INCIDENT");
+
+  const canAccessIncidentScope = (incident) => {
+    const scope = user?.accessScopes?.incidents;
+
+    if (scope === "all") return true;
+
+    if (scope === "branch") {
+      const branchIds = Array.isArray(user?.branches) && user.branches.length > 0
+        ? user.branches.map((branch) => String(branch?._id || branch))
+        : user?.branch
+          ? [String(user.branch?._id || user.branch)]
+          : [];
+
+      return branchIds.includes(String(incident.branch?._id || incident.branch));
+    }
+
+    if (scope === "department") {
+      const userDepartment = user?.department?.toLowerCase().trim();
+      const incidentDepartment = incident.department?.toLowerCase().trim();
+      return Boolean(userDepartment && userDepartment === incidentDepartment);
+    }
+
+    if (scope === "assigned") {
+      return String(incident.assignedTo?._id || incident.assignedTo || "") === String(user?.id);
+    }
+
+    return false;
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token || !canViewIncidents) {
+      setIncidents([]);
+      return;
+    }
     fetchIncidents();
     fetchBranches();
     fetchDepartments();
-  }, [user]);
+  }, [user, canViewIncidents]);
 
   useEffect(() => {
     if (
-      hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT") &&
-      !hasPermission(user, "VIEW_INCIDENTS_ALL") &&
-      !hasPermission(user, "VIEW_INCIDENTS_BRANCH")
+      user?.accessScopes?.incidents === "department" &&
+      canViewIncidents
     ) {
       setFilterDept(user.department?.toLowerCase().trim());
     }
-  }, [user]);
+  }, [canViewIncidents, user]);
 
   useEffect(() => {
     filterIncidents();
@@ -146,6 +181,7 @@ function Incidents() {
   };
 
   const exportIncidentsPdf = () => {
+    if (!canExportIncidents) { alert("No tienes permisos para exportar reportes"); return; }
     if (filteredIncidents.length === 0) { alert("No hay incidencias para exportar"); return; }
     const rows = filteredIncidents.map((i) => ({
       title: i.title,
@@ -192,12 +228,7 @@ function Incidents() {
 
   const canCommentIncident = (incident) => {
     if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
-
-    if (hasPermission(user, "VIEW_INCIDENTS_ALL") || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) return true;
-
-    const userDepartment = user?.department?.toLowerCase().trim();
-    const incidentDepartment = incident.department?.toLowerCase().trim();
-    return Boolean(userDepartment && userDepartment === incidentDepartment);
+    return canAccessIncidentScope(incident);
   };
 
   const updateStatus = async (id, status) => {
@@ -270,12 +301,6 @@ function Incidents() {
     }
   };
 
-  const canUpdate =
-    hasPermission(user, "VIEW_INCIDENTS_ALL") ||
-    hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT");
-  const canCreate =
-    hasPermission(user, "CREATE_INCIDENT");
-
   return (
     <div className="page">
 
@@ -316,12 +341,18 @@ function Incidents() {
         <input type="date" onChange={(e) => setStartDate(e.target.value)} />
         <input type="date" onChange={(e) => setEndDate(e.target.value)} />
 
-        <button className="btn-export" onClick={exportIncidentsPdf}>Exportar PDF</button>
+        {canExportIncidents && (
+          <button className="btn-export" onClick={exportIncidentsPdf}>Exportar PDF</button>
+        )}
       </div>
 
       {/* GRID */}
+      {!canViewIncidents && (
+        <div className="empty-state">No tienes permisos para ver incidencias.</div>
+      )}
+
       <div className="grid">
-        {filteredIncidents.map((inc) => (
+        {canViewIncidents && filteredIncidents.map((inc) => (
           <div key={inc._id} className="card">
             <div className="card-top">
               <div>
@@ -388,7 +419,7 @@ function Incidents() {
               </div>
             )}
 
-            {inc.status !== "resuelto" && canCommentIncident(inc) && (
+            {inc.status !== "resuelto" && canCloseIncidents && canCommentIncident(inc) && (
               <div className="comment-box">
                 <label>
                   Comentario de cierre
@@ -426,14 +457,18 @@ function Incidents() {
               </button>
               {inc.status === "resuelto" ? (
                 <span className="closed-status">Cerrada</span>
-              ) : canUpdate ? (
+              ) : canUpdateStatus || canCloseIncidents ? (
                 <>
-                  <button className="btn-process" onClick={() => updateStatus(inc._id, "en_proceso")}>
-                    En proceso
-                  </button>
-                  <button className="btn-done" onClick={() => updateStatus(inc._id, "resuelto")}>
-                    Resolver
-                  </button>
+                  {canUpdateStatus && (
+                    <button className="btn-process" onClick={() => updateStatus(inc._id, "en_proceso")}>
+                      En proceso
+                    </button>
+                  )}
+                  {canCloseIncidents && (
+                    <button className="btn-done" onClick={() => updateStatus(inc._id, "resuelto")}>
+                      Resolver
+                    </button>
+                  )}
                 </>
               ) : (
                 <span className="no-perm">Sin autorizacion</span>
@@ -527,6 +562,14 @@ function Incidents() {
           gap: 16px;
           width: 100%;
           max-width: 100%;
+        }
+
+        .empty-state {
+          background: rgba(255,255,255,0.04);
+          border: 1px dashed rgba(255,255,255,0.16);
+          border-radius: 8px;
+          padding: 16px;
+          color: #94a3b8;
         }
 
         .card {
