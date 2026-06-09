@@ -27,7 +27,7 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     if (!allowedInvoiceTypes.has(file.mimetype)) {
-      return cb(new Error("Solo se permiten facturas en PDF o imagen"));
+      return cb(new Error("Solo se permiten comprobantes en PDF o imagen"));
     }
 
     cb(null, true);
@@ -38,10 +38,10 @@ const handleUploadErrors = (err, req, res, next) => {
   if (!err) return next();
 
   if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(400).json({ msg: "La factura debe pesar maximo 8 MB" });
+    return res.status(400).json({ msg: "El comprobante debe pesar maximo 8 MB" });
   }
 
-  return res.status(400).json({ msg: err.message || "Factura invalida" });
+  return res.status(400).json({ msg: err.message || "Comprobante invalido" });
 };
 
 const getAssignedBranchIds = (user) => {
@@ -140,7 +140,7 @@ router.get("/", auth, async (req, res) => {
 router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req, res) => {
   try {
     if (!hasPermission(req.user, "CREATE_INVENTORY")) {
-      return res.status(403).json({ msg: "No tienes permisos para registrar equipos" });
+      return res.status(403).json({ msg: "No tienes permisos para registrar articulos" });
     }
 
     const { model, brand, serialNumber, provider, responsible, price, branch } = req.body;
@@ -150,20 +150,20 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
     if (!model || !brand || !serialNumber || !provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Modelo, marca, numero de serie, proveedor, responsable, precio, sucursal y departamento son obligatorios",
+        error: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios",
       });
     }
 
     if (!canUseBranch(req.user, branch)) {
-      return res.status(403).json({ msg: "No puedes registrar equipos para esta sucursal" });
+      return res.status(403).json({ msg: "No puedes registrar articulos para esta sucursal" });
     }
 
     if (hasPermission(req.user, "VIEW_INVENTORY_DEPARTMENT") && !canUseDepartment(req.user, department)) {
-      return res.status(403).json({ msg: "No puedes registrar equipos para otro departamento" });
+      return res.status(403).json({ msg: "No puedes registrar articulos para otro departamento" });
     }
 
     if (req.file && !isR2Configured()) {
-      return res.status(503).json({ msg: "Cloudflare R2 no esta configurado para cargar facturas" });
+      return res.status(503).json({ msg: "Cloudflare R2 no esta configurado para cargar comprobantes" });
     }
 
     if (req.file) {
@@ -215,22 +215,22 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       return res.status(400).json({ msg: "El numero de serie ya existe" });
     }
 
-    res.status(500).json({ msg: "Error al registrar equipo", error: error.message });
+    res.status(500).json({ msg: "Error al registrar articulo", error: error.message });
   }
 });
 
 router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, async (req, res) => {
   try {
     if (!hasPermission(req.user, "INVENTORY_UPDATE")) {
-      return res.status(403).json({ msg: "No tienes permisos para cargar facturas" });
+      return res.status(403).json({ msg: "No tienes permisos para cargar comprobantes" });
     }
 
     if (!req.file) {
-      return res.status(400).json({ msg: "La factura es obligatoria" });
+      return res.status(400).json({ msg: "El comprobante es obligatorio" });
     }
 
     if (!isR2Configured()) {
-      return res.status(503).json({ msg: "Cloudflare R2 no esta configurado para cargar facturas" });
+      return res.status(503).json({ msg: "Cloudflare R2 no esta configurado para cargar comprobantes" });
     }
 
     const item = await InventoryItem.findOne({
@@ -239,11 +239,11 @@ router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, a
     });
 
     if (!item) {
-      return res.status(404).json({ msg: "Equipo no encontrado" });
+      return res.status(404).json({ msg: "Articulo no encontrado" });
     }
 
     if (!canAccessItem(req.user, item)) {
-      return res.status(403).json({ msg: "No autorizado para cargar factura en este equipo" });
+      return res.status(403).json({ msg: "No autorizado para cargar comprobante en este articulo" });
     }
 
     await assertWithinPlanLimit({
@@ -274,14 +274,14 @@ router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, a
       return res.status(error.status || 403).json({ msg: error.message });
     }
 
-    res.status(500).json({ msg: "Error al cargar factura", error: error.message });
+    res.status(500).json({ msg: "Error al cargar comprobante", error: error.message });
   }
 });
 
 router.put("/:id", auth, async (req, res) => {
   try {
     if (!hasPermission(req.user, "INVENTORY_UPDATE")) {
-      return res.status(403).json({ msg: "No tienes permisos para actualizar equipos" });
+      return res.status(403).json({ msg: "No tienes permisos para actualizar articulos" });
     }
 
     const { model, brand, serialNumber, provider, responsible, price, branch } = req.body;
@@ -291,7 +291,7 @@ router.put("/:id", auth, async (req, res) => {
     if (!model || !brand || !serialNumber || !provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Modelo, marca, numero de serie, proveedor, responsable, precio, sucursal y departamento son obligatorios",
+        error: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios",
       });
     }
 
@@ -301,19 +301,19 @@ router.put("/:id", auth, async (req, res) => {
     });
 
     if (!item) {
-      return res.status(404).json({ msg: "Equipo no encontrado" });
+      return res.status(404).json({ msg: "Articulo no encontrado" });
     }
 
     if (!canAccessItem(req.user, item)) {
-      return res.status(403).json({ msg: "No autorizado para actualizar este equipo" });
+      return res.status(403).json({ msg: "No autorizado para actualizar este articulo" });
     }
 
     if (!canUseBranch(req.user, branch)) {
-      return res.status(403).json({ msg: "No puedes mover equipos a esta sucursal" });
+      return res.status(403).json({ msg: "No puedes mover articulos a esta sucursal" });
     }
 
     if (hasPermission(req.user, "VIEW_INVENTORY_DEPARTMENT") && !canUseDepartment(req.user, department)) {
-      return res.status(403).json({ msg: "No puedes mover equipos a otro departamento" });
+      return res.status(403).json({ msg: "No puedes mover articulos a otro departamento" });
     }
 
     item.model = model;
@@ -337,14 +337,14 @@ router.put("/:id", auth, async (req, res) => {
       return res.status(400).json({ msg: "El numero de serie ya existe" });
     }
 
-    res.status(500).json({ msg: "Error al actualizar equipo", error: error.message });
+    res.status(500).json({ msg: "Error al actualizar articulo", error: error.message });
   }
 });
 
 router.put("/:id/dispose", auth, async (req, res) => {
   try {
     if (!hasPermission(req.user, "DISPOSE_INVENTORY")) {
-      return res.status(403).json({ msg: "No tienes permisos para dar de baja equipos" });
+      return res.status(403).json({ msg: "No tienes permisos para dar de baja articulos" });
     }
 
     const reason = req.body.reason?.trim();
@@ -359,15 +359,15 @@ router.put("/:id/dispose", auth, async (req, res) => {
     });
 
     if (!item) {
-      return res.status(404).json({ msg: "Equipo no encontrado" });
+      return res.status(404).json({ msg: "Articulo no encontrado" });
     }
 
     if (!canAccessItem(req.user, item)) {
-      return res.status(403).json({ msg: "No puedes dar de baja equipos de esta sucursal" });
+      return res.status(403).json({ msg: "No puedes dar de baja articulos de esta sucursal" });
     }
 
     if (item.status === "baja") {
-      return res.status(400).json({ msg: "El equipo ya esta dado de baja" });
+      return res.status(400).json({ msg: "El articulo ya esta dado de baja" });
     }
 
     item.status = "baja";
@@ -383,7 +383,7 @@ router.put("/:id/dispose", auth, async (req, res) => {
 
     res.json(updated);
   } catch (error) {
-    res.status(500).json({ msg: "Error al dar de baja equipo", error: error.message });
+    res.status(500).json({ msg: "Error al dar de baja articulo", error: error.message });
   }
 });
 
@@ -395,15 +395,15 @@ router.get("/:id/invoice", auth, async (req, res) => {
     });
 
     if (!item) {
-      return res.status(404).json({ msg: "Equipo no encontrado" });
+      return res.status(404).json({ msg: "Articulo no encontrado" });
     }
 
     if (!canAccessItem(req.user, item)) {
-      return res.status(403).json({ msg: "No autorizado para ver esta factura" });
+      return res.status(403).json({ msg: "No autorizado para ver este comprobante" });
     }
 
     if (!item.invoice?.key) {
-      return res.status(404).json({ msg: "Este equipo no tiene factura cargada" });
+      return res.status(404).json({ msg: "Este articulo no tiene comprobante cargado" });
     }
 
     const url = await getInventoryInvoiceUrl({ key: item.invoice.key });
@@ -414,7 +414,7 @@ router.get("/:id/invoice", auth, async (req, res) => {
       fileName: item.invoice.originalName,
     });
   } catch (error) {
-    res.status(500).json({ msg: "Error al generar enlace de factura", error: error.message });
+    res.status(500).json({ msg: "Error al generar enlace de comprobante", error: error.message });
   }
 });
 

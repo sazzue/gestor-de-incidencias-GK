@@ -99,11 +99,11 @@ function Inventory() {
     });
 
   const exportInventoryPdf = () => {
-    if (filteredItems.length === 0) { alert("No hay equipos para exportar"); return; }
+    if (filteredItems.length === 0) { alert("No hay articulos para exportar"); return; }
 
     exportPdfReport({
       title: "Reporte de inventario",
-      subtitle: "Equipos comprados y asignados por sucursal",
+      subtitle: "Articulos registrados y asignados por sucursal",
       summary: [
         { label: "Total", value: inventoryStats.total },
         { label: "Activos", value: inventoryStats.activos },
@@ -111,18 +111,20 @@ function Inventory() {
         { label: "Valor activo", value: formatCurrency(inventoryStats.value) },
       ],
       columns: [
-        { key: "equipment", label: "Equipo" },
-        { key: "serialNumber", label: "Serie" },
+        { key: "article", label: "Articulo" },
+        { key: "category", label: "Categoria / marca" },
+        { key: "code", label: "Codigo" },
         { key: "branch", label: "Sucursal" },
         { key: "department", label: "Departamento" },
         { key: "provider", label: "Proveedor" },
-        { key: "responsible", label: "Responsable" },
-        { key: "price", label: "Precio" },
+        { key: "responsible", label: "Responsable / ubicacion" },
+        { key: "price", label: "Valor" },
         { key: "status", label: "Estado" },
       ],
       rows: filteredItems.map((item) => ({
-        equipment: `${item.brand || ""} ${item.model || ""}`.trim(),
-        serialNumber: item.serialNumber,
+        article: item.model || "Sin articulo",
+        category: item.brand || "Sin categoria",
+        code: item.serialNumber,
         branch: item.branch?.name || "Sin sucursal",
         department: item.department || "Sin departamento",
         provider: item.provider,
@@ -214,7 +216,7 @@ function Inventory() {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Modelo, marca, numero de serie, proveedor, responsable, precio, sucursal y departamento son obligatorios.",
+        detail: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios.",
       });
       return;
     }
@@ -242,7 +244,7 @@ function Inventory() {
       if (!res.ok) {
         setMessage({
           type: "error",
-          title: data.msg || "No se pudo registrar el equipo",
+          title: data.msg || "No se pudo registrar el articulo",
           detail: data.error || `Error ${res.status}`,
         });
         return;
@@ -252,8 +254,8 @@ function Inventory() {
       setForm({ ...initialForm, department: isDepartmentLocked ? userDepartment : "" });
       setMessage({
         type: "success",
-        title: "Equipo registrado",
-        detail: "El equipo quedo agregado al inventario.",
+        title: "Articulo registrado",
+        detail: "El articulo quedo agregado al inventario.",
       });
     } catch {
       setMessage({
@@ -274,13 +276,13 @@ function Inventory() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.msg || "No se pudo abrir la factura");
+        alert(data.msg || "No se pudo abrir el comprobante");
         return;
       }
 
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch {
-      alert("No se pudo generar el enlace de factura");
+      alert("No se pudo generar el enlace del comprobante");
     }
   };
 
@@ -288,7 +290,7 @@ function Inventory() {
     if (!invoiceFile) {
       setMessage({
         type: "error",
-        title: "Factura requerida",
+        title: "Comprobante requerido",
         detail: "Selecciona un archivo PDF o imagen.",
       });
       return;
@@ -309,7 +311,7 @@ function Inventory() {
       if (!res.ok) {
         setMessage({
           type: "error",
-          title: data.msg || "No se pudo cargar la factura",
+          title: data.msg || "No se pudo cargar el comprobante",
           detail: data.error || `Error ${res.status}`,
         });
         return;
@@ -320,8 +322,8 @@ function Inventory() {
       setInvoiceFile(null);
       setMessage({
         type: "success",
-        title: "Factura cargada",
-        detail: "La factura quedo vinculada al equipo.",
+        title: "Comprobante cargado",
+        detail: "El comprobante quedo vinculado al articulo.",
       });
     } catch {
       setMessage({
@@ -359,7 +361,7 @@ function Inventory() {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Modelo, marca, numero de serie, proveedor, responsable, precio, sucursal y departamento son obligatorios.",
+        detail: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios.",
       });
       return;
     }
@@ -385,7 +387,7 @@ function Inventory() {
       if (!res.ok) {
         setMessage({
           type: "error",
-          title: data.msg || "No se pudo actualizar el equipo",
+          title: data.msg || "No se pudo actualizar el articulo",
           detail: data.error || `Error ${res.status}`,
         });
         return;
@@ -396,8 +398,8 @@ function Inventory() {
       setEditForm(initialForm);
       setMessage({
         type: "success",
-        title: "Equipo actualizado",
-        detail: "Los datos del equipo quedaron guardados.",
+        title: "Articulo actualizado",
+        detail: "Los datos del articulo quedaron guardados.",
       });
     } catch {
       setMessage({
@@ -415,7 +417,7 @@ function Inventory() {
       setMessage({
         type: "error",
         title: "Motivo requerido",
-        detail: "Escribe el motivo de baja del equipo.",
+        detail: "Escribe el motivo de baja del articulo.",
       });
       return;
     }
@@ -445,7 +447,7 @@ function Inventory() {
       setDisposeReason("");
       setMessage({
         type: "success",
-        title: "Equipo dado de baja",
+        title: "Articulo dado de baja",
         detail: "El inventario fue actualizado.",
       });
     } catch {
@@ -470,7 +472,7 @@ function Inventory() {
       <div className="page-header">
         <div>
           <h1>Inventario</h1>
-          <p>Equipos comprados y asignados por sucursal</p>
+          <p>Articulos, activos y recursos asignados por sucursal</p>
         </div>
         <button className="export-btn" onClick={exportInventoryPdf}>Exportar PDF</button>
       </div>
@@ -504,32 +506,32 @@ function Inventory() {
       {canCreate && (
         <form className="inventory-form" onSubmit={createItem}>
           <div className="form-title">
-            <h2>Registrar equipo</h2>
+            <h2>Registrar articulo</h2>
           </div>
 
           <div className="form-grid">
             <div className="form-group">
-              <label>Modelo</label>
-              <input value={form.model} onChange={(e) => updateForm("model", e.target.value)} />
+              <label>Articulo</label>
+              <input value={form.model} onChange={(e) => updateForm("model", e.target.value)} placeholder="Ej. Monitor, silla, herramienta" />
             </div>
             <div className="form-group">
-              <label>Marca</label>
-              <input value={form.brand} onChange={(e) => updateForm("brand", e.target.value)} />
+              <label>Categoria / marca</label>
+              <input value={form.brand} onChange={(e) => updateForm("brand", e.target.value)} placeholder="Ej. Mobiliario, Dell, oficina" />
             </div>
             <div className="form-group">
-              <label>Numero de serie</label>
-              <input value={form.serialNumber} onChange={(e) => updateForm("serialNumber", e.target.value)} />
+              <label>Codigo / serie</label>
+              <input value={form.serialNumber} onChange={(e) => updateForm("serialNumber", e.target.value)} placeholder="SKU, folio interno o serie" />
             </div>
             <div className="form-group">
               <label>Proveedor</label>
               <input value={form.provider} onChange={(e) => updateForm("provider", e.target.value)} />
             </div>
             <div className="form-group">
-              <label>Responsable</label>
-              <input value={form.responsible} onChange={(e) => updateForm("responsible", e.target.value)} />
+              <label>Responsable / ubicacion</label>
+              <input value={form.responsible} onChange={(e) => updateForm("responsible", e.target.value)} placeholder="Persona, area o ubicacion" />
             </div>
             <div className="form-group">
-              <label>Precio</label>
+              <label>Valor</label>
               <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => updateForm("price", e.target.value)} />
             </div>
             <div className="form-group">
@@ -555,18 +557,18 @@ function Inventory() {
               </select>
             </div>
             <div className="form-group wide">
-              <label>Factura</label>
+              <label>Comprobante</label>
               <input
                 type="file"
                 accept=".pdf,.png,.jpg,.jpeg,.webp"
                 onChange={(e) => updateForm("invoice", e.target.files?.[0] || null)}
               />
-              <span>PDF o imagen, maximo 8 MB.</span>
+              <span>Comprobante, recibo o evidencia en PDF o imagen, maximo 8 MB.</span>
             </div>
           </div>
 
           <button className="btn-submit" disabled={isSubmitting}>
-            {isSubmitting ? "Guardando..." : "Guardar equipo"}
+            {isSubmitting ? "Guardando..." : "Guardar articulo"}
           </button>
         </form>
       )}
@@ -597,66 +599,70 @@ function Inventory() {
 
       <div className="inventory-grid">
         {filteredItems.length === 0 ? (
-          <div className="empty-state">No hay equipos para mostrar.</div>
+          <div className="empty-state">No hay articulos para mostrar.</div>
         ) : (
-          filteredItems.map((item) => (
-            <div className="item-card" key={item._id}>
-              <div className="item-top">
-                <div>
-                  <h3>{item.brand} {item.model}</h3>
-                  <span>{item.serialNumber}</span>
+          <div className="inventory-table">
+            <div className="inventory-table-head">
+              <span>Articulo</span>
+              <span>Ubicacion</span>
+              <span>Responsable</span>
+              <span>Valor</span>
+              <span>Estado</span>
+              <span>Acciones</span>
+            </div>
+            {filteredItems.map((item) => (
+              <div className="inventory-row" key={item._id}>
+                <div className="item-identity">
+                  <strong>{item.model || "Sin articulo"}</strong>
+                  <span>{item.brand || "Sin categoria"} · {item.serialNumber || "Sin codigo"}</span>
+                  <small>Proveedor: {item.provider || "Sin proveedor"}</small>
                 </div>
-                <b className={`status ${item.status}`}>{item.status}</b>
-              </div>
-
-              <div className="item-meta">
-                <span>Sucursal: {item.branch?.name || "Sin sucursal"}</span>
-                <span>Departamento: {item.department || "Sin departamento"}</span>
-                <span>Proveedor: {item.provider}</span>
-                <span>Responsable: {item.responsible || "Sin responsable"}</span>
-                <span>Precio: {formatCurrency(item.price)}</span>
-                <span>Compra: {new Date(item.createdAt).toLocaleDateString("es-MX")}</span>
-              </div>
-
-              {item.status === "baja" && (
-                <div className="disposal-box">
-                  <b>Motivo de baja</b>
-                  <span>{item.disposalReason}</span>
-                  {item.disposedAt && (
-                    <small>{new Date(item.disposedAt).toLocaleDateString("es-MX")}</small>
+                <div className="location-cell">
+                  <strong>{item.branch?.name || "Sin sucursal"}</strong>
+                  <span>{item.department || "Sin departamento"}</span>
+                  <small>Alta: {new Date(item.createdAt).toLocaleDateString("es-MX")}</small>
+                </div>
+                <div className="responsible-cell">
+                  <span>{item.responsible || "Sin responsable"}</span>
+                  {item.invoice?.key && <small>Comprobante cargado</small>}
+                </div>
+                <div className="value-cell">{formatCurrency(item.price)}</div>
+                <div className="status-cell">
+                  <b className={`status ${item.status}`}>{item.status}</b>
+                  {item.status === "baja" && (
+                    <small>{item.disposalReason || "Sin motivo de baja"}</small>
                   )}
                 </div>
-              )}
-
-              <div className="card-actions">
-                {item.invoice?.key && (
-                  <button type="button" onClick={() => downloadInvoice(item)}>Factura</button>
-                )}
-                {canUpdate && item.status === "activo" && (
-                  <button type="button" onClick={() => openEditItem(item)}>
-                    Editar equipo
-                  </button>
-                )}
-                {canUpdate && (
-                  <button type="button" onClick={() => { setInvoiceItem(item); setInvoiceFile(null); }}>
-                    {item.invoice?.key ? "Reemplazar factura" : "Subir factura"}
-                  </button>
-                )}
-                {canDispose && item.status === "activo" && (
-                  <button type="button" className="danger-btn" onClick={() => setDisposeItem(item)}>
-                    Dar de baja
-                  </button>
-                )}
+                <div className="card-actions">
+                  {item.invoice?.key && (
+                    <button type="button" onClick={() => downloadInvoice(item)}>Comprobante</button>
+                  )}
+                  {canUpdate && item.status === "activo" && (
+                    <button type="button" onClick={() => openEditItem(item)}>
+                      Editar
+                    </button>
+                  )}
+                  {canUpdate && (
+                    <button type="button" onClick={() => { setInvoiceItem(item); setInvoiceFile(null); }}>
+                      {item.invoice?.key ? "Reemplazar comprobante" : "Subir comprobante"}
+                    </button>
+                  )}
+                  {canDispose && item.status === "activo" && (
+                    <button type="button" className="danger-btn" onClick={() => setDisposeItem(item)}>
+                      Dar de baja
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
       {disposeItem && (
         <div className="modal">
           <div className="modal-content">
-            <h3>Dar de baja equipo</h3>
+            <h3>Dar de baja articulo</h3>
             <p>{disposeItem.brand} {disposeItem.model} - {disposeItem.serialNumber}</p>
             <textarea
               rows={4}
@@ -677,7 +683,7 @@ function Inventory() {
       {invoiceItem && (
         <div className="modal">
           <div className="modal-content">
-            <h3>{invoiceItem.invoice?.key ? "Reemplazar factura" : "Subir factura"}</h3>
+            <h3>{invoiceItem.invoice?.key ? "Reemplazar comprobante" : "Subir comprobante"}</h3>
             <p>{invoiceItem.brand} {invoiceItem.model} - {invoiceItem.serialNumber}</p>
             <input
               type="file"
@@ -687,7 +693,7 @@ function Inventory() {
             <span>PDF o imagen, maximo 8 MB.</span>
             <div className="modal-actions">
               <button type="button" disabled={isUploadingInvoice} onClick={submitInvoice}>
-                {isUploadingInvoice ? "Cargando..." : "Guardar factura"}
+                {isUploadingInvoice ? "Cargando..." : "Guardar comprobante"}
               </button>
               <button type="button" onClick={() => { setInvoiceItem(null); setInvoiceFile(null); }}>
                 Cancelar
@@ -700,19 +706,19 @@ function Inventory() {
       {editingItem && (
         <div className="modal">
           <form className="modal-content wide" onSubmit={submitUpdateItem}>
-            <h3>Editar equipo</h3>
+            <h3>Editar articulo</h3>
             <p>{editingItem.brand} {editingItem.model} - {editingItem.serialNumber}</p>
             <div className="form-grid">
               <div className="form-group">
-                <label>Modelo</label>
+                <label>Articulo</label>
                 <input value={editForm.model} onChange={(e) => updateEditForm("model", e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Marca</label>
+                <label>Categoria / marca</label>
                 <input value={editForm.brand} onChange={(e) => updateEditForm("brand", e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Numero de serie</label>
+                <label>Codigo / serie</label>
                 <input value={editForm.serialNumber} onChange={(e) => updateEditForm("serialNumber", e.target.value)} />
               </div>
               <div className="form-group">
@@ -720,11 +726,11 @@ function Inventory() {
                 <input value={editForm.provider} onChange={(e) => updateEditForm("provider", e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Responsable</label>
+                <label>Responsable / ubicacion</label>
                 <input value={editForm.responsible} onChange={(e) => updateEditForm("responsible", e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Precio</label>
+                <label>Valor</label>
                 <input type="number" min="0" step="0.01" value={editForm.price} onChange={(e) => updateEditForm("price", e.target.value)} />
               </div>
               <div className="form-group">
@@ -910,34 +916,82 @@ function Inventory() {
         }
 
         .inventory-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-          gap: 16px;
-        }
-
-        .item-card {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.07);
-          border-radius: 8px;
-          padding: 16px;
           min-width: 0;
         }
 
-        .item-top {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 12px;
+        .inventory-table {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 8px;
+          overflow: hidden;
+          min-width: 0;
         }
 
-        .item-top h3 {
-          font-size: 15px;
+        .inventory-table-head,
+        .inventory-row {
+          display: grid;
+          grid-template-columns: minmax(220px, 1.4fr) minmax(170px, 1fr) minmax(160px, 1fr) minmax(110px, 0.7fr) minmax(110px, 0.7fr) minmax(220px, 1.1fr);
+          gap: 16px;
+          align-items: center;
+          padding: 14px 18px;
+        }
+
+        .inventory-table-head {
+          color: #93c5fd;
+          font-size: 12px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0;
+          background: rgba(15,23,42,0.65);
+          border-bottom: 1px solid rgba(148,163,184,0.14);
+        }
+
+        .inventory-row {
+          border-bottom: 1px solid rgba(148,163,184,0.1);
+        }
+
+        .inventory-row:last-child {
+          border-bottom: none;
+        }
+
+        .item-identity,
+        .location-cell,
+        .responsible-cell,
+        .status-cell {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+
+        .item-identity strong,
+        .location-cell strong {
+          color: #f8fafc;
+          font-size: 14px;
           overflow-wrap: anywhere;
         }
 
-        .item-top span {
-          color: #94a3b8;
+        .item-identity span,
+        .location-cell span,
+        .responsible-cell span {
+          color: #cbd5e1;
           font-size: 12px;
+          overflow-wrap: anywhere;
+        }
+
+        .item-identity small,
+        .location-cell small,
+        .responsible-cell small,
+        .status-cell small {
+          color: #64748b;
+          font-size: 12px;
+          overflow-wrap: anywhere;
+        }
+
+        .value-cell {
+          color: #bfdbfe;
+          font-weight: 700;
+          font-size: 13px;
         }
 
         .status {
@@ -951,34 +1005,11 @@ function Inventory() {
         .status.activo { background: rgba(34,197,94,0.15); color: #22c55e; }
         .status.baja { background: rgba(239,68,68,0.15); color: #f87171; }
 
-        .item-meta {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-          color: #cbd5e1;
-          font-size: 12px;
-        }
-
-        .disposal-box {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          margin-top: 12px;
-          padding: 10px;
-          border-radius: 8px;
-          background: rgba(239,68,68,0.08);
-          border: 1px solid rgba(239,68,68,0.18);
-          font-size: 12px;
-          color: #fecaca;
-        }
-
-        .disposal-box small { color: #94a3b8; }
-
         .card-actions {
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
-          margin-top: 14px;
+          justify-content: flex-end;
         }
 
         .card-actions button,
@@ -1046,6 +1077,22 @@ function Inventory() {
           .inventory-page { padding: 16px; }
           .toolbar select { width: 100%; }
           .modal-actions { flex-direction: column; }
+        }
+
+        @media (max-width: 1050px) {
+          .inventory-table-head {
+            display: none;
+          }
+
+          .inventory-row {
+            grid-template-columns: 1fr;
+            gap: 12px;
+            align-items: stretch;
+          }
+
+          .card-actions {
+            justify-content: flex-start;
+          }
         }
       `}</style>
     </div>
