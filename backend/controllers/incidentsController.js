@@ -118,11 +118,11 @@ const escapeRegExp = (value) =>
 const getAssignableUserFilter = (user) => {
   const scope = user?.accessScopes?.incidents;
 
-  if (scope === ACCESS_SCOPES.ALL || hasPermission(user, "VIEW_INCIDENTS_ALL")) {
+  if (scope === ACCESS_SCOPES.ALL) {
     return {};
   }
 
-  if (scope === ACCESS_SCOPES.BRANCH || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) {
+  if (scope === ACCESS_SCOPES.BRANCH) {
     const branchIds = getAssignedBranchIds(user);
     if (branchIds.length === 0) return null;
 
@@ -134,11 +134,15 @@ const getAssignableUserFilter = (user) => {
     };
   }
 
-  if (scope === ACCESS_SCOPES.DEPARTMENT || hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
+  if (scope === ACCESS_SCOPES.DEPARTMENT) {
     const department = user?.department?.toString().trim();
     if (!department) return null;
 
     return { department: new RegExp(`^${escapeRegExp(department)}$`, "i") };
+  }
+
+  if (scope === ACCESS_SCOPES.ASSIGNED) {
+    return { _id: user?.id };
   }
 
   return null;
@@ -149,17 +153,21 @@ const canAssignIncident = (user, incident) => {
 
   const scope = user?.accessScopes?.incidents;
 
-  if (scope === ACCESS_SCOPES.ALL || hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
+  if (scope === ACCESS_SCOPES.ALL) return true;
 
-  if (scope === ACCESS_SCOPES.BRANCH || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) {
+  if (scope === ACCESS_SCOPES.BRANCH) {
     return getAssignedBranchIds(user).includes(String(incident.branch?._id || incident.branch));
   }
 
-  if (scope === ACCESS_SCOPES.DEPARTMENT || hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
+  if (scope === ACCESS_SCOPES.DEPARTMENT) {
     const userDepartment = user?.department?.toLowerCase().trim();
     const incidentDepartment = incident?.department?.toLowerCase().trim();
 
     return Boolean(userDepartment && incidentDepartment === userDepartment);
+  }
+
+  if (scope === ACCESS_SCOPES.ASSIGNED) {
+    return String(incident.assignedTo?._id || incident.assignedTo || "") === String(user?.id);
   }
 
   return false;
