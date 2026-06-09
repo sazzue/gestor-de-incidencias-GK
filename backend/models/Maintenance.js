@@ -19,7 +19,8 @@ const maintenanceSchema = new mongoose.Schema({
 
   department: {
     type: String,
-    enum: ["sistemas", "mantenimiento"],
+    trim: true,
+    lowercase: true,
   },
 
   status: {

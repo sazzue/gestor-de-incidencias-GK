@@ -6,13 +6,8 @@ const Maintenance = require("../models/Maintenance");
 const { hasPermission } = require("../utils/permissions");
 const { notifyNewRecord } = require("../utils/notifications");
 
-const MAINTENANCE_DEPARTMENTS = ["sistemas", "mantenimiento"];
-
 const normalizeDepartment = (department) =>
   department?.toString().trim().toLowerCase();
-
-const isMaintenanceDepartment = (department) =>
-  MAINTENANCE_DEPARTMENTS.includes(normalizeDepartment(department));
 
 const getAssignedBranchIds = (user) => {
   const branches = Array.isArray(user.branches) ? user.branches : [];
@@ -37,10 +32,7 @@ const getMaintenanceQueryForUser = (user) => {
   }
 
   const department = normalizeDepartment(user.department);
-  if (
-    hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") &&
-    isMaintenanceDepartment(department)
-  ) {
+  if (hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") && department) {
     return { organization, department };
   }
 
@@ -60,7 +52,7 @@ const canAccessMaintenance = (user, maintenance) => {
     const maintenanceDepartment = normalizeDepartment(maintenance.department);
 
     return (
-      isMaintenanceDepartment(userDepartment) &&
+      userDepartment &&
       maintenanceDepartment === userDepartment
     );
   }
@@ -117,13 +109,6 @@ router.post("/", auth, async (req, res) => {
       return res.status(400).json({
         msg: "Datos incompletos",
         error: "title, description, branch, department y date son obligatorios"
-      });
-    }
-
-    if (!isMaintenanceDepartment(department)) {
-      return res.status(400).json({
-        msg: "Departamento no valido",
-        error: "Solo se pueden programar mantenimientos para sistemas o mantenimiento"
       });
     }
 

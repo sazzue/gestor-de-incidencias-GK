@@ -6,23 +6,15 @@ import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
-const MAINTENANCE_DEPARTMENTS = [
-  { value: "sistemas", label: "Sistemas" },
-  { value: "mantenimiento", label: "Mantenimiento" },
-];
-
 const normalizeDepartment = (department) =>
   department?.toString().trim().toLowerCase() || "";
-
-const getDepartmentLabel = (department) =>
-  MAINTENANCE_DEPARTMENTS.find((item) => item.value === normalizeDepartment(department))?.label ||
-  "Sin departamento";
 
 function MaintenanceCalendar() {
   const [date, setDate] = useState(new Date());
   const [maintenances, setMaintenances] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [filterStatus, setFilterStatus] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState("");
@@ -54,9 +46,23 @@ function MaintenanceCalendar() {
   const userDepartment = normalizeDepartment(user?.department);
   const isMaintenanceDepartmentUser =
     hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") &&
-    MAINTENANCE_DEPARTMENTS.some((item) => item.value === userDepartment);
-  const canChooseDepartment = canCreate || hasPermission(user, "VIEW_MAINTENANCE_ALL");
+    Boolean(userDepartment);
+  const canChooseDepartment = canCreate && user?.accessScopes?.maintenance !== "department";
   const canCreateMaintenance = canCreate;
+  const departmentOptions = departments.map((department) => ({
+    value: normalizeDepartment(department.name),
+    label: department.name,
+  }));
+  if (
+    userDepartment &&
+    !departmentOptions.some((department) => department.value === userDepartment)
+  ) {
+    departmentOptions.push({ value: userDepartment, label: user.department });
+  }
+  const getDepartmentLabel = (department) =>
+    departmentOptions.find((item) => item.value === normalizeDepartment(department))?.label ||
+    department ||
+    "Sin departamento";
 
   const getUserBranchIds = () => {
     const userBranches = Array.isArray(user?.branches) ? user.branches : [];
@@ -162,15 +168,6 @@ function MaintenanceCalendar() {
       return;
     }
 
-    if (!MAINTENANCE_DEPARTMENTS.some((item) => item.value === departmentToSave)) {
-      setModalMessage({
-        type: "error",
-        title: "Departamento no valido",
-        detail: "Solo se pueden programar mantenimientos para Sistemas o Mantenimiento."
-      });
-      return;
-    }
-
     try {
       const res = await fetch(`${API_URL}/api/maintenance`, {
         method: "POST",
@@ -234,6 +231,11 @@ function MaintenanceCalendar() {
     fetch(`${API_URL}/api/branches`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => setBranches(data))
+      .catch(err => console.error(err));
+
+    fetch(`${API_URL}/api/departments`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => setDepartments(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
   }, []);
 
@@ -311,7 +313,7 @@ function MaintenanceCalendar() {
             {(canChooseDepartment || hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) && (
               <select value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)}>
                 <option value="">Todos los departamentos</option>
-                {MAINTENANCE_DEPARTMENTS.map((dep) => (
+                {departmentOptions.map((dep) => (
                   <option key={dep.value} value={dep.value}>{dep.label}</option>
                 ))}
               </select>
@@ -319,7 +321,7 @@ function MaintenanceCalendar() {
           </div>
 
           <button disabled={!canCreateMaintenance} className="create-btn" onClick={() => setShowModal(true)}>
-            {canCreateMaintenance ? "Programar mantenimiento" : "Solo Sistemas y Mantenimiento pueden crear"}
+            {canCreateMaintenance ? "Programar mantenimiento" : "Sin permiso para programar mantenimientos"}
           </button>
 
           <button onClick={exportFilteredToPdf} className="export-btn">Exportar PDF</button>
@@ -389,7 +391,7 @@ function MaintenanceCalendar() {
               disabled={isMaintenanceDepartmentUser && !canChooseDepartment}
             >
               <option value="">Departamento</option>
-              {MAINTENANCE_DEPARTMENTS.map((dep) => (
+              {departmentOptions.map((dep) => (
                 <option key={dep.value} value={dep.value}>{dep.label}</option>
               ))}
             </select>
