@@ -32,6 +32,9 @@ function Inventory() {
   const [invoiceItem, setInvoiceItem] = useState(null);
   const [invoiceFile, setInvoiceFile] = useState(null);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editForm, setEditForm] = useState(initialForm);
+  const [isUpdatingItem, setIsUpdatingItem] = useState(false);
 
   const token = localStorage.getItem("token");
   const user = useAuthUser();
@@ -39,8 +42,9 @@ function Inventory() {
   const canViewAll = hasPermission(user, "VIEW_INVENTORY_ALL");
   const canViewDepartment = hasPermission(user, "VIEW_INVENTORY_DEPARTMENT");
   const canCreate = hasPermission(user, "CREATE_INVENTORY");
+  const canUpdate = hasPermission(user, "INVENTORY_UPDATE");
   const canDispose = hasPermission(user, "DISPOSE_INVENTORY");
-  const canView = canViewAll || canViewDepartment || hasPermission(user, "VIEW_INVENTORY_BRANCH") || canCreate || canDispose;
+  const canView = canViewAll || canViewDepartment || hasPermission(user, "VIEW_INVENTORY_BRANCH") || canCreate || canUpdate || canDispose;
   const userDepartment = user?.department?.toString().trim().toLowerCase() || "";
   const isDepartmentLocked = !canViewAll && canViewDepartment && Boolean(userDepartment);
 
@@ -131,6 +135,10 @@ function Inventory() {
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateEditForm = (field, value) => {
+    setEditForm((current) => ({ ...current, [field]: value }));
   };
 
   const fetchInventory = async () => {
@@ -323,6 +331,82 @@ function Inventory() {
       });
     } finally {
       setIsUploadingInvoice(false);
+    }
+  };
+
+  const openEditItem = (item) => {
+    setEditingItem(item);
+    setEditForm({
+      model: item.model || "",
+      brand: item.brand || "",
+      serialNumber: item.serialNumber || "",
+      provider: item.provider || "",
+      responsible: item.responsible || "",
+      price: item.price ?? "",
+      branch: item.branch?._id || item.branch || "",
+      department: item.department || "",
+      invoice: null,
+    });
+  };
+
+  const submitUpdateItem = async (event) => {
+    event.preventDefault();
+    setMessage(null);
+
+    if (!editingItem?._id) return;
+
+    if (!editForm.model || !editForm.brand || !editForm.serialNumber || !editForm.provider || !editForm.responsible || !editForm.price || !editForm.branch || !editForm.department) {
+      setMessage({
+        type: "error",
+        title: "Faltan campos obligatorios",
+        detail: "Modelo, marca, numero de serie, proveedor, responsable, precio, sucursal y departamento son obligatorios.",
+      });
+      return;
+    }
+
+    try {
+      setIsUpdatingItem(true);
+      const res = await fetch(`${API_URL}/api/inventory/${editingItem._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          model: editForm.model,
+          brand: editForm.brand,
+          serialNumber: editForm.serialNumber,
+          provider: editForm.provider,
+          responsible: editForm.responsible,
+          price: editForm.price,
+          branch: editForm.branch,
+          department: editForm.department,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: data.msg || "No se pudo actualizar el equipo",
+          detail: data.error || `Error ${res.status}`,
+        });
+        return;
+      }
+
+      setItems((current) => current.map((item) => (item._id === data._id ? data : item)));
+      setEditingItem(null);
+      setEditForm(initialForm);
+      setMessage({
+        type: "success",
+        title: "Equipo actualizado",
+        detail: "Los datos del equipo quedaron guardados.",
+      });
+    } catch {
+      setMessage({
+        type: "error",
+        title: "Error de conexion",
+        detail: "No se pudo conectar con el servidor.",
+      });
+    } finally {
+      setIsUpdatingItem(false);
     }
   };
 
@@ -548,7 +632,12 @@ function Inventory() {
                 {item.invoice?.key && (
                   <button type="button" onClick={() => downloadInvoice(item)}>Factura</button>
                 )}
-                {canCreate && (
+                {canUpdate && item.status === "activo" && (
+                  <button type="button" onClick={() => openEditItem(item)}>
+                    Editar equipo
+                  </button>
+                )}
+                {canUpdate && (
                   <button type="button" onClick={() => { setInvoiceItem(item); setInvoiceFile(null); }}>
                     {item.invoice?.key ? "Reemplazar factura" : "Subir factura"}
                   </button>
@@ -605,6 +694,71 @@ function Inventory() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {editingItem && (
+        <div className="modal">
+          <form className="modal-content wide" onSubmit={submitUpdateItem}>
+            <h3>Editar equipo</h3>
+            <p>{editingItem.brand} {editingItem.model} - {editingItem.serialNumber}</p>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Modelo</label>
+                <input value={editForm.model} onChange={(e) => updateEditForm("model", e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Marca</label>
+                <input value={editForm.brand} onChange={(e) => updateEditForm("brand", e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Numero de serie</label>
+                <input value={editForm.serialNumber} onChange={(e) => updateEditForm("serialNumber", e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Proveedor</label>
+                <input value={editForm.provider} onChange={(e) => updateEditForm("provider", e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Responsable</label>
+                <input value={editForm.responsible} onChange={(e) => updateEditForm("responsible", e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Precio</label>
+                <input type="number" min="0" step="0.01" value={editForm.price} onChange={(e) => updateEditForm("price", e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Sucursal</label>
+                <select value={editForm.branch} onChange={(e) => updateEditForm("branch", e.target.value)}>
+                  <option value="">Seleccionar sucursal</option>
+                  {formBranches.map((branch) => (
+                    <option key={branch._id} value={branch._id}>{branch.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Departamento</label>
+                <select
+                  value={editForm.department}
+                  onChange={(e) => updateEditForm("department", e.target.value)}
+                  disabled={isDepartmentLocked}
+                >
+                  <option value="">Seleccionar departamento</option>
+                  {availableDepartments.map((department) => (
+                    <option key={department._id} value={department.name?.toLowerCase()}>{department.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="submit" disabled={isUpdatingItem}>
+                {isUpdatingItem ? "Guardando..." : "Guardar cambios"}
+              </button>
+              <button type="button" onClick={() => { setEditingItem(null); setEditForm(initialForm); }}>
+                Cancelar
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -872,6 +1026,10 @@ function Inventory() {
           display: flex;
           flex-direction: column;
           gap: 12px;
+        }
+
+        .modal-content.wide {
+          width: min(760px, 100%);
         }
 
         .modal-content h3 { font-size: 17px; }

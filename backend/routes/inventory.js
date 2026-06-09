@@ -70,6 +70,7 @@ const getInventoryQueryForUser = (user) => {
   if (
     hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
     hasPermission(user, "CREATE_INVENTORY") ||
+    hasPermission(user, "INVENTORY_UPDATE") ||
     hasPermission(user, "DISPOSE_INVENTORY")
   ) {
     const branchIds = getAssignedBranchIds(user);
@@ -105,6 +106,7 @@ const canAccessItem = (user, item) => {
     !(
       hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
       hasPermission(user, "CREATE_INVENTORY") ||
+      hasPermission(user, "INVENTORY_UPDATE") ||
       hasPermission(user, "DISPOSE_INVENTORY")
     )
   ) {
@@ -219,7 +221,7 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
 
 router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, async (req, res) => {
   try {
-    if (!hasPermission(req.user, "CREATE_INVENTORY")) {
+    if (!hasPermission(req.user, "INVENTORY_UPDATE")) {
       return res.status(403).json({ msg: "No tienes permisos para cargar facturas" });
     }
 
@@ -273,6 +275,69 @@ router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, a
     }
 
     res.status(500).json({ msg: "Error al cargar factura", error: error.message });
+  }
+});
+
+router.put("/:id", auth, async (req, res) => {
+  try {
+    if (!hasPermission(req.user, "INVENTORY_UPDATE")) {
+      return res.status(403).json({ msg: "No tienes permisos para actualizar equipos" });
+    }
+
+    const { model, brand, serialNumber, provider, responsible, price, branch } = req.body;
+    const department = normalizeDepartment(req.body.department);
+    const numericPrice = Number(price);
+
+    if (!model || !brand || !serialNumber || !provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
+      return res.status(400).json({
+        msg: "Datos incompletos",
+        error: "Modelo, marca, numero de serie, proveedor, responsable, precio, sucursal y departamento son obligatorios",
+      });
+    }
+
+    const item = await InventoryItem.findOne({
+      _id: req.params.id,
+      organization: req.user.organization || null,
+    });
+
+    if (!item) {
+      return res.status(404).json({ msg: "Equipo no encontrado" });
+    }
+
+    if (!canAccessItem(req.user, item)) {
+      return res.status(403).json({ msg: "No autorizado para actualizar este equipo" });
+    }
+
+    if (!canUseBranch(req.user, branch)) {
+      return res.status(403).json({ msg: "No puedes mover equipos a esta sucursal" });
+    }
+
+    if (hasPermission(req.user, "VIEW_INVENTORY_DEPARTMENT") && !canUseDepartment(req.user, department)) {
+      return res.status(403).json({ msg: "No puedes mover equipos a otro departamento" });
+    }
+
+    item.model = model;
+    item.brand = brand;
+    item.serialNumber = serialNumber.trim();
+    item.provider = provider;
+    item.responsible = responsible;
+    item.price = numericPrice;
+    item.branch = branch;
+    item.department = department;
+    await item.save();
+
+    const updated = await InventoryItem.findById(item._id)
+      .populate("branch", "name")
+      .populate("createdBy", "nombre email")
+      .populate("disposedBy", "nombre email");
+
+    res.json(updated);
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ msg: "El numero de serie ya existe" });
+    }
+
+    res.status(500).json({ msg: "Error al actualizar equipo", error: error.message });
   }
 });
 
