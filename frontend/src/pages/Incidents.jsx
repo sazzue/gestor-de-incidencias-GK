@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
+import {
+  FOLLOW_UP_READ_EVENT,
+  hasUnreadFollowUp,
+} from "../utils/followUpNotifications";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const priorityLabels = {
@@ -24,6 +28,7 @@ function Incidents() {
   const [endDate, setEndDate] = useState("");
   const [uploadingIncidentId, setUploadingIncidentId] = useState(null);
   const [resolutionComments, setResolutionComments] = useState({});
+  const [, setFollowUpReadVersion] = useState(0);
 
   const navigate = useNavigate();
   const user = useAuthUser();
@@ -59,6 +64,17 @@ function Incidents() {
   useEffect(() => {
     filterIncidents();
   }, [incidents, selectedBranch, filterDept, filterStatus, startDate, endDate]);
+
+  useEffect(() => {
+    const refreshReadState = () => setFollowUpReadVersion((version) => version + 1);
+    window.addEventListener(FOLLOW_UP_READ_EVENT, refreshReadState);
+    window.addEventListener("storage", refreshReadState);
+
+    return () => {
+      window.removeEventListener(FOLLOW_UP_READ_EVENT, refreshReadState);
+      window.removeEventListener("storage", refreshReadState);
+    };
+  }, []);
 
   const fetchIncidents = async () => {
     try {
@@ -313,7 +329,7 @@ function Incidents() {
                 <h3>{inc.title}</h3>
               </div>
               <div className="badges">
-                {(inc.comments || []).length > 0 && (
+                {hasUnreadFollowUp(inc, user) && (
                   <span className="follow-up-badge" title={`${inc.comments.length} comentario(s) de seguimiento`}>
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16l-2-2Z" />

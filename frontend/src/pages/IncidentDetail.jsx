@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
+import { markIncidentFollowUpsRead } from "../utils/followUpNotifications";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -102,6 +103,12 @@ function IncidentDetail() {
       fetchAssignableUsers();
     }
   }, [fetchAssignableUsers, fetchIncident]);
+
+  useEffect(() => {
+    if (incident && user) {
+      markIncidentFollowUpsRead(incident, user);
+    }
+  }, [incident, user]);
 
   const updateStatus = async (status) => {
     try {

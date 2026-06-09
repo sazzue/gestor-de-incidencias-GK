@@ -4,6 +4,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
 import { hasPermission } from "../config/permissions";
 import { useSystemSettings } from "../hooks/useSystemSettings";
+import {
+  FOLLOW_UP_READ_EVENT,
+  getUnreadFollowUpIncidents,
+} from "../utils/followUpNotifications";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -98,7 +102,7 @@ function Sidebar({ isOpen = false, onNavigate }) {
         if (!isActive || !res.ok) return;
 
         const count = Array.isArray(data)
-          ? data.filter((incident) => (incident.comments || []).length > 0).length
+          ? getUnreadFollowUpIncidents(data, user).length
           : 0;
 
         setFollowUpCount(count);
@@ -109,12 +113,14 @@ function Sidebar({ isOpen = false, onNavigate }) {
 
     fetchFollowUps();
     window.addEventListener("auth-refresh", fetchFollowUps);
+    window.addEventListener(FOLLOW_UP_READ_EVENT, fetchFollowUps);
     const interval = setInterval(fetchFollowUps, 30000);
 
     return () => {
       isActive = false;
       clearInterval(interval);
       window.removeEventListener("auth-refresh", fetchFollowUps);
+      window.removeEventListener(FOLLOW_UP_READ_EVENT, fetchFollowUps);
     };
   }, [user?.id, canViewIncidents, permissionKey, scopeKey]);
 
