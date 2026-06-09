@@ -313,6 +313,15 @@ function Incidents() {
                 <h3>{inc.title}</h3>
               </div>
               <div className="badges">
+                {(inc.comments || []).length > 0 && (
+                  <span className="follow-up-badge" title={`${inc.comments.length} comentario(s) de seguimiento`}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16l-2-2Z" />
+                      <path d="M9.5 21h5" />
+                    </svg>
+                    Seguimiento {inc.comments.length}
+                  </span>
+                )}
                 <span className={`priority ${inc.priority || "media"}`}>
                   {priorityLabels[inc.priority] || "Media"}
                 </span>
@@ -694,6 +703,29 @@ function Incidents() {
         .priority.media { background: rgba(96,165,250,0.14); color: #93c5fd; }
         .priority.alta { background: rgba(245,158,11,0.16); color: #fbbf24; }
         .priority.critica { background: rgba(239,68,68,0.18); color: #fca5a5; }
+        .follow-up-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          padding: 4px 9px;
+          border-radius: 999px;
+          border: 1px solid rgba(245,158,11,0.35);
+          background: rgba(245,158,11,0.16);
+          color: #fbbf24;
+          font-size: 11px;
+          font-weight: 800;
+          white-space: nowrap;
+        }
+        .follow-up-badge svg {
+          width: 13px;
+          height: 13px;
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
         .pendiente  { background: rgba(239,68,68,0.15);  color: #ef4444; }
         .en_proceso { background: rgba(245,158,11,0.15); color: #f59e0b; }
         .resuelto   { background: rgba(34,197,94,0.15);  color: #22c55e; }

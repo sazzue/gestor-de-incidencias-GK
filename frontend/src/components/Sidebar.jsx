@@ -9,6 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 function Sidebar({ isOpen = false, onNavigate }) {
   const [user, setUser] = useState(null);
+  const [followUpCount, setFollowUpCount] = useState(0);
   const { settings } = useSystemSettings();
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,6 +74,49 @@ function Sidebar({ isOpen = false, onNavigate }) {
     hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
     hasPermission(user, "CREATE_INVENTORY") ||
     hasPermission(user, "DISPOSE_INVENTORY");
+  const permissionKey = (user?.permissions || []).join("|");
+  const scopeKey = JSON.stringify(user?.accessScopes || {});
+
+  useEffect(() => {
+    if (!user || !canViewIncidents) {
+      setFollowUpCount(0);
+      return;
+    }
+
+    let isActive = true;
+
+    const fetchFollowUps = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const res = await fetch(`${API_URL}/api/incidents`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+
+        if (!isActive || !res.ok) return;
+
+        const count = Array.isArray(data)
+          ? data.filter((incident) => (incident.comments || []).length > 0).length
+          : 0;
+
+        setFollowUpCount(count);
+      } catch {
+        if (isActive) setFollowUpCount(0);
+      }
+    };
+
+    fetchFollowUps();
+    window.addEventListener("auth-refresh", fetchFollowUps);
+    const interval = setInterval(fetchFollowUps, 30000);
+
+    return () => {
+      isActive = false;
+      clearInterval(interval);
+      window.removeEventListener("auth-refresh", fetchFollowUps);
+    };
+  }, [user?.id, canViewIncidents, permissionKey, scopeKey]);
 
   const isActive = (path) => location.pathname === path;
 
@@ -110,7 +154,16 @@ function Sidebar({ isOpen = false, onNavigate }) {
               onClick={() => goTo("/incidents")}
               className={`sidebar-btn ${isActive("/incidents") ? "active" : ""} ${!canViewIncidents ? "disabled" : ""}`}
             >
-              Incidencias
+              <span>Incidencias</span>
+              {followUpCount > 0 && (
+                <span className="follow-up-badge" title={`${followUpCount} incidencia(s) con seguimiento`}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16l-2-2Z" />
+                    <path d="M9.5 21h5" />
+                  </svg>
+                  <b>{followUpCount}</b>
+                </span>
+              )}
             </button>
 
             <button
@@ -251,6 +304,38 @@ function Sidebar({ isOpen = false, onNavigate }) {
           transition: 0.2s;
           text-align: left;
           font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .follow-up-badge {
+          min-width: 28px;
+          height: 22px;
+          padding: 0 6px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          border-radius: 999px;
+          background: rgba(245,158,11,0.18);
+          color: #fbbf24;
+          border: 1px solid rgba(245,158,11,0.3);
+          font-size: 11px;
+          font-weight: 800;
+          line-height: 1;
+          flex-shrink: 0;
+        }
+
+        .follow-up-badge svg {
+          width: 13px;
+          height: 13px;
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
         }
 
         .sidebar-btn:hover:not(.disabled) {
