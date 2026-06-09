@@ -75,9 +75,9 @@ export const PERMISSION_GROUPS = [
     label: "Inventario",
     permissions: [
       { value: "INVENTORY_VIEW", label: "Ver inventario" },
-      { value: "INVENTORY_CREATE", label: "Registrar equipos" },
-      { value: "INVENTORY_UPDATE", label: "Actualizar equipos/facturas" },
-      { value: "INVENTORY_DISPOSE", label: "Dar de baja equipos" },
+      { value: "INVENTORY_CREATE", label: "Registrar articulos" },
+      { value: "INVENTORY_UPDATE", label: "Actualizar articulos/comprobantes" },
+      { value: "INVENTORY_DISPOSE", label: "Dar de baja articulos" },
       { value: "INVENTORY_EXPORT", label: "Exportar reportes" },
     ],
   },
@@ -112,7 +112,7 @@ export const LEGACY_PERMISSION_LABELS = {
   VIEW_INVENTORY_ALL: "Ver inventario: toda la empresa",
   VIEW_INVENTORY_DEPARTMENT: "Ver inventario: departamento",
   VIEW_INVENTORY_BRANCH: "Ver inventario: sucursales",
-  DISPOSE_INVENTORY: "Dar de baja equipos",
+  DISPOSE_INVENTORY: "Dar de baja articulos",
   DELETE_MAINTENANCE: "Eliminar mantenimientos",
 };
 

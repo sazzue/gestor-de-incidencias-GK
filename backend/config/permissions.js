@@ -103,9 +103,9 @@ const PERMISSION_GROUPS = [
     label: "Inventario",
     permissions: [
       { value: PERMISSIONS.INVENTORY_VIEW, label: "Ver inventario" },
-      { value: PERMISSIONS.INVENTORY_CREATE, label: "Registrar equipos" },
-      { value: PERMISSIONS.INVENTORY_UPDATE, label: "Actualizar equipos/facturas" },
-      { value: PERMISSIONS.INVENTORY_DISPOSE, label: "Dar de baja equipos" },
+      { value: PERMISSIONS.INVENTORY_CREATE, label: "Registrar articulos" },
+      { value: PERMISSIONS.INVENTORY_UPDATE, label: "Actualizar articulos/comprobantes" },
+      { value: PERMISSIONS.INVENTORY_DISPOSE, label: "Dar de baja articulos" },
       { value: PERMISSIONS.INVENTORY_EXPORT, label: "Exportar reportes" },
     ],
   },

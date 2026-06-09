@@ -44,6 +44,7 @@ function Inventory() {
   const canCreate = hasPermission(user, "CREATE_INVENTORY");
   const canUpdate = hasPermission(user, "INVENTORY_UPDATE");
   const canDispose = hasPermission(user, "DISPOSE_INVENTORY");
+  const canExport = hasPermission(user, "INVENTORY_EXPORT");
   const canView = canViewAll || canViewDepartment || hasPermission(user, "VIEW_INVENTORY_BRANCH") || canCreate || canUpdate || canDispose;
   const userDepartment = user?.department?.toString().trim().toLowerCase() || "";
   const isDepartmentLocked = !canViewAll && canViewDepartment && Boolean(userDepartment);
@@ -99,6 +100,7 @@ function Inventory() {
     });
 
   const exportInventoryPdf = () => {
+    if (!canExport) { alert("No tienes permisos para exportar inventario"); return; }
     if (filteredItems.length === 0) { alert("No hay articulos para exportar"); return; }
 
     exportPdfReport({
@@ -474,7 +476,9 @@ function Inventory() {
           <h1>Inventario</h1>
           <p>Articulos, activos y recursos asignados por sucursal</p>
         </div>
-        <button className="export-btn" onClick={exportInventoryPdf}>Exportar PDF</button>
+        {canExport && (
+          <button className="export-btn" onClick={exportInventoryPdf}>Exportar PDF</button>
+        )}
       </div>
 
       {message && (
