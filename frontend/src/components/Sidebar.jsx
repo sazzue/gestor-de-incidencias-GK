@@ -60,7 +60,7 @@ function Sidebar({ isOpen = false, onNavigate }) {
   const canAccessUsers = hasPermission(user, "CREATE_USERS");
   const canAccessCatalogs = hasPermission(user, "CATALOGS_MANAGE");
   const canAccessSettings = hasPermission(user, "SETTINGS_MANAGE");
-  const canAccessOrganizations = hasPermission(user, "ORGANIZATIONS_MANAGE");
+  const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
   const canViewMaintenance =
     hasPermission(user, "VIEW_MAINTENANCE_ALL") ||
     hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") ||

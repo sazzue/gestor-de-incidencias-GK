@@ -36,7 +36,7 @@ function Inventory() {
   const token = localStorage.getItem("token");
   const user = useAuthUser();
 
-  const canViewAll = user?.role === "direccion" || hasPermission(user, "VIEW_INVENTORY_ALL");
+  const canViewAll = hasPermission(user, "VIEW_INVENTORY_ALL");
   const canViewDepartment = hasPermission(user, "VIEW_INVENTORY_DEPARTMENT");
   const canCreate = hasPermission(user, "CREATE_INVENTORY");
   const canDispose = hasPermission(user, "DISPOSE_INVENTORY");

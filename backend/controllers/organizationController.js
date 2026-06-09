@@ -1,6 +1,7 @@
 const Organization = require("../models/Organization");
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const { getAllPermissionValues, PLATFORM_ONLY_PERMISSIONS } = require("../config/permissions");
 const { getOrganizationPlanSummary } = require("../utils/planLimits");
 
 const buildSlug = (value = "") =>
@@ -20,6 +21,9 @@ const normalizeAddOns = (addOns = {}) => ({
   implementation: Boolean(addOns.implementation),
   training: Boolean(addOns.training),
 });
+
+const getDefaultOwnerPermissions = () =>
+  getAllPermissionValues().filter((permission) => !PLATFORM_ONLY_PERMISSIONS.includes(permission));
 
 const attachPlanSummaries = async (organizations) => {
   const list = Array.isArray(organizations) ? organizations : [organizations];
@@ -78,6 +82,7 @@ const createOrganization = async (req, res) => {
         password: hashedPassword,
         role: "admin",
         organization: organization._id,
+        permissions: getDefaultOwnerPermissions(),
         mustChangePassword: true,
       });
 

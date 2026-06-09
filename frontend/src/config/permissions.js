@@ -87,7 +87,6 @@ export const PERMISSION_GROUPS = [
     permissions: [
       { value: "CATALOGS_MANAGE", label: "Administrar catalogos" },
       { value: "SETTINGS_MANAGE", label: "Configurar empresa" },
-      { value: "ORGANIZATIONS_MANAGE", label: "Administrar empresas", platformOnly: true },
     ],
   },
 ];
@@ -146,8 +145,6 @@ export const hasPermission = (user, permission) => {
   if (PLATFORM_ONLY_PERMISSIONS.includes(normalizedPermission) && !user?.isPlatformAdmin) {
     return false;
   }
-
-  if (user?.role === "admin") return true;
 
   if (permissions.has(cleanPermission) || permissions.has(normalizedPermission)) return true;
 

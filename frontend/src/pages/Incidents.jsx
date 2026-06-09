@@ -172,19 +172,16 @@ function Incidents() {
   };
 
   const canViewComments =
-    user?.role === "admin" ||
-    user?.role === "gerencia" ||
-    user?.role === "direccion" ||
     hasPermission(user, "VIEW_INCIDENT_COMMENTS");
 
   const canCommentIncident = (incident) => {
-    if (user?.role === "admin") return true;
     if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
 
-    return (
-      user?.role === "departamento" &&
-      user?.department?.toLowerCase().trim() === incident.department?.toLowerCase().trim()
-    );
+    if (hasPermission(user, "VIEW_INCIDENTS_ALL") || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) return true;
+
+    const userDepartment = user?.department?.toLowerCase().trim();
+    const incidentDepartment = incident.department?.toLowerCase().trim();
+    return Boolean(userDepartment && userDepartment === incidentDepartment);
   };
 
   const updateStatus = async (id, status) => {
@@ -258,7 +255,6 @@ function Incidents() {
   };
 
   const canUpdate =
-    user?.role === "admin" ||
     hasPermission(user, "VIEW_INCIDENTS_ALL") ||
     hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT");
   const canCreate =

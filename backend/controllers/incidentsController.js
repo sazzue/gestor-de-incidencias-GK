@@ -85,18 +85,11 @@ const canViewIncident = (user, incident) => {
 };
 
 const canViewIncidentComments = (user) =>
-  ["admin", "gerencia", "direccion"].includes(user?.role) ||
   hasPermission(user, "VIEW_INCIDENT_COMMENTS");
 
 const canCommentIncident = (user, incident) => {
   if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
-
-  if (user?.role === "admin") return true;
-
-  const userDepartment = user?.department?.toLowerCase().trim();
-  const incidentDepartment = incident?.department?.toLowerCase().trim();
-
-  return Boolean(userDepartment && incidentDepartment === userDepartment);
+  return canViewIncident(user, incident);
 };
 
 const canManageIncident = (user, incident) => {

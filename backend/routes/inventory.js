@@ -54,8 +54,6 @@ const normalizeDepartment = (department) =>
   department?.toString().trim().toLowerCase();
 
 const canViewAllInventory = (user) =>
-  user.role === "admin" ||
-  user.role === "direccion" ||
   hasPermission(user, "VIEW_INVENTORY_ALL");
 
 const getInventoryQueryForUser = (user) => {
@@ -70,7 +68,6 @@ const getInventoryQueryForUser = (user) => {
   }
 
   if (
-    user.role === "gerencia" ||
     hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
     hasPermission(user, "CREATE_INVENTORY") ||
     hasPermission(user, "DISPOSE_INVENTORY")
@@ -106,7 +103,6 @@ const canAccessItem = (user, item) => {
 
   if (
     !(
-      user.role === "gerencia" ||
       hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
       hasPermission(user, "CREATE_INVENTORY") ||
       hasPermission(user, "DISPOSE_INVENTORY")
@@ -160,11 +156,7 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       return res.status(403).json({ msg: "No puedes registrar equipos para esta sucursal" });
     }
 
-    if (
-      req.user.role === "departamento" &&
-      hasPermission(req.user, "VIEW_INVENTORY_DEPARTMENT") &&
-      !canUseDepartment(req.user, department)
-    ) {
+    if (hasPermission(req.user, "VIEW_INVENTORY_DEPARTMENT") && !canUseDepartment(req.user, department)) {
       return res.status(403).json({ msg: "No puedes registrar equipos para otro departamento" });
     }
 

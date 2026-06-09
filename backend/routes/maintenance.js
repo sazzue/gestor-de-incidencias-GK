@@ -23,15 +23,11 @@ const getAssignedBranchIds = (user) => {
 const getMaintenanceQueryForUser = (user) => {
   const organization = user.organization || null;
 
-  if (
-    user.role === "admin" ||
-    user.role === "direccion" ||
-    hasPermission(user, "VIEW_MAINTENANCE_ALL")
-  ) {
+  if (hasPermission(user, "VIEW_MAINTENANCE_ALL")) {
     return { organization };
   }
 
-  if (user.role === "gerencia" || hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) {
+  if (hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) {
     const assignedBranchIds = getAssignedBranchIds(user);
     if (assignedBranchIds.length === 0) {
       return null;
@@ -52,13 +48,9 @@ const getMaintenanceQueryForUser = (user) => {
 };
 
 const canAccessMaintenance = (user, maintenance) => {
-  if (
-    user.role === "admin" ||
-    user.role === "direccion" ||
-    hasPermission(user, "VIEW_MAINTENANCE_ALL")
-  ) return true;
+  if (hasPermission(user, "VIEW_MAINTENANCE_ALL")) return true;
 
-  if (user.role === "gerencia" || hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) {
+  if (hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) {
     const maintenanceBranch = maintenance.branch?._id || maintenance.branch;
     return getAssignedBranchIds(user).includes(maintenanceBranch?.toString());
   }
@@ -77,11 +69,9 @@ const canAccessMaintenance = (user, maintenance) => {
 };
 
 const canViewMaintenanceComments = (user) =>
-  ["admin", "gerencia", "direccion"].includes(user?.role) ||
   hasPermission(user, "VIEW_MAINTENANCE_COMMENTS");
 
 const canCommentMaintenance = (user) =>
-  ["admin", "gerencia", "direccion"].includes(user?.role) ||
   hasPermission(user, "COMMENT_MAINTENANCE");
 
 const hideMaintenanceCommentIfNeeded = (maintenance, user) => {
@@ -137,16 +127,16 @@ router.post("/", auth, async (req, res) => {
       });
     }
 
-    if (
-      req.user.role === "departamento" &&
-      normalizeDepartment(req.user.department) !== department
-    ) {
-      return res.status(403).json({
-        msg: "No puedes crear mantenimientos para otro departamento"
-      });
+    if (hasPermission(req.user, "VIEW_MAINTENANCE_DEPARTMENT")) {
+      const userDepartment = normalizeDepartment(req.user.department);
+      if (userDepartment && userDepartment !== department) {
+        return res.status(403).json({
+          msg: "No puedes crear mantenimientos para otro departamento"
+        });
+      }
     }
 
-    if (req.user.role === "gerencia") {
+    if (hasPermission(req.user, "VIEW_MAINTENANCE_BRANCH")) {
       const assignedBranchIds = getAssignedBranchIds(req.user);
       if (!assignedBranchIds.includes(branch?.toString())) {
         return res.status(403).json({

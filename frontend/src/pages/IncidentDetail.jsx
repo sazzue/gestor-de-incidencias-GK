@@ -27,22 +27,17 @@ function IncidentDetail() {
   const [assigning, setAssigning] = useState(false);
 
   const canViewComments =
-    user?.role === "admin" ||
-    user?.role === "gerencia" ||
-    user?.role === "direccion" ||
     hasPermission(user, "VIEW_INCIDENT_COMMENTS");
 
   const canUpdate =
-    user?.role === "admin" ||
     hasPermission(user, "VIEW_INCIDENTS_ALL") ||
     hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT");
 
   const canCommentIncident = useMemo(() => {
-    if (user?.role === "admin") return true;
     if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
+    if (hasPermission(user, "VIEW_INCIDENTS_ALL") || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) return true;
 
     return (
-      user?.role === "departamento" &&
       user?.department?.toLowerCase().trim() === incident?.department?.toLowerCase().trim()
     );
   }, [incident, user]);

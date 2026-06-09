@@ -5,6 +5,7 @@ const Organization = require("../models/Organization");
 const authMiddleware = require("../middleware/authMiddleware");
 const requirePermission = require("../middleware/requirePermission");
 const { isPlatformAdminEmail, requirePlatformAdmin } = require("../utils/platformAdmin");
+const { hasPermission } = require("../utils/permissions");
 const { createSmtpTransporter } = require("../utils/mailDelivery");
 const { decryptSecret, encryptSecret } = require("../utils/secretCrypto");
 const multer = require("multer");
@@ -350,7 +351,7 @@ router.post("/mail/test", authMiddleware, requirePermission("SETTINGS_MANAGE"), 
   }
 });
 
-router.put("/identity", authMiddleware, requirePermission("ORGANIZATIONS_MANAGE"), requirePlatformAdmin, async (req, res) => {
+router.put("/identity", authMiddleware, requirePlatformAdmin, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const organization = await getDefaultOrganizationId();
@@ -379,7 +380,6 @@ router.put("/identity", authMiddleware, requirePermission("ORGANIZATIONS_MANAGE"
 router.post(
   "/image/:field",
   authMiddleware,
-  requirePermission("SETTINGS_MANAGE", "ORGANIZATIONS_MANAGE"),
   upload.single("image"),
   async (req, res) => {
   try {
@@ -414,6 +414,10 @@ router.post(
       );
 
       return res.json(settings);
+    }
+
+    if (!hasPermission(req.user, "SETTINGS_MANAGE")) {
+      return res.status(403).json({ msg: "No autorizado" });
     }
 
     const settings = await SystemSettings.findOneAndUpdate(

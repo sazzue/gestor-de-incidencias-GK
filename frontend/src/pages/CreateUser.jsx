@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
-import { ROLES } from "../config/roles";
 import {
   ACCESS_SCOPE_OPTIONS,
   PERMISSION_GROUPS,
@@ -41,11 +40,8 @@ function CreateUser() {
   const token = localStorage.getItem("token");
   const currentUser = token ? jwtDecode(token) : null;
   const headers = { Authorization: `Bearer ${token}` };
-  const canManagePlatformPermissions = Boolean(currentUser?.isPlatformAdmin);
   const sanitizeAssignablePermissions = (permissions = []) =>
-    canManagePlatformPermissions
-      ? permissions
-      : permissions.filter((permission) => !PLATFORM_ONLY_PERMISSIONS.includes(permission));
+    permissions.filter((permission) => !PLATFORM_ONLY_PERMISSIONS.includes(permission));
 
   const updateForm = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -63,9 +59,6 @@ function CreateUser() {
     items.includes(item) ? items.filter((value) => value !== item) : [...items, item];
 
   const togglePermission = (list, permission) => toggleListItem(list, permission);
-
-  const getRolePermissions = (roleName) =>
-    roleName === "admin" && Array.isArray(ROLES[roleName]) ? ROLES[roleName] : [];
 
   const getUserBranches = (user) => {
     if (Array.isArray(user?.branches) && user.branches.length > 0) {
@@ -219,7 +212,7 @@ function CreateUser() {
       department: editingUser.department || "",
       branch: editingUser.branches?.[0] || null,
       branches: editingUser.branches || [],
-      permissions: editingUser.role === "admin" ? [] : sanitizeAssignablePermissions(editingUser.permissions || []),
+      permissions: sanitizeAssignablePermissions(editingUser.permissions || []),
       accessScopes: editingUser.accessScopes || getDefaultAccessScopes(editingUser.role),
     };
 
@@ -302,12 +295,10 @@ function CreateUser() {
     </div>
   );
 
-  const renderPermissionCheckboxes = ({ selected, roleName, onChange }) => (
+  const renderPermissionCheckboxes = ({ selected, onChange }) => (
     <div className="permission-modules">
       {PERMISSION_GROUPS.map((group) => {
-        const visiblePermissions = group.permissions.filter(
-          (permission) => !permission.platformOnly || canManagePlatformPermissions
-        );
+        const visiblePermissions = group.permissions;
 
         if (visiblePermissions.length === 0) return null;
 
@@ -316,19 +307,16 @@ function CreateUser() {
           <h4>{group.label}</h4>
           <div className="permissions-grid">
             {visiblePermissions.map((permission) => {
-              const inherited = getRolePermissions(roleName).includes(permission.value);
-              const checked = inherited || selected.includes(permission.value);
+              const checked = selected.includes(permission.value);
 
               return (
                 <label key={permission.value} className="option-row">
                   <input
                     type="checkbox"
                     checked={checked}
-                    disabled={inherited}
                     onChange={() => onChange(togglePermission(selected, permission.value))}
                   />
                   <span>{permission.label}</span>
-                  {inherited && <small>Rol</small>}
                 </label>
               );
             })}
@@ -448,11 +436,10 @@ function CreateUser() {
           <div className="form-section">
             <div>
               <h3>Permisos</h3>
-              <p>Los permisos marcados como Rol se heredan automaticamente.</p>
+              <p>Los permisos marcados aqui son los que tendra el usuario.</p>
             </div>
             {renderPermissionCheckboxes({
               selected: form.permissions,
-              roleName: form.role,
               onChange: (next) => updateForm("permissions", next),
             })}
           </div>
@@ -563,7 +550,6 @@ function CreateUser() {
               <h3>Permisos</h3>
               {renderPermissionCheckboxes({
                 selected: editingUser.permissions || [],
-                roleName: editingUser.role,
                 onChange: (next) => updateEditingUser("permissions", next),
               })}
             </div>

@@ -1,4 +1,3 @@
-const ROLES = require("../config/roles");
 const {
   DEFAULT_ACCESS_SCOPES,
   LEGACY_BY_PERMISSION,
@@ -55,13 +54,9 @@ const expandLegacyPermissions = (permissions, accessScopes) => {
 };
 
 const getPermissionsForUser = async (user) => {
-  const rolePermissions = Array.isArray(ROLES[user?.role]) ? ROLES[user.role] : [];
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
   const accessScopes = getAccessScopesForUser(user);
-  const normalized = normalizePermissions([
-    ...rolePermissions,
-    ...userPermissions,
-  ]);
+  const normalized = normalizePermissions(userPermissions);
 
   const expanded = expandLegacyPermissions(normalized, accessScopes);
 
@@ -71,19 +66,12 @@ const getPermissionsForUser = async (user) => {
 };
 
 const hasPermission = (user, permission) => {
-  if (user?.role === ROLES.ADMIN) {
-    if (
-      PLATFORM_ONLY_PERMISSIONS.includes(LEGACY_PERMISSION_ALIASES[permission] || permission) &&
-      !isPlatformAdminEmail(user?.email)
-    ) {
-      return false;
-    }
-
-    return true;
-  }
-
   const normalizedPermission = LEGACY_PERMISSION_ALIASES[permission] || permission;
-  const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+  const permissions = normalizePermissions(Array.isArray(user?.permissions) ? user.permissions : []);
+
+  if (PLATFORM_ONLY_PERMISSIONS.includes(normalizedPermission) && !isPlatformAdminEmail(user?.email)) {
+    return false;
+  }
 
   return permissions.includes(permission) || permissions.includes(normalizedPermission);
 };

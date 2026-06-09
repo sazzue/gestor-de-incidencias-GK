@@ -115,11 +115,6 @@ const PERMISSION_GROUPS = [
     permissions: [
       { value: PERMISSIONS.CATALOGS_MANAGE, label: "Administrar catalogos" },
       { value: PERMISSIONS.SETTINGS_MANAGE, label: "Configurar empresa" },
-      {
-        value: PERMISSIONS.ORGANIZATIONS_MANAGE,
-        label: "Administrar empresas",
-        platformOnly: true,
-      },
     ],
   },
 ];

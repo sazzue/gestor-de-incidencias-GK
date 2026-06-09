@@ -47,23 +47,16 @@ function MaintenanceCalendar() {
   const canConfirm =
     hasPermission(user, "CONFIRM_MAINTENANCE");
   const canViewMaintenanceComments =
-    user?.role === "admin" ||
-    user?.role === "gerencia" ||
-    user?.role === "direccion" ||
     hasPermission(user, "VIEW_MAINTENANCE_COMMENTS");
   const canCommentMaintenance =
-    user?.role === "admin" ||
-    user?.role === "gerencia" ||
-    user?.role === "direccion" ||
     hasPermission(user, "COMMENT_MAINTENANCE");
 
   const userDepartment = normalizeDepartment(user?.department);
-  const isDepartmentUser = user?.role === "departamento";
   const isMaintenanceDepartmentUser =
-    isDepartmentUser &&
+    hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") &&
     MAINTENANCE_DEPARTMENTS.some((item) => item.value === userDepartment);
-  const canChooseDepartment = user?.role === "admin" || user?.role === "direccion";
-  const canCreateMaintenance = canCreate && (!isDepartmentUser || isMaintenanceDepartmentUser);
+  const canChooseDepartment = canCreate || hasPermission(user, "VIEW_MAINTENANCE_ALL");
+  const canCreateMaintenance = canCreate;
 
   const getUserBranchIds = () => {
     const userBranches = Array.isArray(user?.branches) ? user.branches : [];
@@ -77,17 +70,21 @@ function MaintenanceCalendar() {
 
   const canConfirmMaintenance = (maintenance) => {
     if (!canConfirm) return false;
-    if (user?.role === "admin" || user?.role === "direccion") return true;
+    if (hasPermission(user, "VIEW_MAINTENANCE_ALL")) return true;
 
-    if (user?.role === "departamento") {
+    if (hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT")) {
       return (
         isMaintenanceDepartmentUser &&
         normalizeDepartment(maintenance?.department) === userDepartment
       );
     }
 
-    const maintenanceBranch = maintenance?.branch?._id || maintenance?.branch;
-    return getUserBranchIds().includes(maintenanceBranch);
+    if (hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) {
+      const maintenanceBranch = maintenance?.branch?._id || maintenance?.branch;
+      return getUserBranchIds().includes(maintenanceBranch);
+    }
+
+    return true;
   };
 
   const toLocalDate = (d) => new Date(d).toLocaleDateString("sv-SE");
@@ -154,7 +151,7 @@ function MaintenanceCalendar() {
   const createMaintenance = async () => {
     setModalMessage(null);
     setMessage(null);
-    const departmentToSave = isDepartmentUser ? userDepartment : maintenanceDepartment;
+    const departmentToSave = isMaintenanceDepartmentUser && !canChooseDepartment ? userDepartment : maintenanceDepartment;
 
     if (!title || !description || !branch || !departmentToSave || !dateInput) {
       setModalMessage({
@@ -311,7 +308,7 @@ function MaintenanceCalendar() {
               {branches.map((b) => (<option key={b._id} value={b._id}>{b.name}</option>))}
             </select>
 
-            {(canChooseDepartment || user?.role === "gerencia") && (
+            {(canChooseDepartment || hasPermission(user, "VIEW_MAINTENANCE_BRANCH")) && (
               <select value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)}>
                 <option value="">Todos los departamentos</option>
                 {MAINTENANCE_DEPARTMENTS.map((dep) => (
@@ -387,9 +384,9 @@ function MaintenanceCalendar() {
               {branches.map((b) => (<option key={b._id} value={b._id}>{b.name}</option>))}
             </select>
             <select
-              value={isDepartmentUser ? userDepartment : maintenanceDepartment}
+              value={isMaintenanceDepartmentUser && !canChooseDepartment ? userDepartment : maintenanceDepartment}
               onChange={(e) => setMaintenanceDepartment(e.target.value)}
-              disabled={isDepartmentUser}
+              disabled={isMaintenanceDepartmentUser && !canChooseDepartment}
             >
               <option value="">Departamento</option>
               {MAINTENANCE_DEPARTMENTS.map((dep) => (
