@@ -172,13 +172,9 @@ function MaintenanceCalendar() {
     }
   }
 
-  function filterByDate(data, selectedDate) {
+  function filterByDate(data) {
     let result = [...data];
-    const selected = toLocalDate(selectedDate);
     switch (filterStatus) {
-      case "day": result = result.filter((m) => toLocalDate(m.date) === selected); break;
-      case "day-programado": result = result.filter((m) => toLocalDate(m.date) === selected && m.status === "programado"); break;
-      case "day-finalizado": result = result.filter((m) => toLocalDate(m.date) === selected && m.status === "finalizado"); break;
       case "programado":
       case "finalizado": result = result.filter((m) => m.status === filterStatus); break;
     }
@@ -223,7 +219,7 @@ function MaintenanceCalendar() {
         });
         return;
       }
-      setMaintenances((prev) => { const updated = [...prev, data]; filterByDate(updated, date); return updated; });
+      setMaintenances((prev) => { const updated = [...prev, data]; filterByDate(updated); return updated; });
       setShowModal(false);
       setMessage({
         type: "success",
@@ -257,8 +253,8 @@ function MaintenanceCalendar() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    filterByDate(maintenances, date);
-  }, [filterStatus, date, maintenances, selectedBranch, selectedDepartment]);
+    filterByDate(maintenances);
+  }, [filterStatus, maintenances, selectedBranch, selectedDepartment]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/branches`, { headers: { Authorization: `Bearer ${token}` } })
@@ -399,27 +395,93 @@ function MaintenanceCalendar() {
     confirmMaintenance(maintenance._id);
   };
 
+  const getItemsForDate = (items, selectedDate) =>
+    items.filter((item) => toLocalDate(item.date) === toLocalDate(selectedDate));
+
+  const selectedDateMaintenances = getItemsForDate(filtered, date);
+  const selectedDateLabel = date.toLocaleDateString("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const programadosCount = filtered.filter((item) => item.status === "programado").length;
+  const finalizadosCount = filtered.filter((item) => item.status === "finalizado").length;
+
+  const renderCalendarTile = ({ date: tileDate, view }) => {
+    if (view !== "month") return null;
+
+    const items = getItemsForDate(filtered, tileDate);
+    if (items.length === 0) return null;
+
+    return (
+      <div className="tile-events">
+        {items.slice(0, 2).map((item) => (
+          <span key={item._id} className={`tile-event ${item.status}`}>
+            {item.branch?.name || item.title}
+          </span>
+        ))}
+        {items.length > 2 && <span className="tile-more">+{items.length - 2}</span>}
+      </div>
+    );
+  };
+
+  const getCalendarTileClass = ({ date: tileDate, view }) => {
+    if (view !== "month") return "";
+    return getItemsForDate(filtered, tileDate).length > 0 ? "has-maintenance" : "";
+  };
+
   return (
     <>
-      <div className="layout-calendar">
-        {/* IZQUIERDA */}
-        <div className="calendar-panel">
-          <h2>Mantenimientos</h2>
+      <div className="maintenance-page">
+        <header className="maintenance-hero">
+          <div>
+            <span>Agenda operativa</span>
+            <h1>Mantenimientos</h1>
+            <p>Programa, confirma y da seguimiento a los trabajos por fecha, sucursal y departamento.</p>
+          </div>
+          <div className="hero-actions">
+            {canCreateMaintenance && (
+              <button className="create-btn" onClick={() => setShowModal(true)}>
+                Programar mantenimiento
+              </button>
+            )}
+            {canExportMaintenance && (
+              <button onClick={exportFilteredToPdf} className="export-btn">Exportar PDF</button>
+            )}
+          </div>
+        </header>
+
+        <div className="summary-strip">
+          <div>
+            <span>Total filtrado</span>
+            <strong>{filtered.length}</strong>
+          </div>
+          <div>
+            <span>Programados</span>
+            <strong>{programadosCount}</strong>
+          </div>
+          <div>
+            <span>Finalizados</span>
+            <strong>{finalizadosCount}</strong>
+          </div>
+          <div>
+            <span>Fecha seleccionada</span>
+            <strong>{selectedDateMaintenances.length}</strong>
+          </div>
+        </div>
+
+        <section className="toolbar-panel">
           {message && (
             <div className={`notice ${message.type}`}>
               <b>{message.title}</b>
               <span>{message.detail}</span>
             </div>
           )}
-          <Calendar onChange={setDate} value={date} />
-
           <div className="filters">
             <button className={filterStatus === "all" ? "active" : ""} onClick={() => setFilterStatus("all")}>Todos</button>
             <button className={filterStatus === "programado" ? "active" : ""} onClick={() => setFilterStatus("programado")}>Programados</button>
             <button className={filterStatus === "finalizado" ? "active" : ""} onClick={() => setFilterStatus("finalizado")}>Finalizados</button>
-            <button className={filterStatus === "day" ? "active" : ""} onClick={() => setFilterStatus("day")}>Este dia</button>
-            <button className={filterStatus === "day-programado" ? "active" : ""} onClick={() => setFilterStatus("day-programado")}>Programados hoy</button>
-            <button className={filterStatus === "day-finalizado" ? "active" : ""} onClick={() => setFilterStatus("day-finalizado")}>Finalizados hoy</button>
 
             <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
               <option value="">Todas las sucursales</option>
@@ -435,29 +497,37 @@ function MaintenanceCalendar() {
               </select>
             )}
           </div>
+        </section>
 
-          <button disabled={!canCreateMaintenance} className="create-btn" onClick={() => setShowModal(true)}>
-            {canCreateMaintenance ? "Programar mantenimiento" : "Sin permiso para programar mantenimientos"}
-          </button>
+        <div className="calendar-workspace">
+          <section className="calendar-shell">
+            <Calendar
+              onChange={setDate}
+              value={date}
+              tileContent={renderCalendarTile}
+              tileClassName={getCalendarTileClass}
+            />
+          </section>
 
-          {canExportMaintenance && (
-            <button onClick={exportFilteredToPdf} className="export-btn">Exportar PDF</button>
-          )}
-        </div>
+          <aside className="day-panel">
+            <div className="day-panel-header">
+              <span>Fecha seleccionada</span>
+              <h2>{selectedDateLabel}</h2>
+              <p>{selectedDateMaintenances.length} mantenimiento(s)</p>
+            </div>
 
-        {/* DERECHA */}
-        <div className="events-panel">
-          <h3>Eventos del dia</h3>
-          {filtered.length === 0 ? (
-            <div className="empty"><p>No hay mantenimientos</p></div>
+          {selectedDateMaintenances.length === 0 ? (
+            <div className="empty"><p>No hay mantenimientos para esta fecha.</p></div>
           ) : (
-            filtered.map((m) => (
+            selectedDateMaintenances.map((m) => (
               <div key={m._id} className="event-card">
                 <div className="event-header">
-                  <h4>{m.title}</h4>
+                  <div>
+                    <span>{m.branch?.name || "Sin sucursal"}</span>
+                    <h4>{m.title}</h4>
+                  </div>
                   <span className={`status ${m.status}`}>{m.status}</span>
                 </div>
-                <p className="branch">{m.branch?.name}</p>
                 <p className="department">{getDepartmentLabel(m.department)}</p>
                 <p className="desc">{m.description}</p>
                 {canViewMaintenanceComments && m.approvalComment?.text && (
@@ -508,6 +578,7 @@ function MaintenanceCalendar() {
               </div>
             ))
           )}
+          </aside>
         </div>
       </div>
 
@@ -592,249 +663,101 @@ function MaintenanceCalendar() {
       )}
 
       <style>{`
-        .layout-calendar {
-          display: grid;
-          grid-template-columns: 300px 1fr;
-          gap: 20px;
-          padding: 28px;
-          min-height: 100vh;
-          color: #fff;
-        }
-
-        .calendar-panel, .events-panel {
-          background: rgba(255,255,255,0.05);
-          padding: 20px;
-          border-radius: 16px;
-        }
-
-        .notice {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          margin: 10px 0;
-          padding: 12px 14px;
-          border-radius: 8px;
-          font-size: 13px;
-          border: 1px solid transparent;
-        }
+        .maintenance-page { min-height: 100vh; padding: 28px; color: #e5edf8; }
+        .maintenance-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 18px; }
+        .maintenance-hero span { display: block; color: #93c5fd; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+        .maintenance-hero h1 { margin: 0; color: #f8fafc; font-size: 28px; line-height: 1.15; }
+        .maintenance-hero p { margin: 8px 0 0; color: #94a3b8; max-width: 620px; line-height: 1.45; }
+        .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+        .summary-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+        .summary-strip div { min-width: 0; padding: 14px; border: 1px solid rgba(148,163,184,0.16); border-radius: 8px; background: rgba(15,23,42,0.58); }
+        .summary-strip span { display: block; color: #94a3b8; font-size: 12px; margin-bottom: 6px; }
+        .summary-strip strong { color: #f8fafc; font-size: 24px; line-height: 1; }
+        .toolbar-panel { border: 1px solid rgba(148,163,184,0.14); border-radius: 8px; background: rgba(15,23,42,0.54); padding: 14px; margin-bottom: 16px; }
+        .calendar-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 430px); gap: 16px; align-items: start; }
+        .calendar-shell, .day-panel { border: 1px solid rgba(148,163,184,0.14); border-radius: 8px; background: rgba(15,23,42,0.62); }
+        .calendar-shell { padding: 16px; min-width: 0; }
+        .day-panel { padding: 16px; position: sticky; top: 16px; display: grid; gap: 12px; max-height: calc(100vh - 32px); overflow: auto; }
+        .day-panel-header { padding-bottom: 12px; border-bottom: 1px solid rgba(148,163,184,0.14); }
+        .day-panel-header span { display: block; color: #93c5fd; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
+        .day-panel-header h2 { margin: 0; color: #f8fafc; font-size: 18px; line-height: 1.25; text-transform: capitalize; }
+        .day-panel-header p { margin: 6px 0 0; color: #94a3b8; font-size: 13px; }
+        .react-calendar { width: 100%; border: 0; background: transparent; color: #e2e8f0; font-family: inherit; }
+        .react-calendar__navigation { height: 46px; margin-bottom: 12px; }
+        .react-calendar__navigation button { min-width: 42px; border: 0; border-radius: 8px; background: transparent; color: #e2e8f0; cursor: pointer; font: inherit; font-weight: 800; }
+        .react-calendar__navigation button:enabled:hover, .react-calendar__navigation button:enabled:focus { background: rgba(59,130,246,0.16); }
+        .react-calendar__month-view__weekdays { color: #93c5fd; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+        .react-calendar__month-view__weekdays abbr { text-decoration: none; }
+        .react-calendar__month-view__days { display: grid !important; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+        .react-calendar__tile { min-height: 112px; padding: 10px; border: 1px solid rgba(148,163,184,0.12); border-radius: 8px; background: rgba(30,41,59,0.42); color: #e2e8f0; text-align: left; display: flex; flex-direction: column; gap: 7px; overflow: hidden; }
+        .react-calendar__tile:enabled:hover, .react-calendar__tile:enabled:focus { background: rgba(59,130,246,0.15); border-color: rgba(96,165,250,0.38); }
+        .react-calendar__tile--now { border-color: rgba(34,197,94,0.42); background: rgba(34,197,94,0.08); }
+        .react-calendar__tile--active { background: rgba(59,130,246,0.24) !important; border-color: rgba(96,165,250,0.68); }
+        .react-calendar__month-view__days__day--neighboringMonth { color: #64748b; }
+        .react-calendar__tile.has-maintenance { box-shadow: inset 0 3px 0 rgba(96,165,250,0.82); }
+        .tile-events { display: grid; gap: 4px; width: 100%; min-width: 0; }
+        .tile-event, .tile-more { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 6px; border-radius: 6px; color: #e2e8f0; font-size: 10px; font-weight: 800; line-height: 1.15; }
+        .tile-event.programado { background: rgba(245,158,11,0.18); color: #fbbf24; }
+        .tile-event.finalizado { background: rgba(34,197,94,0.16); color: #86efac; }
+        .tile-more { color: #bfdbfe; background: rgba(96,165,250,0.14); }
+        .notice { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; padding: 12px 14px; border-radius: 8px; font-size: 13px; border: 1px solid transparent; }
         .notice.success { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #86efac; }
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
         .notice span { color: #cbd5e1; }
-
-        .filters {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-top: 10px;
-        }
-
-        .filters button {
-          padding: 6px 10px;
-          border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: transparent;
-          color: #94a3b8;
-          cursor: pointer;
-          font-size: 12px;
-          transition: 0.2s;
-        }
-
-        .filters button.active, .filters button:hover {
-          background: #3b82f6;
-          color: white;
-          border-color: #3b82f6;
-        }
-
-        .filters select {
-          padding: 6px 10px;
-          border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: var(--app-input);
-          color: #e2e8f0;
-          font-size: 12px;
-        }
-
-        .export-btn {
-          margin-top: 10px;
-          padding: 10px;
-          border-radius: 8px;
-          border: none;
-          background: #22c55e;
-          color: white;
-          cursor: pointer;
-          width: 100%;
-          font-size: 14px;
-        }
-
-        .event-card {
-          background: rgba(255,255,255,0.05);
-          padding: 15px;
-          border-radius: 10px;
-          margin-bottom: 10px;
-        }
-
-        .department {
-          color: #93c5fd;
-          font-size: 12px;
-          font-weight: 600;
-          margin-top: 3px;
-        }
-
-        .event-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 6px;
-        }
-
-        .status {
-          padding: 4px 10px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 600;
-        }
-
+        .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+        .filters button { padding: 8px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 12px; transition: 0.2s; }
+        .filters button.active, .filters button:hover { background: #3b82f6; color: white; border-color: #3b82f6; }
+        .filters select { min-width: 180px; padding: 8px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: var(--app-input); color: #e2e8f0; font-size: 12px; }
+        .export-btn, .create-btn { padding: 10px 12px; border-radius: 8px; border: none; color: white; cursor: pointer; font-size: 14px; font-weight: 800; }
+        .export-btn { background: #22c55e; }
+        .create-btn { background: #3b82f6; }
+        .event-card { border: 1px solid rgba(148,163,184,0.14); background: rgba(30,41,59,0.56); padding: 14px; border-radius: 8px; }
+        .department { color: #93c5fd; font-size: 12px; font-weight: 700; margin: 0 0 6px; text-transform: capitalize; }
+        .desc { color: #dbe6f3; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+        .event-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+        .event-header span:first-child { display: block; color: #93c5fd; font-size: 11px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; }
+        .event-header h4 { margin: 0; color: #f8fafc; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
+        .status { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
         .status.programado { background: rgba(245,158,11,0.2); color: #f59e0b; }
         .status.finalizado { background: rgba(34,197,94,0.2); color: #22c55e; }
-
-        .footer {
-          margin-top: 10px;
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-        }
-
+        .footer { margin-top: 12px; display: grid; gap: 7px; }
         .confirmed-text { color: #22c55e; font-size: 12px; }
-
-        .approval-comment, .maintenance-comments {
-          margin-top: 10px;
-          padding: 10px;
-          border-radius: 8px;
-          border: 1px solid rgba(96,165,250,0.2);
-          background: rgba(96,165,250,0.08);
-        }
-        .approval-comment strong {
-          display: block;
-          color: #bfdbfe;
-          font-size: 12px;
-          margin-bottom: 6px;
-        }
-        .approval-comment p {
-          color: #e2e8f0;
-          font-size: 12px;
-          line-height: 1.45;
-          overflow-wrap: anywhere;
-        }
-        .approval-comment small {
-          display: block;
-          color: #94a3b8;
-          font-size: 11px;
-          margin-top: 6px;
-        }
-        .maintenance-comments {
-          display: grid;
-          gap: 8px;
-        }
-        .maintenance-comments > strong {
-          color: #bfdbfe;
-          font-size: 12px;
-        }
-        .maintenance-comment {
-          padding-top: 8px;
-          border-top: 1px solid rgba(255,255,255,0.08);
-        }
-        .maintenance-comment p {
-          margin: 0;
-          color: #e2e8f0;
-          font-size: 12px;
-          line-height: 1.45;
-          overflow-wrap: anywhere;
-        }
-        .maintenance-comment small {
-          display: block;
-          color: #94a3b8;
-          font-size: 11px;
-          margin-top: 5px;
-        }
-
-        .confirm-btn, .comment-btn, .delete-btn {
-          background: #22c55e;
-          border: none;
-          padding: 6px 10px;
-          border-radius: 6px;
-          color: white;
-          cursor: pointer;
-        }
+        .approval-comment, .maintenance-comments { margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid rgba(96,165,250,0.2); background: rgba(96,165,250,0.08); }
+        .approval-comment strong { display: block; color: #bfdbfe; font-size: 12px; margin-bottom: 6px; }
+        .approval-comment p, .maintenance-comment p { margin: 0; color: #e2e8f0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+        .approval-comment small, .maintenance-comment small { display: block; color: #94a3b8; font-size: 11px; margin-top: 6px; }
+        .maintenance-comments { display: grid; gap: 8px; }
+        .maintenance-comments > strong { color: #bfdbfe; font-size: 12px; }
+        .maintenance-comment { padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); }
+        .confirm-btn, .comment-btn, .delete-btn { border: none; padding: 8px 10px; border-radius: 8px; color: white; cursor: pointer; font-weight: 800; font-size: 12px; }
+        .confirm-btn { background: #22c55e; }
         .comment-btn { background: #3b82f6; }
         .delete-btn { background: #ef4444; }
-
-        .create-btn {
-          margin-top: 15px;
-          padding: 10px;
-          width: 100%;
-          border-radius: 8px;
-          border: none;
-          background: #3b82f6;
-          color: white;
-          cursor: pointer;
-        }
-
-        .create-btn:disabled {
-          background: #475569;
-          cursor: not-allowed;
-          opacity: 0.6;
-        }
-
-        .modal {
-          position: fixed;
-          top: 0; left: 0;
-          width: 100%; height: 100%;
-          background: rgba(0,0,0,0.6);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          z-index: 999;
-        }
-
-        .modal-content {
-          background: #1e293b;
-          padding: 24px;
-          border-radius: 12px;
-          width: 90%;
-          max-width: 400px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-
-        .modal-hint {
-          color: #cbd5e1;
-          font-size: 13px;
-          line-height: 1.4;
-        }
-
-        .modal-content input,
-        .modal-content textarea,
-        .modal-content select {
-          width: 100%;
-          padding: 10px;
-          border-radius: 8px;
-          border: 1px solid #334155;
-          background: var(--app-input);
-          color: white;
-          font-size: 14px;
-        }
-
+        .empty { border: 1px dashed rgba(148,163,184,0.22); border-radius: 8px; padding: 18px; color: #94a3b8; background: rgba(15,23,42,0.38); }
+        .create-btn:disabled { background: #475569; cursor: not-allowed; opacity: 0.6; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 999; padding: 18px; }
+        .modal-content { background: #1e293b; padding: 24px; border-radius: 8px; width: min(400px, 100%); display: flex; flex-direction: column; gap: 10px; }
+        .modal-hint { color: #cbd5e1; font-size: 13px; line-height: 1.4; }
+        .modal-content input, .modal-content textarea, .modal-content select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: var(--app-input); color: white; font-size: 14px; }
         .modal-buttons { display: flex; gap: 10px; margin-top: 6px; }
         .modal-buttons button:first-child { background: #3b82f6; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; flex: 1; }
         .modal-buttons button:last-child { background: #ef4444; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; flex: 1; }
-
-        @media (max-width: 1024px) {
-          .layout-calendar { grid-template-columns: 250px 1fr; }
-        }
-
+        @media (max-width: 1120px) { .calendar-workspace { grid-template-columns: 1fr; } .day-panel { position: static; max-height: none; } }
         @media (max-width: 768px) {
-          .layout-calendar { grid-template-columns: 1fr; padding: 16px; }
+          .maintenance-page { padding: 16px; }
+          .maintenance-hero { flex-direction: column; }
+          .hero-actions { width: 100%; justify-content: stretch; }
+          .hero-actions button { flex: 1 1 180px; }
+          .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .react-calendar__month-view__days { gap: 5px; }
+          .react-calendar__tile { min-height: 86px; padding: 7px; }
+          .tile-event { font-size: 9px; }
+        }
+        @media (max-width: 520px) {
+          .summary-strip { grid-template-columns: 1fr; }
+          .filters select, .filters button { width: 100%; }
+          .react-calendar__tile { min-height: 70px; }
+          .tile-events { display: none; }
         }
       `}</style>
     </>
