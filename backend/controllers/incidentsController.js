@@ -1,5 +1,6 @@
 const Incident = require("../models/incident");
 const User = require("../models/User");
+const { ACCESS_SCOPES, PERMISSIONS } = require("../config/permissions");
 const { hasPermission } = require("../utils/permissions");
 const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
 const { deleteIncidentFile, getIncidentFileUrl, isR2Configured, uploadIncidentFile } = require("../utils/r2Storage");
@@ -98,6 +99,66 @@ const canManageIncident = (user, incident) => {
   if (hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
     const userDepartment = user?.department?.toLowerCase().trim();
     const incidentDepartment = incident?.department?.toLowerCase().trim();
+    return Boolean(userDepartment && incidentDepartment === userDepartment);
+  }
+
+  return false;
+};
+
+const getAssignedBranchIds = (user) => {
+  const branches = Array.isArray(user?.branches) ? user.branches : [];
+  const ids = branches.length > 0 ? branches : user?.branch ? [user.branch] : [];
+
+  return ids.map((branch) => String(branch?._id || branch)).filter(Boolean);
+};
+
+const escapeRegExp = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const getAssignableUserFilter = (user) => {
+  const scope = user?.accessScopes?.incidents;
+
+  if (scope === ACCESS_SCOPES.ALL || hasPermission(user, "VIEW_INCIDENTS_ALL")) {
+    return {};
+  }
+
+  if (scope === ACCESS_SCOPES.BRANCH || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) {
+    const branchIds = getAssignedBranchIds(user);
+    if (branchIds.length === 0) return null;
+
+    return {
+      $or: [
+        { branch: { $in: branchIds } },
+        { branches: { $in: branchIds } },
+      ],
+    };
+  }
+
+  if (scope === ACCESS_SCOPES.DEPARTMENT || hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
+    const department = user?.department?.toString().trim();
+    if (!department) return null;
+
+    return { department: new RegExp(`^${escapeRegExp(department)}$`, "i") };
+  }
+
+  return null;
+};
+
+const canAssignIncident = (user, incident) => {
+  if (!hasPermission(user, PERMISSIONS.INCIDENTS_ASSIGN)) return false;
+
+  const scope = user?.accessScopes?.incidents;
+
+  if (scope === ACCESS_SCOPES.ALL || hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
+
+  if (scope === ACCESS_SCOPES.BRANCH || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) {
+    return getAssignedBranchIds(user).includes(String(incident.branch?._id || incident.branch));
+  }
+
+  if (scope === ACCESS_SCOPES.DEPARTMENT || hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
+    const userDepartment = user?.department?.toLowerCase().trim();
+    const incidentDepartment = incident?.department?.toLowerCase().trim();
+
     return Boolean(userDepartment && incidentDepartment === userDepartment);
   }
 
@@ -236,19 +297,24 @@ const getIncidents = async (req, res) => {
 
 const getAssignableUsers = async (req, res) => {
   try {
-    const canView =
-      hasPermission(req.user, "VIEW_INCIDENTS_ALL") ||
-      hasPermission(req.user, "VIEW_INCIDENTS_DEPARTMENT");
-
-    if (!canView) {
+    if (!hasPermission(req.user, PERMISSIONS.INCIDENTS_ASSIGN)) {
       return res.status(403).json({ msg: "No autorizado para ver responsables" });
+    }
+
+    const assignableFilter = getAssignableUserFilter(req.user);
+
+    if (!assignableFilter) {
+      return res.json([]);
     }
 
     const users = await User.find({
       ...getOrganizationFilter(req),
       role: { $in: ["admin", "direccion", "gerencia", "departamento"] },
+      ...assignableFilter,
     })
-      .select("nombre email role department")
+      .select("nombre email role department branch branches")
+      .populate("branch", "name")
+      .populate("branches", "name")
       .sort({ nombre: 1, email: 1 });
 
     res.json(users);
@@ -476,7 +542,7 @@ const assignIncident = async (req, res) => {
       return res.status(404).json({ msg: "Incidencia no encontrada" });
     }
 
-    if (!canManageIncident(req.user, incident)) {
+    if (!canAssignIncident(req.user, incident)) {
       return res.status(403).json({ msg: "No autorizado para asignar esta incidencia" });
     }
 
@@ -486,6 +552,7 @@ const assignIncident = async (req, res) => {
       assignedUser = await User.findOne({
         _id: assignedTo,
         ...getOrganizationFilter(req),
+        ...getAssignableUserFilter(req.user),
       }).select("nombre email");
 
       if (!assignedUser) {

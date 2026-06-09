@@ -34,6 +34,9 @@ function IncidentDetail() {
     hasPermission(user, "VIEW_INCIDENTS_ALL") ||
     hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT");
 
+  const canAssign =
+    hasPermission(user, "INCIDENTS_ASSIGN");
+
   const canCommentIncident = useMemo(() => {
     if (!hasPermission(user, "COMMENT_INCIDENT")) return false;
     if (hasPermission(user, "VIEW_INCIDENTS_ALL") || hasPermission(user, "VIEW_INCIDENTS_BRANCH")) return true;
@@ -100,9 +103,9 @@ function IncidentDetail() {
   useEffect(() => {
     if (localStorage.getItem("token")) {
       fetchIncident({ showLoader: true });
-      fetchAssignableUsers();
+      if (canAssign) fetchAssignableUsers();
     }
-  }, [fetchAssignableUsers, fetchIncident]);
+  }, [canAssign, fetchAssignableUsers, fetchIncident]);
 
   useEffect(() => {
     if (incident && user) {
@@ -330,7 +333,7 @@ function IncidentDetail() {
             <span><b>Resolucion</b>{getResolvedDate(incident) ? formatDate(getResolvedDate(incident)) : "Pendiente"}</span>
           </div>
 
-          {canUpdate && (
+          {canAssign && (
             <label className="assignment-box">
               Responsable
               <select
