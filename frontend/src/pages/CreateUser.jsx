@@ -13,6 +13,7 @@ import {
 import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const BRANCH_SCOPE = "branch";
 
 const EMPTY_FORM = {
   nombre: "",
@@ -42,16 +43,28 @@ function CreateUser() {
   const headers = { Authorization: `Bearer ${token}` };
   const sanitizeAssignablePermissions = (permissions = []) =>
     permissions.filter((permission) => !PLATFORM_ONLY_PERMISSIONS.includes(permission));
+  const usesBranchScope = (accessScopes = {}) =>
+    ["incidents", "maintenance", "inventory"].some((key) => accessScopes?.[key] === BRANCH_SCOPE);
+  const getSelectedBranchesForSave = (accessScopes, selectedBranches = []) =>
+    usesBranchScope(accessScopes) ? selectedBranches : [];
+  const getBranchScopeModules = (accessScopes = {}) => [
+    accessScopes?.incidents === BRANCH_SCOPE ? "incidencias" : null,
+    accessScopes?.maintenance === BRANCH_SCOPE ? "mantenimientos" : null,
+    accessScopes?.inventory === BRANCH_SCOPE ? "inventario" : null,
+  ].filter(Boolean);
 
   const updateForm = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const updateRole = (role) => {
+    const accessScopes = getDefaultAccessScopes(role);
+
     setForm((prev) => ({
       ...prev,
       role,
-      accessScopes: getDefaultAccessScopes(role),
+      branches: usesBranchScope(accessScopes) ? prev.branches : [],
+      accessScopes,
     }));
   };
 
@@ -150,7 +163,7 @@ function CreateUser() {
           password: form.password,
           role: form.role,
           department: form.department,
-          branches: form.branches,
+          branches: getSelectedBranchesForSave(form.accessScopes, form.branches),
           permissions: sanitizeAssignablePermissions(form.permissions),
           accessScopes: form.accessScopes,
         }),
@@ -210,8 +223,14 @@ function CreateUser() {
       email: editingUser.email || "",
       role: editingUser.role || "",
       department: editingUser.department || "",
-      branch: editingUser.branches?.[0] || null,
-      branches: editingUser.branches || [],
+      branch: getSelectedBranchesForSave(
+        editingUser.accessScopes || getDefaultAccessScopes(editingUser.role),
+        editingUser.branches || []
+      )?.[0] || null,
+      branches: getSelectedBranchesForSave(
+        editingUser.accessScopes || getDefaultAccessScopes(editingUser.role),
+        editingUser.branches || []
+      ),
       permissions: sanitizeAssignablePermissions(editingUser.permissions || []),
       accessScopes: editingUser.accessScopes || getDefaultAccessScopes(editingUser.role),
     };
@@ -280,20 +299,45 @@ function CreateUser() {
     );
   }
 
-  const renderBranchCheckboxes = (selected, onChange) => (
-    <div className="option-grid">
-      {branches.map((branch) => (
-        <label key={branch._id} className="option-row">
-          <input
-            type="checkbox"
-            checked={selected.includes(branch._id)}
-            onChange={() => onChange(toggleListItem(selected, branch._id))}
-          />
-          <span>{branch.name}</span>
-        </label>
-      ))}
+  const renderBranchCheckboxes = (selected, onChange, accessScopes) => {
+    const activeModules = getBranchScopeModules(accessScopes);
+
+    if (activeModules.length === 0) {
+      return (
+        <div className="scope-note">
+          No necesitas seleccionar sucursales porque el alcance actual no usa "Sucursales asignadas".
+        </div>
+      );
+    }
+
+    return (
+    <div className="branch-picker">
+      <div className="branch-tools">
+        <span>Aplica para: {activeModules.join(", ")}</span>
+        <div>
+          <button type="button" className="mini-btn" onClick={() => onChange(branches.map((branch) => branch._id))}>
+            Seleccionar todas
+          </button>
+          <button type="button" className="mini-btn" onClick={() => onChange([])}>
+            Limpiar
+          </button>
+        </div>
+      </div>
+      <div className="option-grid">
+        {branches.map((branch) => (
+          <label key={branch._id} className="option-row">
+            <input
+              type="checkbox"
+              checked={selected.includes(branch._id)}
+              onChange={() => onChange(toggleListItem(selected, branch._id))}
+            />
+            <span>{branch.name}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
+  };
 
   const renderPermissionCheckboxes = ({ selected, onChange }) => (
     <div className="permission-modules">
@@ -327,7 +371,17 @@ function CreateUser() {
     </div>
   );
 
-  const renderAccessScopes = (accessScopes, onChange) => (
+  const renderAccessScopes = (accessScopes, onChange) => {
+    const handleScopeChange = (key, value) => {
+      const next = {
+        ...(accessScopes || {}),
+        [key]: value,
+      };
+
+      onChange(next);
+    };
+
+    return (
     <div className="scope-grid">
       {[
         { key: "incidents", label: "Incidencias" },
@@ -338,10 +392,7 @@ function CreateUser() {
           {scope.label}
           <select
             value={accessScopes?.[scope.key] || "department"}
-            onChange={(event) => onChange({
-              ...(accessScopes || {}),
-              [scope.key]: event.target.value,
-            })}
+            onChange={(event) => handleScopeChange(scope.key, event.target.value)}
           >
             {ACCESS_SCOPE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -351,6 +402,7 @@ function CreateUser() {
       ))}
     </div>
   );
+  };
 
   return (
     <div className="users-page">
@@ -420,9 +472,9 @@ function CreateUser() {
           <div className="form-section">
             <div>
               <h3>Sucursales asignadas</h3>
-              <p>Define en que sucursales puede operar el usuario.</p>
+              <p>Solo aplica si algun modulo usa el alcance "Sucursales asignadas".</p>
             </div>
-            {renderBranchCheckboxes(form.branches, (next) => updateForm("branches", next))}
+            {renderBranchCheckboxes(form.branches, (next) => updateForm("branches", next), form.accessScopes)}
           </div>
 
           <div className="form-section">
@@ -430,7 +482,10 @@ function CreateUser() {
               <h3>Alcance operativo</h3>
               <p>Define sobre que registros aplican los permisos de cada modulo.</p>
             </div>
-            {renderAccessScopes(form.accessScopes, (next) => updateForm("accessScopes", next))}
+            {renderAccessScopes(form.accessScopes, (next) => {
+              updateForm("accessScopes", next);
+              if (!usesBranchScope(next)) updateForm("branches", []);
+            })}
           </div>
 
           <div className="form-section">
@@ -511,10 +566,13 @@ function CreateUser() {
                   value={editingUser.role || ""}
                   onChange={(e) => {
                     const role = e.target.value;
+                    const accessScopes = getDefaultAccessScopes(role);
+
                     setEditingUser((prev) => ({
                       ...prev,
                       role,
-                      accessScopes: getDefaultAccessScopes(role),
+                      branches: usesBranchScope(accessScopes) ? prev.branches : [],
+                      accessScopes,
                     }));
                   }}
                 >
@@ -535,14 +593,21 @@ function CreateUser() {
 
             <div className="form-section">
               <h3>Sucursales</h3>
-              {renderBranchCheckboxes(editingUser.branches || [], (next) => updateEditingUser("branches", next))}
+              {renderBranchCheckboxes(
+                editingUser.branches || [],
+                (next) => updateEditingUser("branches", next),
+                editingUser.accessScopes || getDefaultAccessScopes(editingUser.role)
+              )}
             </div>
 
             <div className="form-section">
               <h3>Alcance operativo</h3>
               {renderAccessScopes(
                 editingUser.accessScopes || getDefaultAccessScopes(editingUser.role),
-                (next) => updateEditingUser("accessScopes", next)
+                (next) => {
+                  updateEditingUser("accessScopes", next);
+                  if (!usesBranchScope(next)) updateEditingUser("branches", []);
+                }
               )}
             </div>
 
@@ -579,6 +644,40 @@ function CreateUser() {
         .form-section { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
         .option-grid, .permissions-grid { display: grid; gap: 8px; max-height: 190px; overflow: auto; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; background: var(--app-input); }
         .permissions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .branch-picker { display: grid; gap: 8px; }
+        .branch-tools {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          padding: 10px;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 8px;
+          background: rgba(255,255,255,0.03);
+          font-size: 12px;
+          color: var(--app-text);
+        }
+        .branch-tools div { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .mini-btn {
+          border: 1px solid rgba(255,255,255,0.14);
+          border-radius: 8px;
+          padding: 7px 9px;
+          background: transparent;
+          color: var(--app-text);
+          cursor: pointer;
+          font-weight: 700;
+          font-size: 11px;
+        }
+        .scope-note {
+          padding: 12px;
+          border-radius: 8px;
+          border: 1px dashed rgba(255,255,255,0.16);
+          background: rgba(255,255,255,0.03);
+          color: var(--app-text);
+          opacity: 0.76;
+          font-size: 13px;
+          line-height: 1.45;
+        }
         .permission-modules { display: grid; gap: 12px; }
         .permission-module {
           border: 1px solid rgba(255,255,255,0.08);
