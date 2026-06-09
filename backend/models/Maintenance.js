@@ -51,6 +51,23 @@ const maintenanceSchema = new mongoose.Schema({
     },
   },
 
+  comments: [{
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  }],
+
   date: String,
 
   createdBy: {

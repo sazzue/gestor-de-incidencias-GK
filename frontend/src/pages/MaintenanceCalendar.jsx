@@ -29,6 +29,8 @@ function MaintenanceCalendar() {
   const [modalMessage, setModalMessage] = useState(null);
   const [confirmingMaintenance, setConfirmingMaintenance] = useState(null);
   const [approvalComment, setApprovalComment] = useState("");
+  const [commentingMaintenance, setCommentingMaintenance] = useState(null);
+  const [maintenanceComment, setMaintenanceComment] = useState("");
 
   const token = localStorage.getItem("token");
   const user = useAuthUser();
@@ -42,6 +44,10 @@ function MaintenanceCalendar() {
     hasPermission(user, "VIEW_MAINTENANCE_COMMENTS");
   const canCommentMaintenance =
     hasPermission(user, "COMMENT_MAINTENANCE");
+  const canExportMaintenance =
+    hasPermission(user, "MAINTENANCE_EXPORT");
+  const canDeleteMaintenancePermission =
+    hasPermission(user, "DELETE_MAINTENANCE");
 
   const userDepartment = normalizeDepartment(user?.department);
   const isMaintenanceDepartmentUser =
@@ -93,9 +99,36 @@ function MaintenanceCalendar() {
     return true;
   };
 
+  const canDeleteMaintenance = (maintenance) =>
+    canDeleteMaintenancePermission && canAccessMaintenanceScope(maintenance);
+
+  const canCommentMaintenanceItem = (maintenance) =>
+    canCommentMaintenance && canAccessMaintenanceScope(maintenance);
+
+  const canAccessMaintenanceScope = (maintenance) => {
+    const scope = user?.accessScopes?.maintenance;
+
+    if (scope === "all") return true;
+
+    if (scope === "department") {
+      return Boolean(
+        userDepartment &&
+        normalizeDepartment(maintenance?.department) === userDepartment
+      );
+    }
+
+    if (scope === "branch") {
+      const maintenanceBranch = maintenance?.branch?._id || maintenance?.branch;
+      return getUserBranchIds().includes(maintenanceBranch?.toString());
+    }
+
+    return false;
+  };
+
   const toLocalDate = (d) => new Date(d).toLocaleDateString("sv-SE");
 
   const exportFilteredToPdf = () => {
+    if (!canExportMaintenance) { alert("No tienes permisos para exportar mantenimientos"); return; }
     if (filtered.length === 0) { alert("No hay datos para exportar"); return; }
     const rows = filtered.map((m) => ({
       title: m.title,
@@ -273,6 +306,89 @@ function MaintenanceCalendar() {
     }
   };
 
+  const addMaintenanceComment = async () => {
+    const text = maintenanceComment.trim();
+
+    if (!commentingMaintenance?._id || !text) {
+      setMessage({
+        type: "error",
+        title: "Comentario requerido",
+        detail: "Escribe un comentario para guardar el seguimiento."
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/api/maintenance/${commentingMaintenance._id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ text }),
+      });
+      const updated = await res.json();
+
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: updated.msg || "No se pudo agregar el comentario",
+          detail: updated.error || `Error ${res.status}`
+        });
+        return;
+      }
+
+      setMaintenances((prev) => prev.map((m) => (m._id === updated._id ? updated : m)));
+      setCommentingMaintenance(null);
+      setMaintenanceComment("");
+      setMessage({
+        type: "success",
+        title: "Comentario agregado",
+        detail: "El seguimiento quedo guardado."
+      });
+    } catch (error) {
+      console.error("Error comentando mantenimiento:", error);
+      setMessage({
+        type: "error",
+        title: "Error de conexion",
+        detail: "No se pudo conectar con el servidor."
+      });
+    }
+  };
+
+  const deleteMaintenance = async (maintenance) => {
+    if (!maintenance?._id) return;
+    if (!confirm(`Eliminar mantenimiento "${maintenance.title}"?`)) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/maintenance/${maintenance._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: data.msg || "No se pudo eliminar el mantenimiento",
+          detail: data.error || `Error ${res.status}`
+        });
+        return;
+      }
+
+      setMaintenances((prev) => prev.filter((m) => m._id !== maintenance._id));
+      setMessage({
+        type: "success",
+        title: "Mantenimiento eliminado",
+        detail: "El registro fue eliminado correctamente."
+      });
+    } catch (error) {
+      console.error("Error eliminando mantenimiento:", error);
+      setMessage({
+        type: "error",
+        title: "Error de conexion",
+        detail: "No se pudo conectar con el servidor."
+      });
+    }
+  };
+
   const openConfirmMaintenance = (maintenance) => {
     if (canCommentMaintenance) {
       setConfirmingMaintenance(maintenance);
@@ -324,7 +440,9 @@ function MaintenanceCalendar() {
             {canCreateMaintenance ? "Programar mantenimiento" : "Sin permiso para programar mantenimientos"}
           </button>
 
-          <button onClick={exportFilteredToPdf} className="export-btn">Exportar PDF</button>
+          {canExportMaintenance && (
+            <button onClick={exportFilteredToPdf} className="export-btn">Exportar PDF</button>
+          )}
         </div>
 
         {/* DERECHA */}
@@ -352,6 +470,20 @@ function MaintenanceCalendar() {
                     </small>
                   </div>
                 )}
+                {canViewMaintenanceComments && m.comments?.length > 0 && (
+                  <div className="maintenance-comments">
+                    <strong>Seguimiento</strong>
+                    {[...m.comments].reverse().map((comment) => (
+                      <div key={comment._id} className="maintenance-comment">
+                        <p>{comment.text}</p>
+                        <small>
+                          {comment.createdBy?.nombre || comment.createdBy?.email || "Usuario"} Â· {" "}
+                          {comment.createdAt ? new Date(comment.createdAt).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" }) : ""}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="footer">
                   <small>{new Date(m.date).toLocaleDateString("es-MX")}</small>
                   {m.status === "finalizado" && m.confirmedBy && (
@@ -360,6 +492,16 @@ function MaintenanceCalendar() {
                   {canConfirmMaintenance(m) && m.status === "programado" && (
                     <button className="confirm-btn" onClick={() => openConfirmMaintenance(m)}>
                       {canCommentMaintenance ? "Autorizar y comentar" : "Confirmar"}
+                    </button>
+                  )}
+                  {canCommentMaintenanceItem(m) && (
+                    <button className="comment-btn" onClick={() => { setCommentingMaintenance(m); setMaintenanceComment(""); }}>
+                      Comentar
+                    </button>
+                  )}
+                  {canDeleteMaintenance(m) && (
+                    <button className="delete-btn" onClick={() => deleteMaintenance(m)}>
+                      Eliminar
                     </button>
                   )}
                 </div>
@@ -421,6 +563,27 @@ function MaintenanceCalendar() {
                 Autorizar
               </button>
               <button onClick={() => { setConfirmingMaintenance(null); setApprovalComment(""); }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {commentingMaintenance && (
+        <div className="modal">
+          <div className="modal-content">
+            <h3>Comentar mantenimiento</h3>
+            <p className="modal-hint">{commentingMaintenance.title}</p>
+            <textarea
+              placeholder="Comentario de seguimiento..."
+              value={maintenanceComment}
+              onChange={(e) => setMaintenanceComment(e.target.value)}
+              rows={4}
+            />
+            <div className="modal-buttons">
+              <button onClick={addMaintenanceComment}>Guardar</button>
+              <button onClick={() => { setCommentingMaintenance(null); setMaintenanceComment(""); }}>
                 Cancelar
               </button>
             </div>
@@ -543,7 +706,7 @@ function MaintenanceCalendar() {
 
         .confirmed-text { color: #22c55e; font-size: 12px; }
 
-        .approval-comment {
+        .approval-comment, .maintenance-comments {
           margin-top: 10px;
           padding: 10px;
           border-radius: 8px;
@@ -568,8 +731,33 @@ function MaintenanceCalendar() {
           font-size: 11px;
           margin-top: 6px;
         }
+        .maintenance-comments {
+          display: grid;
+          gap: 8px;
+        }
+        .maintenance-comments > strong {
+          color: #bfdbfe;
+          font-size: 12px;
+        }
+        .maintenance-comment {
+          padding-top: 8px;
+          border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .maintenance-comment p {
+          margin: 0;
+          color: #e2e8f0;
+          font-size: 12px;
+          line-height: 1.45;
+          overflow-wrap: anywhere;
+        }
+        .maintenance-comment small {
+          display: block;
+          color: #94a3b8;
+          font-size: 11px;
+          margin-top: 5px;
+        }
 
-        .confirm-btn {
+        .confirm-btn, .comment-btn, .delete-btn {
           background: #22c55e;
           border: none;
           padding: 6px 10px;
@@ -577,6 +765,8 @@ function MaintenanceCalendar() {
           color: white;
           cursor: pointer;
         }
+        .comment-btn { background: #3b82f6; }
+        .delete-btn { background: #ef4444; }
 
         .create-btn {
           margin-top: 15px;

@@ -73,6 +73,7 @@ const hideMaintenanceCommentIfNeeded = (maintenance, user) => {
     ? maintenance.toObject()
     : { ...maintenance };
   delete output.approvalComment;
+  delete output.comments;
   return output;
 };
 
@@ -87,6 +88,7 @@ router.get("/", auth, async (req, res) => {
     const data = await Maintenance.find(query)
       .populate("confirmedBy", "nombre email")
       .populate("approvalComment.createdBy", "nombre email")
+      .populate("comments.createdBy", "nombre email")
       .populate("branch", "name")
       .sort({ date: 1 });
 
@@ -141,6 +143,7 @@ router.post("/", auth, async (req, res) => {
       .populate("createdBy", "nombre email")
       .populate("confirmedBy", "nombre email")
       .populate("approvalComment.createdBy", "nombre email")
+      .populate("comments.createdBy", "nombre email")
       .populate("branch", "name");
 
     await notifyNewRecord({
@@ -203,11 +206,81 @@ router.put("/:id/confirm", auth, async (req, res) => {
     const updated = await Maintenance.findById(maintenance._id)
       .populate("confirmedBy", "nombre email")
       .populate("approvalComment.createdBy", "nombre email")
+      .populate("comments.createdBy", "nombre email")
       .populate("branch", "name");
 
     res.json(hideMaintenanceCommentIfNeeded(updated, req.user));
   } catch (error) {
     res.status(500).json({ msg: "Error servidor", error: error.message });
+  }
+});
+
+router.post("/:id/comments", auth, async (req, res) => {
+  try {
+    if (!canCommentMaintenance(req.user)) {
+      return res.status(403).json({ msg: "No tienes permisos para comentar mantenimientos" });
+    }
+
+    const text = req.body?.text?.toString().trim();
+    if (!text) {
+      return res.status(400).json({ msg: "Comentario requerido" });
+    }
+
+    const maintenance = await Maintenance.findOne({
+      _id: req.params.id,
+      organization: req.user.organization || null,
+    });
+
+    if (!maintenance) {
+      return res.status(404).json({ msg: "Mantenimiento no encontrado" });
+    }
+
+    if (!canAccessMaintenance(req.user, maintenance)) {
+      return res.status(403).json({ msg: "No puedes comentar este mantenimiento" });
+    }
+
+    maintenance.comments.push({
+      text,
+      createdBy: req.user.id,
+      createdAt: new Date(),
+    });
+    await maintenance.save();
+
+    const updated = await Maintenance.findById(maintenance._id)
+      .populate("confirmedBy", "nombre email")
+      .populate("approvalComment.createdBy", "nombre email")
+      .populate("comments.createdBy", "nombre email")
+      .populate("branch", "name");
+
+    res.status(201).json(hideMaintenanceCommentIfNeeded(updated, req.user));
+  } catch (error) {
+    res.status(500).json({ msg: "Error al comentar mantenimiento", error: error.message });
+  }
+});
+
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    if (!hasPermission(req.user, "DELETE_MAINTENANCE")) {
+      return res.status(403).json({ msg: "No tienes permisos para eliminar mantenimientos" });
+    }
+
+    const maintenance = await Maintenance.findOne({
+      _id: req.params.id,
+      organization: req.user.organization || null,
+    });
+
+    if (!maintenance) {
+      return res.status(404).json({ msg: "Mantenimiento no encontrado" });
+    }
+
+    if (!canAccessMaintenance(req.user, maintenance)) {
+      return res.status(403).json({ msg: "No puedes eliminar este mantenimiento" });
+    }
+
+    await maintenance.deleteOne();
+    res.json({ msg: "Mantenimiento eliminado" });
+  } catch (error) {
+    res.status(500).json({ msg: "Error al eliminar mantenimiento", error: error.message });
   }
 });
 
