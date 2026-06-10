@@ -17,11 +17,45 @@ const initialForm = {
   invoice: null,
 };
 
+const emptyCatalogs = { article: [], brand: [], responsible: [] };
+
+function CatalogInput({ id, label, value, options, placeholder, onChange, onSave, saving }) {
+  return (
+    <div className="form-group">
+      <label htmlFor={id}>{label}</label>
+      <div className="catalog-input">
+        <input
+          id={id}
+          list={`${id}-options`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          className="catalog-add"
+          onClick={onSave}
+          disabled={saving || !value.trim()}
+          title="Guardar esta opcion para usarla despues"
+          aria-label={`Guardar ${label.toLowerCase()}`}
+        >
+          {saving ? "..." : "+"}
+        </button>
+      </div>
+      <datalist id={`${id}-options`}>
+        {options.map((option) => <option key={option} value={option} />)}
+      </datalist>
+    </div>
+  );
+}
+
 function Inventory() {
   const [items, setItems] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [catalogs, setCatalogs] = useState(emptyCatalogs);
+  const [savingCatalog, setSavingCatalog] = useState("");
   const [form, setForm] = useState(initialForm);
   const [filterBranch, setFilterBranch] = useState("");
   const [filterDepartment, setFilterDepartment] = useState("");
@@ -191,6 +225,20 @@ function Inventory() {
     setEditForm((current) => ({ ...current, [field]: value }));
   };
 
+  const addCatalogOption = useCallback((type, value) => {
+    const cleanValue = value?.trim();
+    if (!cleanValue) return;
+
+    setCatalogs((current) => {
+      const exists = current[type].some((option) => option.toLowerCase() === cleanValue.toLowerCase());
+      if (exists) return current;
+      return {
+        ...current,
+        [type]: [...current[type], cleanValue].sort((a, b) => a.localeCompare(b, "es")),
+      };
+    });
+  }, []);
+
   const fetchInventory = async () => {
     try {
       const res = await fetch(`${API_URL}/api/inventory`, {
@@ -254,11 +302,63 @@ function Inventory() {
     }
   };
 
+  const fetchCatalogs = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/inventory-catalogs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setCatalogs(res.ok ? { ...emptyCatalogs, ...data } : emptyCatalogs);
+    } catch {
+      setCatalogs(emptyCatalogs);
+    }
+  };
+
+  const saveCatalogOption = async (type, value) => {
+    const cleanValue = value?.trim();
+    if (!cleanValue) return;
+
+    try {
+      setSavingCatalog(type);
+      const res = await fetch(`${API_URL}/api/inventory-catalogs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type, value: cleanValue }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          title: "No se pudo guardar la opcion",
+          detail: data.msg || `Error ${res.status}`,
+        });
+        return;
+      }
+
+      addCatalogOption(type, data.value || cleanValue);
+      setMessage({
+        type: "success",
+        title: "Opcion guardada",
+        detail: `${data.value || cleanValue} ya se puede seleccionar en futuros registros.`,
+      });
+    } catch {
+      setMessage({
+        type: "error",
+        title: "Error de conexion",
+        detail: "No se pudo guardar la opcion del catalogo.",
+      });
+    } finally {
+      setSavingCatalog("");
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
     fetchBranches();
     fetchDepartments();
     fetchSuppliers();
+    fetchCatalogs();
     fetchInventory();
   }, [token]);
 
@@ -273,11 +373,11 @@ function Inventory() {
     event.preventDefault();
     setMessage(null);
 
-    if (!form.model || !form.brand || !form.serialNumber || !form.provider || !form.responsible || !form.price || !form.branch || !form.department) {
+    if (!form.model.trim() || !form.brand.trim() || form.price === "" || !form.branch || !form.department) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios.",
+        detail: "Articulo, categoria o marca, valor, sucursal y departamento son obligatorios.",
       });
       return;
     }
@@ -312,6 +412,9 @@ function Inventory() {
       }
 
       setItems((current) => [data, ...current]);
+      addCatalogOption("article", data.model);
+      addCatalogOption("brand", data.brand);
+      addCatalogOption("responsible", data.responsible);
       setForm({ ...initialForm, department: isDepartmentLocked ? userDepartment : "" });
       setMessage({
         type: "success",
@@ -418,11 +521,11 @@ function Inventory() {
 
     if (!editingItem?._id) return;
 
-    if (!editForm.model || !editForm.brand || !editForm.serialNumber || !editForm.provider || !editForm.responsible || !editForm.price || !editForm.branch || !editForm.department) {
+    if (!editForm.model.trim() || !editForm.brand.trim() || editForm.price === "" || !editForm.branch || !editForm.department) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios.",
+        detail: "Articulo, categoria o marca, valor, sucursal y departamento son obligatorios.",
       });
       return;
     }
@@ -455,6 +558,9 @@ function Inventory() {
       }
 
       setItems((current) => current.map((item) => (item._id === data._id ? data : item)));
+      addCatalogOption("article", data.model);
+      addCatalogOption("brand", data.brand);
+      addCatalogOption("responsible", data.responsible);
       setEditingItem(null);
       setEditForm(initialForm);
       setMessage({
@@ -573,20 +679,32 @@ function Inventory() {
           </div>
 
           <div className="form-grid">
+            <CatalogInput
+              id="inventory-article"
+              label="Articulo *"
+              value={form.model}
+              options={catalogs.article}
+              placeholder="Escribe o selecciona un articulo"
+              onChange={(value) => updateForm("model", value)}
+              onSave={() => saveCatalogOption("article", form.model)}
+              saving={savingCatalog === "article"}
+            />
+            <CatalogInput
+              id="inventory-brand"
+              label="Categoria / marca *"
+              value={form.brand}
+              options={catalogs.brand}
+              placeholder="Escribe o selecciona una marca"
+              onChange={(value) => updateForm("brand", value)}
+              onSave={() => saveCatalogOption("brand", form.brand)}
+              saving={savingCatalog === "brand"}
+            />
             <div className="form-group">
-              <label>Articulo</label>
-              <input value={form.model} onChange={(e) => updateForm("model", e.target.value)} placeholder="Ej. Monitor, silla, herramienta" />
+              <label>Codigo / serie (opcional)</label>
+              <input value={form.serialNumber} onChange={(e) => updateForm("serialNumber", e.target.value)} placeholder="Se genera S/N automaticamente" />
             </div>
             <div className="form-group">
-              <label>Categoria / marca</label>
-              <input value={form.brand} onChange={(e) => updateForm("brand", e.target.value)} placeholder="Ej. Mobiliario, Dell, oficina" />
-            </div>
-            <div className="form-group">
-              <label>Codigo / serie</label>
-              <input value={form.serialNumber} onChange={(e) => updateForm("serialNumber", e.target.value)} placeholder="SKU, folio interno o serie" />
-            </div>
-            <div className="form-group">
-              <label>Proveedor</label>
+              <label>Proveedor (opcional)</label>
               <select value={form.provider} onChange={(e) => updateForm("provider", e.target.value)}>
                 <option value="">Seleccionar proveedor</option>
                 {createSupplierOptions.map((supplier) => (
@@ -596,16 +714,25 @@ function Inventory() {
                 ))}
               </select>
             </div>
+            <CatalogInput
+              id="inventory-responsible"
+              label="Responsable / ubicacion (opcional)"
+              value={form.responsible}
+              options={catalogs.responsible}
+              placeholder="Escribe o selecciona un responsable"
+              onChange={(value) => updateForm("responsible", value)}
+              onSave={() => saveCatalogOption("responsible", form.responsible)}
+              saving={savingCatalog === "responsible"}
+            />
             <div className="form-group">
-              <label>Responsable / ubicacion</label>
-              <input value={form.responsible} onChange={(e) => updateForm("responsible", e.target.value)} placeholder="Persona, area o ubicacion" />
+              <label>Valor (MXN) *</label>
+              <div className="money-input">
+                <span>$</span>
+                <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => updateForm("price", e.target.value)} placeholder="0.00" />
+              </div>
             </div>
             <div className="form-group">
-              <label>Valor</label>
-              <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => updateForm("price", e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Sucursal</label>
+              <label>Sucursal *</label>
               <select value={form.branch} onChange={(e) => { updateForm("branch", e.target.value); updateForm("provider", ""); }}>
                 <option value="">Seleccionar sucursal</option>
                 {formBranches.map((branch) => (
@@ -614,7 +741,7 @@ function Inventory() {
               </select>
             </div>
             <div className="form-group">
-              <label>Departamento</label>
+              <label>Departamento *</label>
               <select
                 value={form.department}
                 onChange={(e) => { updateForm("department", e.target.value); updateForm("provider", ""); }}
@@ -779,20 +906,30 @@ function Inventory() {
             <h3>Editar articulo</h3>
             <p>{editingItem.brand} {editingItem.model} - {editingItem.serialNumber}</p>
             <div className="form-grid">
+              <CatalogInput
+                id="edit-inventory-article"
+                label="Articulo *"
+                value={editForm.model}
+                options={catalogs.article}
+                onChange={(value) => updateEditForm("model", value)}
+                onSave={() => saveCatalogOption("article", editForm.model)}
+                saving={savingCatalog === "article"}
+              />
+              <CatalogInput
+                id="edit-inventory-brand"
+                label="Categoria / marca *"
+                value={editForm.brand}
+                options={catalogs.brand}
+                onChange={(value) => updateEditForm("brand", value)}
+                onSave={() => saveCatalogOption("brand", editForm.brand)}
+                saving={savingCatalog === "brand"}
+              />
               <div className="form-group">
-                <label>Articulo</label>
-                <input value={editForm.model} onChange={(e) => updateEditForm("model", e.target.value)} />
+                <label>Codigo / serie (opcional)</label>
+                <input value={editForm.serialNumber} onChange={(e) => updateEditForm("serialNumber", e.target.value)} placeholder="Se genera S/N automaticamente" />
               </div>
               <div className="form-group">
-                <label>Categoria / marca</label>
-                <input value={editForm.brand} onChange={(e) => updateEditForm("brand", e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Codigo / serie</label>
-                <input value={editForm.serialNumber} onChange={(e) => updateEditForm("serialNumber", e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Proveedor</label>
+                <label>Proveedor (opcional)</label>
                 <select value={editForm.provider} onChange={(e) => updateEditForm("provider", e.target.value)}>
                   <option value="">Seleccionar proveedor</option>
                   {editSupplierOptions.map((supplier) => (
@@ -802,16 +939,24 @@ function Inventory() {
                   ))}
                 </select>
               </div>
+              <CatalogInput
+                id="edit-inventory-responsible"
+                label="Responsable / ubicacion (opcional)"
+                value={editForm.responsible}
+                options={catalogs.responsible}
+                onChange={(value) => updateEditForm("responsible", value)}
+                onSave={() => saveCatalogOption("responsible", editForm.responsible)}
+                saving={savingCatalog === "responsible"}
+              />
               <div className="form-group">
-                <label>Responsable / ubicacion</label>
-                <input value={editForm.responsible} onChange={(e) => updateEditForm("responsible", e.target.value)} />
+                <label>Valor (MXN) *</label>
+                <div className="money-input">
+                  <span>$</span>
+                  <input type="number" min="0" step="0.01" value={editForm.price} onChange={(e) => updateEditForm("price", e.target.value)} />
+                </div>
               </div>
               <div className="form-group">
-                <label>Valor</label>
-                <input type="number" min="0" step="0.01" value={editForm.price} onChange={(e) => updateEditForm("price", e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Sucursal</label>
+                <label>Sucursal *</label>
                 <select value={editForm.branch} onChange={(e) => { updateEditForm("branch", e.target.value); updateEditForm("provider", ""); }}>
                   <option value="">Seleccionar sucursal</option>
                   {formBranches.map((branch) => (
@@ -820,7 +965,7 @@ function Inventory() {
                 </select>
               </div>
               <div className="form-group">
-                <label>Departamento</label>
+                <label>Departamento *</label>
                 <select
                   value={editForm.department}
                   onChange={(e) => { updateEditForm("department", e.target.value); updateEditForm("provider", ""); }}
@@ -956,6 +1101,57 @@ function Inventory() {
         .form-group span {
           color: #64748b;
           font-size: 12px;
+        }
+
+        .catalog-input,
+        .money-input {
+          display: flex;
+          align-items: stretch;
+        }
+
+        .catalog-input input,
+        .money-input input {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .catalog-input input {
+          border-radius: 8px 0 0 8px;
+        }
+
+        .catalog-add {
+          width: 42px;
+          border: 1px solid #2563eb;
+          border-left: 0;
+          border-radius: 0 8px 8px 0;
+          background: #2563eb;
+          color: #fff;
+          font-size: 20px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .catalog-add:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
+        .money-input > span {
+          display: grid;
+          place-items: center;
+          min-width: 38px;
+          padding: 0 10px;
+          border: 1px solid #1e293b;
+          border-right: 0;
+          border-radius: 8px 0 0 8px;
+          background: rgba(37,99,235,0.16);
+          color: #bfdbfe;
+          font-size: 15px;
+          font-weight: 700;
+        }
+
+        .money-input input {
+          border-radius: 0 8px 8px 0;
         }
 
         .btn-submit {

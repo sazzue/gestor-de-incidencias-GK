@@ -10,6 +10,7 @@ const Branch = require("./models/branch");
 const Incident = require("./models/incident");
 const Maintenance = require("./models/Maintenance");
 const InventoryItem = require("./models/InventoryItem");
+const InventoryCatalog = require("./models/InventoryCatalog");
 const Supplier = require("./models/Supplier");
 const SystemSettings = require("./models/SystemSettings");
 const AuditLog = require("./models/AuditLog");
@@ -40,6 +41,8 @@ const assignDefaultOrganization = async (organizationId) => {
     Maintenance.updateMany({ organization: null }, { organization: organizationId }),
     InventoryItem.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
     InventoryItem.updateMany({ organization: null }, { organization: organizationId }),
+    InventoryCatalog.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    InventoryCatalog.updateMany({ organization: null }, { organization: organizationId }),
     Supplier.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
     Supplier.updateMany({ organization: null }, { organization: organizationId }),
     SystemSettings.updateMany({ organization: { $exists: false } }, { organization: organizationId }),

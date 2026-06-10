@@ -7,6 +7,7 @@ const Supplier = require("../models/Supplier");
 const auth = require("../middleware/authMiddleware");
 const { ACCESS_SCOPES } = require("../config/permissions");
 const { hasPermission } = require("../utils/permissions");
+const { getInventorySerialNumber } = require("../utils/inventory");
 const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
 const {
   getInventoryInvoiceUrl,
@@ -215,10 +216,14 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       return res.status(403).json({ msg: "No autorizado para usar este proveedor" });
     }
 
-    if (!model || !brand || !serialNumber || !supplierData?.provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
+    if (supplierData === null) {
+      return res.status(400).json({ msg: "El proveedor seleccionado no existe" });
+    }
+
+    if (!model?.trim() || !brand?.trim() || !branch || !department || !Number.isFinite(numericPrice) || numericPrice < 0) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios",
+        error: "Articulo, categoria o marca, valor, sucursal y departamento son obligatorios",
       });
     }
 
@@ -255,12 +260,12 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
 
     const item = await InventoryItem.create({
       organization: req.user.organization || null,
-      model,
-      brand,
-      serialNumber: serialNumber.trim(),
-      provider: supplierData.provider,
+      model: model.trim(),
+      brand: brand.trim(),
+      serialNumber: getInventorySerialNumber(serialNumber),
+      provider: supplierData?.provider || "",
       supplier: supplierData.supplier,
-      responsible,
+      responsible: responsible?.trim() || "",
       price: numericPrice,
       branch,
       department,
@@ -371,10 +376,14 @@ router.put("/:id", auth, async (req, res) => {
       return res.status(403).json({ msg: "No autorizado para usar este proveedor" });
     }
 
-    if (!model || !brand || !serialNumber || !supplierData?.provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
+    if (supplierData === null) {
+      return res.status(400).json({ msg: "El proveedor seleccionado no existe" });
+    }
+
+    if (!model?.trim() || !brand?.trim() || !branch || !department || !Number.isFinite(numericPrice) || numericPrice < 0) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios",
+        error: "Articulo, categoria o marca, valor, sucursal y departamento son obligatorios",
       });
     }
 
@@ -406,12 +415,12 @@ router.put("/:id", auth, async (req, res) => {
       return res.status(403).json({ msg: "No puedes mover articulos a otro departamento" });
     }
 
-    item.model = model;
-    item.brand = brand;
-    item.serialNumber = serialNumber.trim();
-    item.provider = supplierData.provider;
+    item.model = model.trim();
+    item.brand = brand.trim();
+    item.serialNumber = getInventorySerialNumber(serialNumber);
+    item.provider = supplierData?.provider || "";
     item.supplier = supplierData.supplier;
-    item.responsible = responsible;
+    item.responsible = responsible?.trim() || "";
     item.price = numericPrice;
     item.branch = branch;
     item.department = department;

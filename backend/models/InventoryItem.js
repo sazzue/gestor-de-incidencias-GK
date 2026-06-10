@@ -42,7 +42,7 @@ const inventoryItemSchema = new mongoose.Schema(
     },
     provider: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     supplier: {
