@@ -8,6 +8,141 @@ const ACTION_LABELS = {
   delete: "Eliminacion",
 };
 
+const MODULE_LABELS = {
+  users: "Usuarios",
+  incidents: "Incidencias",
+  maintenance: "Mantenimientos",
+  inventory: "Inventario",
+  suppliers: "Proveedores",
+  branches: "Sucursales",
+  departments: "Departamentos",
+  settings: "Configuracion",
+  organizations: "Empresas",
+  auth: "Seguridad",
+  storage: "Almacenamiento",
+};
+
+const FIELD_LABELS = {
+  nombre: "Nombre",
+  name: "Nombre",
+  username: "Nombre de usuario",
+  email: "Correo electronico",
+  role: "Rol",
+  department: "Departamento",
+  branch: "Sucursal",
+  branches: "Sucursales",
+  permissions: "Permisos",
+  accessScopes: "Alcances de acceso",
+  title: "Titulo",
+  description: "Descripcion",
+  priority: "Prioridad",
+  status: "Estado",
+  assignedTo: "Responsable asignado",
+  resolutionComment: "Comentario de resolucion",
+  comment: "Comentario",
+  text: "Comentario",
+  date: "Fecha",
+  scheduledDate: "Fecha programada",
+  provider: "Proveedor",
+  brand: "Marca",
+  model: "Modelo",
+  serialNumber: "Numero de serie",
+  quantity: "Cantidad",
+  price: "Precio",
+  plan: "Plan",
+  addOns: "Servicios adicionales",
+  enabled: "Habilitado",
+  smtpHost: "Servidor de correo",
+  smtpPort: "Puerto de correo",
+  smtpSecure: "Conexion segura",
+  fromName: "Nombre del remitente",
+  fromEmail: "Correo del remitente",
+  incidents: "Incidencias",
+  maintenance: "Mantenimientos",
+  inventory: "Inventario",
+};
+
+const VALUE_LABELS = {
+  true: "Si",
+  false: "No",
+  pendiente: "Pendiente",
+  "en proceso": "En proceso",
+  resuelto: "Resuelto",
+  cerrado: "Cerrado",
+  baja: "Baja",
+  media: "Media",
+  alta: "Alta",
+  critica: "Critica",
+  admin: "Administrador",
+  direccion: "Direccion",
+  gerencia: "Gerencia",
+  departamento: "Departamento",
+  all: "Toda la empresa",
+  branch: "Sucursales asignadas",
+  assigned: "Solo registros asignados",
+  active: "Activa",
+  suspended: "Suspendida",
+  trial: "Periodo de prueba",
+  basic: "Basico",
+  pro: "Profesional",
+  enterprise: "Empresarial",
+  USERS_MANAGE: "Administrar usuarios y permisos",
+  AUDIT_VIEW: "Consultar la bitacora",
+  SETTINGS_MANAGE: "Configurar la empresa",
+  CATALOGS_MANAGE: "Administrar catalogos",
+  INCIDENTS_VIEW: "Ver incidencias",
+  INCIDENTS_CREATE: "Crear incidencias",
+  INCIDENTS_UPDATE_STATUS: "Cambiar estado de incidencias",
+  INCIDENTS_ASSIGN: "Asignar incidencias",
+  INCIDENTS_COMMENT: "Comentar incidencias",
+  INCIDENTS_CLOSE: "Cerrar incidencias",
+  MAINTENANCE_VIEW: "Ver mantenimientos",
+  MAINTENANCE_CREATE: "Crear mantenimientos",
+  INVENTORY_VIEW: "Ver inventario",
+  INVENTORY_CREATE: "Crear inventario",
+};
+
+const humanizeKey = (key) => FIELD_LABELS[key] || key
+  .replace(/([a-z])([A-Z])/g, "$1 $2")
+  .replace(/_/g, " ")
+  .replace(/^./, (letter) => letter.toUpperCase());
+
+const humanizeValue = (value, key = "") => {
+  if (value === null || value === undefined || value === "") return "Sin valor";
+  if (typeof value === "boolean") return value ? "Si" : "No";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "Ninguno";
+    return value.map((item) => humanizeValue(item, key)).join(", ");
+  }
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .map(([nestedKey, nestedValue]) => `${humanizeKey(nestedKey)}: ${humanizeValue(nestedValue, nestedKey)}`)
+      .join("; ");
+  }
+
+  const cleanValue = String(value);
+  if (/^[a-f\d]{24}$/i.test(cleanValue)) return "Registro seleccionado";
+  if (/^\d{4}-\d{2}-\d{2}T/.test(cleanValue)) {
+    const date = new Date(cleanValue);
+    if (!Number.isNaN(date.getTime())) return date.toLocaleString("es-MX");
+  }
+  return VALUE_LABELS[cleanValue] || VALUE_LABELS[cleanValue.toLowerCase()] || cleanValue;
+};
+
+const getChangeDetails = (item) => {
+  const changes = Object.entries(item.changes || {});
+
+  if (changes.length === 0) {
+    if (item.action === "delete") return ["El usuario elimino este registro."];
+    return ["La operacion se completo sin datos adicionales."];
+  }
+
+  return changes.map(([key, value]) => {
+    const verb = item.action === "create" ? "Registro" : "Cambio";
+    return `${verb} ${humanizeKey(key).toLowerCase()}: ${humanizeValue(value, key)}.`;
+  });
+};
+
 function AuditLog() {
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
@@ -65,8 +200,8 @@ function AuditLog() {
           onChange={(event) => setFilters((current) => ({ ...current, module: event.target.value }))}
         >
           <option value="">Todos los modulos</option>
-          {["users", "incidents", "maintenance", "inventory", "suppliers", "branches", "departments", "settings", "organizations", "auth"].map((module) => (
-            <option value={module} key={module}>{module}</option>
+          {Object.entries(MODULE_LABELS).map(([module, label]) => (
+            <option value={module} key={module}>{label}</option>
           ))}
         </select>
         <select
@@ -109,12 +244,16 @@ function AuditLog() {
                       <span>{item.actor?.email}</span>
                     </td>
                     <td><b className={`audit-action ${item.action}`}>{ACTION_LABELS[item.action] || item.action}</b></td>
-                    <td>{item.module}</td>
-                    <td>{item.resourceId || "-"}</td>
+                    <td>{MODULE_LABELS[item.module] || item.module}</td>
+                    <td>{item.resourceId ? "Registro identificado" : "Registro general"}</td>
                     <td>
                       <details>
                         <summary>Ver detalle</summary>
-                        <pre>{JSON.stringify(item.changes || {}, null, 2)}</pre>
+                        <ul className="audit-change-list">
+                          {getChangeDetails(item).map((detail, index) => (
+                            <li key={`${item._id}-${index}`}>{detail}</li>
+                          ))}
+                        </ul>
                       </details>
                     </td>
                   </tr>
@@ -155,7 +294,8 @@ function AuditLog() {
         .audit-action.update { background: rgba(59,130,246,.15); color: #60a5fa; }
         .audit-action.delete { background: rgba(239,68,68,.15); color: #f87171; }
         details summary { cursor: pointer; color: var(--app-accent); }
-        details pre { max-width: 380px; max-height: 220px; overflow: auto; padding: 10px; border-radius: 8px; background: rgba(0,0,0,.22); color: var(--app-text); white-space: pre-wrap; }
+        .audit-change-list { max-width: 430px; max-height: 240px; overflow: auto; margin: 8px 0 0; padding: 10px 10px 10px 28px; border-radius: 8px; background: rgba(0,0,0,.18); color: var(--app-text); line-height: 1.45; }
+        .audit-change-list li + li { margin-top: 7px; }
         .audit-empty, .audit-error { padding: 24px; text-align: center; }
         .audit-error { color: #f87171; background: rgba(239,68,68,.1); border-radius: 10px; margin-bottom: 14px; }
         .audit-pagination { display: flex; justify-content: center; align-items: center; gap: 14px; margin-top: 18px; }
