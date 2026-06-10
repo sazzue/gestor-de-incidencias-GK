@@ -19,6 +19,7 @@ import ResetPassword       from "./pages/ResetPassword.jsx";
 import ChangePassword      from "./pages/ChangePassword.jsx";
 
 import PrivateRoute        from "./components/PrivateRoute.jsx";
+import InactivityLogout    from "./components/InactivityLogout.jsx";
 import { useNoAutoTranslate } from "./hooks/useNoAutoTranslate.js";
 import { useTextInputAssist } from "./hooks/useTextInputAssist.js";
 
@@ -28,6 +29,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <InactivityLogout />
       <Routes>
 
         {/* ── Públicas ───────────────────────────── */}

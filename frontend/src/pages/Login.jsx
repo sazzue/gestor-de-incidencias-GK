@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
+import { INACTIVITY_MESSAGE_KEY } from "../components/InactivityLogout";
 import { useSystemSettings } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -10,10 +11,22 @@ function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const { settings } = useSystemSettings();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const loginSubtitle = (settings.loginSubtitle || "").replace("{systemName}", settings.systemName || "");
+
+  useEffect(() => {
+    const inactiveMessage = sessionStorage.getItem(INACTIVITY_MESSAGE_KEY);
+
+    if (inactiveMessage || location.state?.inactiveSession) {
+      setNotice(inactiveMessage || "Tu sesion se cerro por inactividad.");
+      sessionStorage.removeItem(INACTIVITY_MESSAGE_KEY);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const validate = () => {
     if (!identifier || !password) {
@@ -26,6 +39,7 @@ function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setNotice("");
 
     if (!validate()) return;
 
@@ -84,6 +98,7 @@ function Login() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
+          {notice && <p className="notice">{notice}</p>}
           {error && <p className="error">{error}</p>}
 
           <button type="submit" disabled={loading}>
@@ -187,6 +202,16 @@ function Login() {
 
         .error {
           color: #ef4444;
+          font-size: 12px;
+          text-align: center;
+        }
+
+        .notice {
+          color: #fbbf24;
+          background: rgba(251,191,36,0.12);
+          border: 1px solid rgba(251,191,36,0.28);
+          border-radius: 8px;
+          padding: 9px 10px;
           font-size: 12px;
           text-align: center;
         }
