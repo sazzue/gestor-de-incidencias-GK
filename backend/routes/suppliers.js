@@ -17,19 +17,6 @@ const getAssignedBranchIds = (user) => {
   return ids.map((branch) => branch?.toString()).filter(Boolean);
 };
 
-const canUseBranch = (user, branchId) => {
-  const scope = user.accessScopes?.inventory || ACCESS_SCOPES.DEPARTMENT;
-  if (scope === ACCESS_SCOPES.ALL) return true;
-  return getAssignedBranchIds(user).includes(branchId?.toString());
-};
-
-const canUseDepartment = (user, department) => {
-  const scope = user.accessScopes?.inventory || ACCESS_SCOPES.DEPARTMENT;
-  if (scope === ACCESS_SCOPES.ALL) return true;
-  if (scope !== ACCESS_SCOPES.DEPARTMENT) return true;
-  return normalizeDepartment(user.department) === normalizeDepartment(department);
-};
-
 const getSupplierQueryForUser = (user) => {
   const organization = user.organization || null;
   const scope = user.accessScopes?.inventory || ACCESS_SCOPES.DEPARTMENT;
@@ -39,12 +26,26 @@ const getSupplierQueryForUser = (user) => {
   if (scope === ACCESS_SCOPES.BRANCH) {
     const branchIds = getAssignedBranchIds(user);
     if (branchIds.length === 0) return null;
-    return { organization, branch: { $in: branchIds } };
+    return {
+      organization,
+      $or: [
+        { scope: ACCESS_SCOPES.ALL },
+        { branch: { $in: branchIds } },
+        { branches: { $in: branchIds } },
+      ],
+    };
   }
 
   const department = normalizeDepartment(user.department);
   if (!department) return null;
-  return { organization, department };
+  return {
+    organization,
+    $or: [
+      { scope: ACCESS_SCOPES.ALL },
+      { scope: ACCESS_SCOPES.DEPARTMENT, department },
+      { department },
+    ],
+  };
 };
 
 const canAccessSupplier = (user, supplier) => {
@@ -52,11 +53,47 @@ const canAccessSupplier = (user, supplier) => {
   if (scope === ACCESS_SCOPES.ALL) return true;
 
   if (scope === ACCESS_SCOPES.BRANCH) {
+    if (supplier.scope === ACCESS_SCOPES.ALL) return true;
     const branchId = supplier.branch?._id || supplier.branch;
-    return getAssignedBranchIds(user).includes(branchId?.toString());
+    const supplierBranchIds = [
+      branchId,
+      ...(Array.isArray(supplier.branches) ? supplier.branches : []),
+    ].map((branch) => branch?._id?.toString() || branch?.toString()).filter(Boolean);
+    return supplierBranchIds.some((id) => getAssignedBranchIds(user).includes(id));
   }
 
+  if (supplier.scope === ACCESS_SCOPES.ALL) return true;
   return normalizeDepartment(user.department) === normalizeDepartment(supplier.department);
+};
+
+const getAutomaticScopeForUser = (user) => {
+  const scope = user.accessScopes?.inventory || ACCESS_SCOPES.DEPARTMENT;
+
+  if (scope === ACCESS_SCOPES.ALL) {
+    return {
+      scope: ACCESS_SCOPES.ALL,
+      branch: null,
+      branches: [],
+      department: "",
+    };
+  }
+
+  if (scope === ACCESS_SCOPES.BRANCH) {
+    const branchIds = getAssignedBranchIds(user);
+    return {
+      scope: ACCESS_SCOPES.BRANCH,
+      branch: branchIds[0] || null,
+      branches: branchIds,
+      department: "",
+    };
+  }
+
+  return {
+    scope: ACCESS_SCOPES.DEPARTMENT,
+    branch: null,
+    branches: [],
+    department: normalizeDepartment(user.department),
+  };
 };
 
 const requireAnySupplierPermission = (req, res, next) => {
@@ -83,6 +120,7 @@ router.get("/", auth, requireAnySupplierPermission, async (req, res) => {
 
     const suppliers = await Supplier.find(query)
       .populate("branch", "name")
+      .populate("branches", "name")
       .populate("createdBy", "nombre email")
       .sort({ name: 1 });
 
@@ -101,22 +139,21 @@ router.post("/", auth, async (req, res) => {
     const name = req.body.name?.trim();
     const address = req.body.address?.trim() || "";
     const phone = req.body.phone?.trim() || "";
-    const branch = req.body.branch;
-    const department = normalizeDepartment(req.body.department);
+    const automaticScope = getAutomaticScopeForUser(req.user);
 
-    if (!name || !branch || !department) {
+    if (!name) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Nombre, sucursal y departamento son obligatorios",
+        error: "El nombre del proveedor es obligatorio",
       });
     }
 
-    if (!canUseBranch(req.user, branch)) {
-      return res.status(403).json({ msg: "No puedes crear proveedores para esta sucursal" });
+    if (automaticScope.scope === ACCESS_SCOPES.BRANCH && automaticScope.branches.length === 0) {
+      return res.status(403).json({ msg: "No tienes sucursales asignadas para crear proveedores" });
     }
 
-    if (!canUseDepartment(req.user, department)) {
-      return res.status(403).json({ msg: "No puedes crear proveedores para otro departamento" });
+    if (automaticScope.scope === ACCESS_SCOPES.DEPARTMENT && !automaticScope.department) {
+      return res.status(403).json({ msg: "No tienes departamento asignado para crear proveedores" });
     }
 
     const supplier = await Supplier.create({
@@ -124,19 +161,19 @@ router.post("/", auth, async (req, res) => {
       name,
       address,
       phone,
-      branch,
-      department,
+      ...automaticScope,
       createdBy: req.user.id,
     });
 
     const populated = await Supplier.findById(supplier._id)
       .populate("branch", "name")
+      .populate("branches", "name")
       .populate("createdBy", "nombre email");
 
     res.status(201).json(populated);
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ msg: "El proveedor ya existe para esa sucursal y departamento" });
+      return res.status(400).json({ msg: "El proveedor ya existe en tu alcance" });
     }
 
     res.status(500).json({ msg: "Error al crear proveedor", error: error.message });
@@ -165,29 +202,17 @@ router.put("/:id", auth, async (req, res) => {
     const name = req.body.name?.trim();
     const address = req.body.address?.trim() || "";
     const phone = req.body.phone?.trim() || "";
-    const branch = req.body.branch;
-    const department = normalizeDepartment(req.body.department);
 
-    if (!name || !branch || !department) {
+    if (!name) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Nombre, sucursal y departamento son obligatorios",
+        error: "El nombre del proveedor es obligatorio",
       });
-    }
-
-    if (!canUseBranch(req.user, branch)) {
-      return res.status(403).json({ msg: "No puedes mover proveedores a esta sucursal" });
-    }
-
-    if (!canUseDepartment(req.user, department)) {
-      return res.status(403).json({ msg: "No puedes mover proveedores a otro departamento" });
     }
 
     supplier.name = name;
     supplier.address = address;
     supplier.phone = phone;
-    supplier.branch = branch;
-    supplier.department = department;
     await supplier.save();
 
     await InventoryItem.updateMany(
@@ -197,12 +222,13 @@ router.put("/:id", auth, async (req, res) => {
 
     const updated = await Supplier.findById(supplier._id)
       .populate("branch", "name")
+      .populate("branches", "name")
       .populate("createdBy", "nombre email");
 
     res.json(updated);
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ msg: "El proveedor ya existe para esa sucursal y departamento" });
+      return res.status(400).json({ msg: "El proveedor ya existe en tu alcance" });
     }
 
     res.status(500).json({ msg: "Error al modificar proveedor", error: error.message });

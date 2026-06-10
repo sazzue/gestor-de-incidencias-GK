@@ -8,14 +8,10 @@ const initialForm = {
   name: "",
   address: "",
   phone: "",
-  branch: "",
-  department: "",
 };
 
 function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
-  const [branches, setBranches] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [editForm, setEditForm] = useState(initialForm);
@@ -32,10 +28,7 @@ function Suppliers() {
   const canDelete = hasPermission(user, "SUPPLIERS_DELETE");
   const canAccessPage = canView || canCreate || canUpdate || canDelete;
   const inventoryScope = user?.accessScopes?.inventory || ACCESS_SCOPES.DEPARTMENT;
-  const isAllScope = inventoryScope === ACCESS_SCOPES.ALL;
-  const isDepartmentScope = inventoryScope === ACCESS_SCOPES.DEPARTMENT;
   const userDepartment = user?.department?.toString().trim().toLowerCase() || "";
-  const isDepartmentLocked = isDepartmentScope && Boolean(userDepartment);
 
   const userBranchIds = useMemo(() => {
     const assigned = Array.isArray(user?.branches) ? user.branches : [];
@@ -43,18 +36,14 @@ function Suppliers() {
     return ids.map((branch) => branch?._id || branch).filter(Boolean);
   }, [user]);
 
-  const availableBranches = useMemo(() => {
-    if (isAllScope || isDepartmentScope) return branches;
-    return branches.filter((branch) => userBranchIds.includes(branch._id));
-  }, [branches, isAllScope, isDepartmentScope, userBranchIds]);
-
-  const availableDepartments = useMemo(() => {
-    if (isDepartmentLocked) {
-      return departments.filter((department) => department.name?.toLowerCase() === userDepartment);
+  const automaticScopeLabel = useMemo(() => {
+    if (inventoryScope === ACCESS_SCOPES.ALL) return "Toda la empresa";
+    if (inventoryScope === ACCESS_SCOPES.BRANCH) {
+      const count = userBranchIds.length;
+      return count === 1 ? "Sucursal asignada" : `${count} sucursales asignadas`;
     }
-
-    return departments;
-  }, [departments, isDepartmentLocked, userDepartment]);
+    return userDepartment ? `Departamento: ${userDepartment}` : "Su departamento";
+  }, [inventoryScope, userBranchIds.length, userDepartment]);
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -81,46 +70,20 @@ function Suppliers() {
     }
   }, [headers]);
 
-  const fetchCatalogs = useCallback(async () => {
-    try {
-      const [branchesRes, departmentsRes] = await Promise.all([
-        fetch(`${API_URL}/api/branches`, { headers }),
-        fetch(`${API_URL}/api/departments`, { headers }),
-      ]);
-      const [branchesData, departmentsData] = await Promise.all([
-        branchesRes.json(),
-        departmentsRes.json(),
-      ]);
-
-      setBranches(Array.isArray(branchesData) ? branchesData : []);
-      setDepartments(Array.isArray(departmentsData) ? departmentsData : []);
-    } catch {
-      setBranches([]);
-      setDepartments([]);
-    }
-  }, [headers]);
-
   useEffect(() => {
     if (!token || !canAccessPage) return;
-    fetchCatalogs();
     fetchSuppliers();
-  }, [token, canAccessPage, fetchCatalogs, fetchSuppliers]);
-
-  useEffect(() => {
-    if (isDepartmentLocked) {
-      updateForm("department", userDepartment);
-    }
-  }, [isDepartmentLocked, userDepartment]);
+  }, [token, canAccessPage, fetchSuppliers]);
 
   const createSupplier = async (event) => {
     event.preventDefault();
     setMessage(null);
 
-    if (!form.name.trim() || !form.branch || !form.department) {
+    if (!form.name.trim()) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Nombre, sucursal y departamento son obligatorios.",
+        detail: "El nombre del proveedor es obligatorio.",
       });
       return;
     }
@@ -140,7 +103,7 @@ function Suppliers() {
       }
 
       setSuppliers((current) => [data, ...current].sort((a, b) => a.name.localeCompare(b.name)));
-      setForm({ ...initialForm, department: isDepartmentLocked ? userDepartment : "" });
+      setForm(initialForm);
       setMessage({ type: "success", title: "Proveedor creado", detail: "El proveedor quedo disponible para inventario." });
     } catch {
       setMessage({ type: "error", title: "Error de conexion", detail: "No se pudo conectar con el servidor." });
@@ -155,8 +118,6 @@ function Suppliers() {
       name: supplier.name || "",
       address: supplier.address || "",
       phone: supplier.phone || "",
-      branch: supplier.branch?._id || supplier.branch || "",
-      department: supplier.department || "",
     });
   };
 
@@ -164,11 +125,11 @@ function Suppliers() {
     event.preventDefault();
     setMessage(null);
 
-    if (!editForm.name.trim() || !editForm.branch || !editForm.department) {
+    if (!editForm.name.trim()) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Nombre, sucursal y departamento son obligatorios.",
+        detail: "El nombre del proveedor es obligatorio.",
       });
       return;
     }
@@ -221,6 +182,25 @@ function Suppliers() {
     }
   };
 
+  const formatSupplierScope = (supplier) => {
+    if (supplier.scope === ACCESS_SCOPES.ALL) {
+      return { title: "Toda la empresa", detail: "Disponible para todos" };
+    }
+
+    if (supplier.scope === ACCESS_SCOPES.BRANCH) {
+      const names = Array.isArray(supplier.branches) && supplier.branches.length > 0
+        ? supplier.branches.map((branch) => branch.name || branch).join(", ")
+        : supplier.branch?.name || "Sucursales asignadas";
+
+      return { title: names, detail: "Alcance por sucursal" };
+    }
+
+    return {
+      title: supplier.department || "Sin departamento",
+      detail: "Alcance por departamento",
+    };
+  };
+
   if (!canAccessPage) {
     return (
       <div className="suppliers-page">
@@ -249,6 +229,7 @@ function Suppliers() {
         <form className="supplier-form" onSubmit={createSupplier}>
           <div className="form-title">
             <h2>Crear proveedor</h2>
+            <span>Alcance automatico: {automaticScopeLabel}</span>
           </div>
           <div className="form-grid">
             <div className="form-group">
@@ -258,28 +239,6 @@ function Suppliers() {
             <div className="form-group">
               <label>Telefono opcional</label>
               <input value={form.phone} onChange={(e) => updateForm("phone", e.target.value)} placeholder="Telefono de contacto" />
-            </div>
-            <div className="form-group">
-              <label>Sucursal</label>
-              <select value={form.branch} onChange={(e) => updateForm("branch", e.target.value)}>
-                <option value="">Seleccionar sucursal</option>
-                {availableBranches.map((branch) => (
-                  <option key={branch._id} value={branch._id}>{branch.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Departamento</label>
-              <select
-                value={form.department}
-                disabled={isDepartmentLocked}
-                onChange={(e) => updateForm("department", e.target.value)}
-              >
-                <option value="">Seleccionar departamento</option>
-                {availableDepartments.map((department) => (
-                  <option key={department._id} value={department.name?.toLowerCase()}>{department.name}</option>
-                ))}
-              </select>
             </div>
             <div className="form-group wide">
               <label>Direccion opcional</label>
@@ -310,8 +269,8 @@ function Suppliers() {
                 <span>{supplier.phone || "Sin telefono"}</span>
               </div>
               <div className="supplier-scope">
-                <strong>{supplier.branch?.name || "Sin sucursal"}</strong>
-                <span>{supplier.department || "Sin departamento"}</span>
+                <strong>{formatSupplierScope(supplier).title}</strong>
+                <span>{formatSupplierScope(supplier).detail}</span>
               </div>
               <div className="row-actions">
                 {canUpdate && <button type="button" onClick={() => openEdit(supplier)}>Modificar</button>}
@@ -334,28 +293,6 @@ function Suppliers() {
               <div className="form-group">
                 <label>Telefono opcional</label>
                 <input value={editForm.phone} onChange={(e) => updateEditForm("phone", e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Sucursal</label>
-                <select value={editForm.branch} onChange={(e) => updateEditForm("branch", e.target.value)}>
-                  <option value="">Seleccionar sucursal</option>
-                  {availableBranches.map((branch) => (
-                    <option key={branch._id} value={branch._id}>{branch.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Departamento</label>
-                <select
-                  value={editForm.department}
-                  disabled={isDepartmentLocked}
-                  onChange={(e) => updateEditForm("department", e.target.value)}
-                >
-                  <option value="">Seleccionar departamento</option>
-                  {availableDepartments.map((department) => (
-                    <option key={department._id} value={department.name?.toLowerCase()}>{department.name}</option>
-                  ))}
-                </select>
               </div>
               <div className="form-group wide">
                 <label>Direccion opcional</label>
@@ -380,8 +317,9 @@ function Suppliers() {
         .page-header p { margin: 4px 0 0; opacity: 0.7; font-size: 13px; }
         .supplier-form, .supplier-table { border: 1px solid rgba(255,255,255,0.08); background: color-mix(in srgb, var(--app-card) 88%, transparent); border-radius: 8px; }
         .supplier-form { padding: 18px; margin-bottom: 18px; }
-        .form-title { margin-bottom: 14px; }
+        .form-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
         .form-title h2 { font-size: 16px; }
+        .form-title span { color: #93c5fd; font-size: 12px; border: 1px solid rgba(147,197,253,0.24); border-radius: 999px; padding: 5px 9px; background: rgba(59,130,246,0.1); }
         .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
         .form-group { display: flex; flex-direction: column; gap: 7px; }
         .form-group.wide { grid-column: 1 / -1; }

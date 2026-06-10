@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { hasPermission } from "../config/permissions";
+import { ACCESS_SCOPES, hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
 
@@ -76,6 +76,20 @@ function Inventory() {
 
   const getSupplierOptions = useCallback((branchId, departmentName) => suppliers
     .filter((supplier) => {
+      if (supplier.scope === ACCESS_SCOPES.ALL) return true;
+
+      if (supplier.scope === ACCESS_SCOPES.BRANCH) {
+        const supplierBranchIds = [
+          supplier.branch?._id || supplier.branch,
+          ...(Array.isArray(supplier.branches) ? supplier.branches.map((branch) => branch?._id || branch) : []),
+        ].filter(Boolean);
+        return !branchId || supplierBranchIds.includes(branchId);
+      }
+
+      if (supplier.scope === ACCESS_SCOPES.DEPARTMENT) {
+        return !departmentName || supplier.department === departmentName;
+      }
+
       if (branchId && (supplier.branch?._id || supplier.branch) !== branchId) return false;
       if (departmentName && supplier.department !== departmentName) return false;
       return true;

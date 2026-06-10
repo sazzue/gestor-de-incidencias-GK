@@ -5,6 +5,7 @@ const router = express.Router();
 const InventoryItem = require("../models/InventoryItem");
 const Supplier = require("../models/Supplier");
 const auth = require("../middleware/authMiddleware");
+const { ACCESS_SCOPES } = require("../config/permissions");
 const { hasPermission } = require("../utils/permissions");
 const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
 const {
@@ -133,7 +134,17 @@ const getSupplierForInventory = async (user, provider) => {
 
   if (!supplier) return null;
 
-  if (!canUseBranch(user, supplier.branch) || !canUseDepartment(user, supplier.department)) {
+  const supplierBranchIds = [
+    supplier.branch,
+    ...(Array.isArray(supplier.branches) ? supplier.branches : []),
+  ].map((branch) => branch?._id?.toString() || branch?.toString()).filter(Boolean);
+  const userCanUseSupplier =
+    supplier.scope === ACCESS_SCOPES.ALL ||
+    (supplier.scope === ACCESS_SCOPES.BRANCH && supplierBranchIds.some((branchId) => canUseBranch(user, branchId))) ||
+    (supplier.scope === ACCESS_SCOPES.DEPARTMENT && canUseDepartment(user, supplier.department)) ||
+    (!supplier.scope && (!supplier.branch || canUseBranch(user, supplier.branch)) && (!supplier.department || canUseDepartment(user, supplier.department)));
+
+  if (!userCanUseSupplier) {
     return false;
   }
 
@@ -141,8 +152,31 @@ const getSupplierForInventory = async (user, provider) => {
     provider: supplier.name,
     supplier: supplier._id,
     branch: supplier.branch,
+    branches: supplier.branches || [],
     department: supplier.department,
+    scope: supplier.scope || ACCESS_SCOPES.DEPARTMENT,
   };
+};
+
+const supplierMatchesInventorySelection = (supplierData, branch, department) => {
+  if (!supplierData.supplier || supplierData.scope === ACCESS_SCOPES.ALL) return true;
+
+  if (supplierData.scope === ACCESS_SCOPES.BRANCH) {
+    const supplierBranchIds = [
+      supplierData.branch,
+      ...(Array.isArray(supplierData.branches) ? supplierData.branches : []),
+    ].map((supplierBranch) => supplierBranch?._id?.toString() || supplierBranch?.toString()).filter(Boolean);
+
+    return supplierBranchIds.includes(branch?.toString());
+  }
+
+  if (supplierData.scope === ACCESS_SCOPES.DEPARTMENT) {
+    return normalizeDepartment(supplierData.department) === department;
+  }
+
+  const branchMatches = !supplierData.branch || supplierData.branch?.toString() === branch?.toString();
+  const departmentMatches = !supplierData.department || normalizeDepartment(supplierData.department) === department;
+  return branchMatches && departmentMatches;
 };
 
 router.get("/", auth, async (req, res) => {
@@ -190,8 +224,7 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
 
     if (
       supplierData.supplier &&
-      (supplierData.branch?.toString() !== branch?.toString() ||
-        normalizeDepartment(supplierData.department) !== department)
+      !supplierMatchesInventorySelection(supplierData, branch, department)
     ) {
       return res.status(400).json({ msg: "El proveedor no pertenece a la sucursal y departamento seleccionados" });
     }
@@ -347,8 +380,7 @@ router.put("/:id", auth, async (req, res) => {
 
     if (
       supplierData.supplier &&
-      (supplierData.branch?.toString() !== branch?.toString() ||
-        normalizeDepartment(supplierData.department) !== department)
+      !supplierMatchesInventorySelection(supplierData, branch, department)
     ) {
       return res.status(400).json({ msg: "El proveedor no pertenece a la sucursal y departamento seleccionados" });
     }

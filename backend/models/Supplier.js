@@ -25,11 +25,21 @@ const supplierSchema = new mongoose.Schema(
     branch: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
-      required: true,
+      default: null,
+    },
+    branches: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+    }],
+    scope: {
+      type: String,
+      enum: ["all", "branch", "department"],
+      default: "department",
+      trim: true,
     },
     department: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
       lowercase: true,
     },
@@ -42,7 +52,7 @@ const supplierSchema = new mongoose.Schema(
 );
 
 supplierSchema.index(
-  { organization: 1, branch: 1, department: 1, name: 1 },
+  { organization: 1, scope: 1, department: 1, branch: 1, name: 1 },
   { unique: true }
 );
 
