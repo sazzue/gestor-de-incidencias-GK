@@ -6,6 +6,7 @@ const createRateLimiter = require("../middleware/rateLimit");
 const { buildCorsOptions, securityHeaders } = require("../middleware/security");
 const { getAuditAction, getAuditModule, sanitizeAuditValue } = require("../utils/audit");
 const requirePermission = require("../middleware/requirePermission");
+const { calculateDueAt, normalizeSlaHours, normalizeWarningPercent } = require("../utils/sla");
 
 test("CORS accepts the configured frontend and rejects unknown origins", () => {
   const previousFrontendUrl = process.env.FRONTEND_URL;
@@ -126,4 +127,15 @@ test("audit access requires AUDIT_VIEW instead of SETTINGS_MANAGE", () => {
     () => { continued = true; }
   );
   assert.equal(continued, true);
+});
+
+test("SLA configuration normalizes values and calculates deadlines", () => {
+  const hours = normalizeSlaHours({ baja: 200, media: 48, alta: 0, critica: "8" });
+  assert.deepEqual(hours, { baja: 200, media: 48, alta: 24, critica: 8 });
+  assert.equal(normalizeWarningPercent(2), 5);
+  assert.equal(normalizeWarningPercent(95), 90);
+
+  const createdAt = new Date("2026-06-10T12:00:00.000Z");
+  const dueAt = calculateDueAt({ createdAt, priority: "critica", slaHours: hours });
+  assert.equal(dueAt.toISOString(), "2026-06-10T20:00:00.000Z");
 });

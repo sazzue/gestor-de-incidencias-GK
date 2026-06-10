@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
+import { useSystemSettings } from "../hooks/useSystemSettings";
+import { useSlaClock } from "../hooks/useSlaClock";
 import { exportPdfReport } from "../utils/pdfReport";
+import { getSlaLabel, getSlaState } from "../utils/sla";
 import {
   FOLLOW_UP_READ_EVENT,
   hasUnreadFollowUp,
@@ -32,16 +35,16 @@ function Incidents() {
 
   const navigate = useNavigate();
   const user = useAuthUser();
+  const { settings } = useSystemSettings();
+  const now = useSlaClock();
 
   const formatDate = (date) =>
     new Date(date).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" });
   const getResolvedDate = (incident) =>
     incident.resolvedAt || (incident.status === "resuelto" ? incident.updatedAt : null);
   const getFolio = (incident) => incident.folio || `INC-${incident._id.slice(-6).toUpperCase()}`;
-  const isOverdue = (incident) =>
-    incident.status !== "resuelto" &&
-    incident.dueAt &&
-    new Date(incident.dueAt).getTime() < Date.now();
+  const getIncidentSlaState = (incident) =>
+    getSlaState(incident, settings.slaWarningPercent, now);
   const canViewIncidents = hasPermission(user, "INCIDENTS_VIEW");
   const canExportIncidents = hasPermission(user, "INCIDENTS_EXPORT");
   const canUpdateStatus = hasPermission(user, "INCIDENTS_UPDATE_STATUS");
@@ -386,9 +389,9 @@ function Incidents() {
               <span>Departamento: {inc.department || "Sin departamento"}</span>
               <span>Responsable: {inc.assignedTo?.nombre || inc.assignedTo?.email || "Sin asignar"}</span>
               <span>Creacion: {formatDate(inc.createdAt)}</span>
-              <span className={isOverdue(inc) ? "sla late" : "sla"}>
-                SLA: {inc.dueAt ? formatDate(inc.dueAt) : "Sin limite"}
-                {isOverdue(inc) ? " - vencido" : ""}
+              <span className={`sla ${getIncidentSlaState(inc)}`}>
+                SLA: {getSlaLabel(inc, settings.slaWarningPercent, now)}
+                {inc.dueAt ? ` - ${formatDate(inc.dueAt)}` : ""}
               </span>
               <span>Solicitante: {inc.createdBy?.nombre || inc.createdBy?.email}</span>
             </div>
@@ -762,6 +765,9 @@ function Incidents() {
         .priority.media { background: rgba(96,165,250,0.14); color: #93c5fd; }
         .priority.alta { background: rgba(245,158,11,0.16); color: #fbbf24; }
         .priority.critica { background: rgba(239,68,68,0.18); color: #fca5a5; }
+        .sla.on-time, .sla.met { color: #86efac; }
+        .sla.warning { color: #fbbf24; }
+        .sla.overdue, .sla.breached { color: #fca5a5; font-weight: 700; }
         .follow-up-badge {
           display: inline-flex;
           align-items: center;

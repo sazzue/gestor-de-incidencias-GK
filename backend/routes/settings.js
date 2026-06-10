@@ -8,6 +8,7 @@ const { isPlatformAdminEmail, requirePlatformAdmin } = require("../utils/platfor
 const { hasPermission } = require("../utils/permissions");
 const { createSmtpTransporter } = require("../utils/mailDelivery");
 const { decryptSecret, encryptSecret } = require("../utils/secretCrypto");
+const { normalizeSlaHours, normalizeWarningPercent } = require("../utils/sla");
 const multer = require("multer");
 
 const upload = multer({
@@ -31,6 +32,20 @@ const appearanceFields = [
   "accentColor",
   "sidebarImageUrl",
 ];
+
+const buildSlaPayload = (body = {}) => {
+  const payload = {};
+
+  if (Object.prototype.hasOwnProperty.call(body, "slaHours")) {
+    payload.slaHours = normalizeSlaHours(body.slaHours);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "slaWarningPercent")) {
+    payload.slaWarningPercent = normalizeWarningPercent(body.slaWarningPercent);
+  }
+
+  return payload;
+};
 
 const identityFields = [
   "systemName",
@@ -240,7 +255,10 @@ router.put("/", authMiddleware, requirePermission("SETTINGS_MANAGE"), async (req
   try {
     res.set("Cache-Control", "no-store");
     const organization = req.user.organization || null;
-    const payload = pickFields(req.body, appearanceFields);
+    const payload = {
+      ...pickFields(req.body, appearanceFields),
+      ...buildSlaPayload(req.body),
+    };
 
     const settings = await SystemSettings.findOneAndUpdate(
       { key: "global", organization },

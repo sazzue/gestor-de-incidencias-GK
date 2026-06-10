@@ -39,6 +39,11 @@ const formatBytes = (bytes = 0) => {
 const pickAppearance = (settings) =>
   appearanceFields.reduce((payload, field) => ({ ...payload, [field]: settings[field] }), {});
 
+const pickSlaSettings = (settings) => ({
+  slaHours: settings.slaHours,
+  slaWarningPercent: settings.slaWarningPercent,
+});
+
 const DEFAULT_MAIL_SETTINGS = {
   enabled: false,
   fromName: "",
@@ -86,6 +91,11 @@ function SystemSettings() {
     setIsDirty(true);
     setForm(next);
     applySystemTheme(next);
+  };
+
+  const updateSlaHours = (priority, value) => {
+    const hours = Math.max(1, Number(value) || 1);
+    updateField("slaHours", { ...form.slaHours, [priority]: hours });
   };
 
   const resetDefaults = () => {
@@ -339,7 +349,10 @@ function SystemSettings() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(pickAppearance(form)),
+      body: JSON.stringify({
+        ...pickAppearance(form),
+        ...pickSlaSettings(form),
+      }),
     });
     const data = await res.json();
 
@@ -359,8 +372,8 @@ function SystemSettings() {
     window.dispatchEvent(new CustomEvent("system-settings-updated", { detail: nextSettings }));
     setMessage({
       type: "success",
-      title: "Apariencia guardada",
-      detail: "Los cambios aplican solo para esta empresa.",
+      title: "Configuracion guardada",
+      detail: "La apariencia y los tiempos SLA aplican solo para esta empresa.",
     });
   };
 
@@ -418,6 +431,45 @@ function SystemSettings() {
             <p>{form.systemDescription}</p>
             <input value="Campo de ejemplo" readOnly />
             <button type="button">Boton principal</button>
+          </div>
+        </section>
+
+        <section className="panel wide">
+          <h3>Tiempos SLA</h3>
+          <p className="section-note">
+            Define cuantas horas tiene el equipo para resolver una incidencia segun su prioridad.
+            Los cambios se aplican a incidencias nuevas.
+          </p>
+          <div className="sla-settings-grid">
+            {[
+              ["baja", "Prioridad baja"],
+              ["media", "Prioridad media"],
+              ["alta", "Prioridad alta"],
+              ["critica", "Prioridad critica"],
+            ].map(([priority, label]) => (
+              <label key={priority}>
+                {label}
+                <input
+                  type="number"
+                  min="1"
+                  max="8760"
+                  value={form.slaHours?.[priority] || DEFAULT_SETTINGS.slaHours[priority]}
+                  onChange={(event) => updateSlaHours(priority, event.target.value)}
+                />
+                <small>horas para resolver</small>
+              </label>
+            ))}
+            <label>
+              Avisar cuando reste
+              <input
+                type="number"
+                min="5"
+                max="90"
+                value={form.slaWarningPercent ?? 25}
+                onChange={(event) => updateField("slaWarningPercent", Number(event.target.value))}
+              />
+              <small>porcentaje del tiempo total</small>
+            </label>
           </div>
         </section>
 
@@ -599,7 +651,7 @@ function SystemSettings() {
           Usar valores base
         </button>
         <button className="btn-submit" onClick={saveSettings}>
-          Guardar apariencia
+          Guardar configuracion
         </button>
       </div>
 
@@ -653,6 +705,9 @@ function SystemSettings() {
           text-align: left;
         }
         .mail-grid label input { opacity: 1; }
+        .sla-settings-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+        .sla-settings-grid label { display: flex; flex-direction: column; gap: 7px; color: var(--app-text); font-size: 12px; text-align: left; }
+        .sla-settings-grid small { opacity: 0.6; }
         .panel-actions {
           display: flex;
           justify-content: flex-end;
@@ -724,7 +779,7 @@ function SystemSettings() {
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
         .notice span { color: var(--app-text); }
         @media (max-width: 900px) {
-          .settings-grid, .image-grid, .storage-grid, .mail-grid { grid-template-columns: 1fr; }
+          .settings-grid, .image-grid, .storage-grid, .mail-grid, .sla-settings-grid { grid-template-columns: 1fr; }
           .color-row { grid-template-columns: 1fr; }
           .actions-bar, .storage-actions, .storage-header, .panel-actions { flex-direction: column; }
         }

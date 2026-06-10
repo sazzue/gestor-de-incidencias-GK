@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 import { useNavigate } from "react-router-dom";
+import { useSystemSettings } from "../hooks/useSystemSettings";
+import { useSlaClock } from "../hooks/useSlaClock";
+import { getSlaState, SLA_STATES } from "../utils/sla";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -12,10 +15,11 @@ const priorityLabels = {
 };
 
 function Dashboard() {
+  const { settings } = useSystemSettings();
   const [incidents, setIncidents] = useState([]);
   const [maintenances, setMaintenances] = useState([]);
   const [inventory, setInventory] = useState([]);
-  const [now] = useState(() => Date.now());
+  const now = useSlaClock();
   const [user] = useState(() => {
     const token = localStorage.getItem("token");
     return token ? jwtDecode(token) : null;
@@ -69,8 +73,14 @@ function Dashboard() {
     const open = incidents.filter((item) => item.status !== "resuelto");
     const resolved = incidents.filter((item) => item.status === "resuelto");
     const overdue = open.filter((item) => item.dueAt && new Date(item.dueAt).getTime() < now);
+    const warning = open.filter((item) =>
+      getSlaState(item, settings.slaWarningPercent, now) === SLA_STATES.WARNING
+    );
     const critical = open.filter((item) => item.priority === "critica" || item.priority === "alta");
     const resolvedWithDates = resolved.filter((item) => item.createdAt && getResolvedDate(item));
+    const resolvedWithinSla = resolved.filter((item) =>
+      getSlaState(item, settings.slaWarningPercent, now) === SLA_STATES.MET
+    );
     const avgResolutionHours = resolvedWithDates.length
       ? resolvedWithDates.reduce((sum, item) => {
           const created = new Date(item.createdAt).getTime();
@@ -90,12 +100,16 @@ function Dashboard() {
       open: open.length,
       resolved: resolved.length,
       overdue: overdue.length,
+      warning: warning.length,
       critical: critical.length,
       avgResolutionHours,
+      compliancePercent: resolved.length
+        ? (resolvedWithinSla.length / resolved.length) * 100
+        : 0,
       inventoryValue,
       nextMaintenance,
     };
-  }, [incidents, inventory, maintenances, now]);
+  }, [incidents, inventory, maintenances, now, settings.slaWarningPercent]);
 
   const byDepartment = useMemo(() => {
     const counts = incidents.reduce((acc, item) => {
@@ -179,11 +193,12 @@ function Dashboard() {
             <div className="empty-state">No hay incidencias abiertas.</div>
           ) : (
             attentionQueue.map((incident) => {
-              const late = incident.dueAt && new Date(incident.dueAt).getTime() < now;
+              const slaState = getSlaState(incident, settings.slaWarningPercent, now);
+              const late = slaState === SLA_STATES.OVERDUE;
               return (
                 <button
                   key={incident._id}
-                  className={`queue-item ${late ? "late" : ""}`}
+                  className={`queue-item ${late ? "late" : slaState === SLA_STATES.WARNING ? "warning" : ""}`}
                   onClick={() => navigate(`/incidents/${incident._id}`)}
                 >
                   <div>
@@ -193,7 +208,7 @@ function Dashboard() {
                   </div>
                   <div className="queue-meta">
                     <b>{priorityLabels[incident.priority] || "Media"}</b>
-                    <small>{formatDate(incident.dueAt)}</small>
+                    <small>{slaState === SLA_STATES.WARNING ? "Proxima a vencer" : formatDate(incident.dueAt)}</small>
                   </div>
                 </button>
               );
@@ -204,11 +219,16 @@ function Dashboard() {
         <div className="panel">
           <h2>Cumplimiento</h2>
           <div className="score">
-            <strong>{stats.resolved}</strong>
-            <span>resueltas</span>
+            <strong>{stats.compliancePercent.toFixed(0)}%</strong>
+            <span>resueltas dentro del SLA</span>
             <small>
-              Promedio: {stats.avgResolutionHours ? `${stats.avgResolutionHours.toFixed(1)} h` : "sin datos"}
+              {stats.resolved} resueltas · Promedio: {stats.avgResolutionHours ? `${stats.avgResolutionHours.toFixed(1)} h` : "sin datos"}
             </small>
+          </div>
+          <div className="next-maintenance">
+            <span>Proximas a vencer</span>
+            <b>{stats.warning}</b>
+            <small>Incidencias abiertas en zona de alerta</small>
           </div>
           <div className="next-maintenance">
             <span>Proximo mantenimiento</span>
@@ -344,6 +364,8 @@ function Dashboard() {
         .queue-item strong { display: block; margin: 4px 0; font-size: 14px; overflow-wrap: anywhere; }
         .queue-item small { color: #94a3b8; font-size: 12px; }
         .queue-item.late .queue-meta b { color: #fca5a5; }
+        .queue-item.warning { border-color: rgba(245,158,11,0.28); background: rgba(245,158,11,0.07); }
+        .queue-item.warning .queue-meta b { color: #fbbf24; }
         .queue-meta {
           flex: 0 0 145px;
           display: flex;

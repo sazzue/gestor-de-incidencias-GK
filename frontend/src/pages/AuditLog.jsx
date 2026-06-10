@@ -33,6 +33,8 @@ const FIELD_LABELS = {
   branches: "Sucursales",
   permissions: "Permisos",
   accessScopes: "Alcances de acceso",
+  slaHours: "Tiempos SLA",
+  slaWarningPercent: "Umbral de aviso SLA",
   title: "Titulo",
   description: "Descripcion",
   priority: "Prioridad",

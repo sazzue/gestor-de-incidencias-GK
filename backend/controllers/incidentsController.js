@@ -5,6 +5,8 @@ const { hasPermission } = require("../utils/permissions");
 const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
 const { deleteIncidentFile, getIncidentFileUrl, isR2Configured, uploadIncidentFile } = require("../utils/r2Storage");
 const { notifyNewRecord } = require("../utils/notifications");
+const SystemSettings = require("../models/SystemSettings");
+const { calculateDueAt } = require("../utils/sla");
 
 const MAX_ATTACHMENTS_PER_INCIDENT = 10;
 const MAX_TOTAL_ATTACHMENT_SIZE = 30 * 1024 * 1024;
@@ -387,6 +389,12 @@ const createIncident = async (req, res) => {
       increment: 1,
     });
 
+    const settings = await SystemSettings.findOne({
+      key: "global",
+      organization: req.user.organization || null,
+    }).select("slaHours").lean();
+    const createdAt = new Date();
+
     const incident = await Incident.create({
       title,
       description,
@@ -394,6 +402,12 @@ const createIncident = async (req, res) => {
       branch,
       department: department.toLowerCase().trim(),
       priority: normalizedPriority,
+      createdAt,
+      dueAt: calculateDueAt({
+        createdAt,
+        priority: normalizedPriority,
+        slaHours: settings?.slaHours,
+      }),
       createdBy: req.user.id,
       activityLog: [{
         type: "created",

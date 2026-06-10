@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
+import { useSystemSettings } from "../hooks/useSystemSettings";
+import { useSlaClock } from "../hooks/useSlaClock";
 import { markIncidentFollowUpsRead } from "../utils/followUpNotifications";
+import { getSlaLabel, getSlaState } from "../utils/sla";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -14,6 +17,7 @@ const priorityLabels = {
 };
 
 function IncidentDetail() {
+  const { settings } = useSystemSettings();
   const { id } = useParams();
   const navigate = useNavigate();
   const user = useAuthUser();
@@ -75,12 +79,11 @@ function IncidentDetail() {
   const getResolvedDate = (item) =>
     item?.resolvedAt || (item?.status === "resuelto" ? item?.updatedAt : null);
 
-  const [now] = useState(() => Date.now());
+  const now = useSlaClock();
 
   const slaState = useMemo(() => {
-    if (!incident?.dueAt || incident.status === "resuelto") return "ok";
-    return new Date(incident.dueAt).getTime() < now ? "late" : "ok";
-  }, [incident, now]);
+    return getSlaState(incident, settings.slaWarningPercent, now);
+  }, [incident, now, settings.slaWarningPercent]);
 
   const fetchIncident = useCallback(async ({ showLoader = false } = {}) => {
     try {
@@ -343,7 +346,7 @@ function IncidentDetail() {
         <aside className="side-panel">
           <div className={`sla-card ${slaState}`}>
             <span>SLA</span>
-            <strong>{slaState === "late" ? "Vencido" : "En tiempo"}</strong>
+            <strong>{getSlaLabel(incident, settings.slaWarningPercent, now)}</strong>
             <small>Limite: {formatDate(incident.dueAt)}</small>
           </div>
 
@@ -480,7 +483,9 @@ function IncidentDetail() {
           border: 1px solid rgba(34,197,94,0.24);
           background: rgba(34,197,94,0.08);
         }
-        .sla-card.late { border-color: rgba(239,68,68,0.32); background: rgba(239,68,68,0.1); }
+        .sla-card.warning { border-color: rgba(245,158,11,0.34); background: rgba(245,158,11,0.1); }
+        .sla-card.overdue, .sla-card.breached { border-color: rgba(239,68,68,0.32); background: rgba(239,68,68,0.1); }
+        .sla-card.met { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.1); }
         .sla-card span, .sla-card small { color: #94a3b8; font-size: 12px; }
         .sla-card strong { font-size: 22px; color: #e2e8f0; }
         .meta-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }

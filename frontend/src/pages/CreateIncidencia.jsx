@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
+import { useSystemSettings } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -20,6 +21,7 @@ function CreateIncidencia() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const user = useAuthUser();
+  const { settings } = useSystemSettings();
 
   useEffect(() => {
     fetchData();
@@ -159,10 +161,10 @@ function CreateIncidencia() {
         <div className="form-group">
           <label>Prioridad</label>
           <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-            <option value="baja">Baja - 7 dias</option>
-            <option value="media">Media - 3 dias</option>
-            <option value="alta">Alta - 1 dia</option>
-            <option value="critica">Critica - hoy</option>
+            <option value="baja">Baja - {settings.slaHours?.baja || 168} horas</option>
+            <option value="media">Media - {settings.slaHours?.media || 72} horas</option>
+            <option value="alta">Alta - {settings.slaHours?.alta || 24} horas</option>
+            <option value="critica">Critica - {settings.slaHours?.critica || 4} horas</option>
           </select>
         </div>
 

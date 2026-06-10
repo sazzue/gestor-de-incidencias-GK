@@ -134,6 +134,18 @@ const systemSettingsSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  slaHours: {
+    baja: { type: Number, default: 168, min: 1, max: 8760 },
+    media: { type: Number, default: 72, min: 1, max: 8760 },
+    alta: { type: Number, default: 24, min: 1, max: 8760 },
+    critica: { type: Number, default: 4, min: 1, max: 8760 },
+  },
+  slaWarningPercent: {
+    type: Number,
+    default: 25,
+    min: 5,
+    max: 90,
+  },
 }, { timestamps: true });
 
 systemSettingsSchema.index({ organization: 1, key: 1 }, { unique: true });

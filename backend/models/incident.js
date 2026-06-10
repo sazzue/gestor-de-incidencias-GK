@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { calculateDueAt } = require("../utils/sla");
 
 const attachmentSchema = new mongoose.Schema(
   {
@@ -144,23 +145,10 @@ incidentSchema.pre("validate", function setTicketDefaults(next) {
   }
 
   if (!this.dueAt) {
-    const slaDaysByPriority = {
-      baja: 7,
-      media: 3,
-      alta: 1,
-      critica: 0,
-    };
-    const days = slaDaysByPriority[this.priority] ?? slaDaysByPriority.media;
-    const due = new Date();
-
-    if (days === 0) {
-      due.setHours(23, 59, 59, 999);
-    } else {
-      due.setDate(due.getDate() + days);
-      due.setHours(18, 0, 0, 0);
-    }
-
-    this.dueAt = due;
+    this.dueAt = calculateDueAt({
+      createdAt: this.createdAt || new Date(),
+      priority: this.priority,
+    });
   }
 
   next();

@@ -36,6 +36,13 @@ export const DEFAULT_SETTINGS = {
   loginInputColor: "#020617",
   loginAccentColor: "#3b82f6",
   sidebarImageUrl: "",
+  slaHours: {
+    baja: 168,
+    media: 72,
+    alta: 24,
+    critica: 4,
+  },
+  slaWarningPercent: 25,
 };
 
 export const applySystemTheme = (settings = DEFAULT_SETTINGS) => {
