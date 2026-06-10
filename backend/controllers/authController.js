@@ -100,40 +100,6 @@ const getActiveOrganization = async (user) => {
   return organization;
 };
 
-// POST /api/auth/register
-exports.register = async (req, res) => {
-  try {
-    const { nombre, email, password, role, department, permissions, accessScopes, organization } = req.body;
-
-    const existing = await User.findOne({
-      email: email.toLowerCase(),
-      organization: organization || null,
-    });
-    if (existing) {
-      return res.status(400).json({ msg: "El correo ya esta registrado" });
-    }
-
-    const hashed = await bcrypt.hash(password, 12);
-
-    await User.create({
-      nombre,
-      email: email.toLowerCase(),
-      password: hashed,
-      role,
-      organization: organization || null,
-      department,
-      permissions,
-      accessScopes,
-      mustChangePassword: true,
-    });
-
-    res.status(201).json({ msg: "Usuario creado correctamente" });
-  } catch (error) {
-    console.error("register error:", error);
-    res.status(500).json({ msg: "Error interno del servidor" });
-  }
-};
-
 // POST /api/auth/login
 exports.login = async (req, res) => {
   try {
@@ -141,6 +107,11 @@ exports.login = async (req, res) => {
       .toLowerCase()
       .trim();
     const { password, organizationSlug } = req.body;
+
+    if (!identifier || !password) {
+      return res.status(400).json({ msg: "Usuario y contrasena son obligatorios" });
+    }
+
     const organization = await getOrganizationBySlug(organizationSlug);
 
     if (organizationSlug && !organization) {

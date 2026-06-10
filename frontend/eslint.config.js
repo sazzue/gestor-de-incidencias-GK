@@ -24,6 +24,8 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Data-loading effects update state after asynchronous requests.
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])

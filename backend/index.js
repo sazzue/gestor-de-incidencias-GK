@@ -1,7 +1,6 @@
-require('dotenv').config();
-const mongoose = require('mongoose');
-const app = require('./app');
-const cors = require('cors');
+require("dotenv").config();
+const mongoose = require("mongoose");
+const app = require("./app");
 
 const Role = require("./models/Role");
 const Department = require("./models/Department");
@@ -26,66 +25,28 @@ const dropLegacyIndex = async (Model, indexName) => {
   }
 };
 
-// Middleware global
-app.use(cors());
+const assignDefaultOrganization = async (organizationId) => {
+  await Promise.all([
+    User.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    User.updateMany({ organization: null }, { organization: organizationId }),
+    Branch.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    Branch.updateMany({ organization: null }, { organization: organizationId }),
+    Department.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    Department.updateMany({ organization: null }, { organization: organizationId }),
+    Incident.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    Incident.updateMany({ organization: null }, { organization: organizationId }),
+    Maintenance.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    Maintenance.updateMany({ organization: null }, { organization: organizationId }),
+    InventoryItem.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    InventoryItem.updateMany({ organization: null }, { organization: organizationId }),
+    Supplier.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    Supplier.updateMany({ organization: null }, { organization: organizationId }),
+    SystemSettings.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    SystemSettings.updateMany({ organization: null }, { organization: organizationId }),
+  ]);
+};
 
-// 📦 ROUTES
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/organizations", require("./routes/organizations"));
-app.use("/api/roles", require("./routes/roleRoutes"));
-app.use("/api/users", require("./routes/users"));
-app.use("/api/branches", require("./routes/branches"));
-app.use("/api/incidents", require("./routes/incidents"));
-app.use("/api/maintenance", require("./routes/maintenance"));
-app.use("/api/inventory", require("./routes/inventory"));
-app.use("/api/suppliers", require("./routes/suppliers"));
-app.use("/api/departments", require("./routes/departments"));
-app.use("/api/settings", require("./routes/settings"));
-app.use("/api/storage", require("./routes/storage"));
-
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, service: "gestor-incidencias-api" });
-});
-
-app.use((req, res, next) => {
-  res.setHeader(
-    "Content-Security-Policy",
-    `
-    default-src 'self';
-    img-src 'self' data:;
-    style-src 'self' 'unsafe-inline' https://www.gstatic.com;
-    script-src 'self' 'unsafe-inline' 'unsafe-eval';
-    connect-src *;
-    `
-  );
-  next();
-});
-
-app.use("/api", (req, res) => {
-  res.status(404).json({
-    msg: "Ruta de API no encontrada",
-    path: req.originalUrl,
-  });
-});
-
-app.use((error, req, res, next) => {
-  console.error("API error:", error);
-
-  if (res.headersSent) {
-    return next(error);
-  }
-
-  res.status(error.status || 500).json({
-    msg: "Error interno del servidor",
-    error: process.env.NODE_ENV === "production" ? undefined : error.message,
-  });
-});
-
-// 🔌 CONEXIÓN A MONGO
-mongoose.connect(process.env.MONGODB_URI)
-.then(async () => {
-  console.log('CONECTADO A MONGODB');
-
+const initializeDatabase = async () => {
   const defaultOrganization = await Organization.findOneAndUpdate(
     { slug: "default" },
     {
@@ -99,24 +60,7 @@ mongoose.connect(process.env.MONGODB_URI)
     { new: true, upsert: true }
   );
 
-  await Promise.all([
-    User.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
-    User.updateMany({ organization: null }, { organization: defaultOrganization._id }),
-    Branch.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
-    Branch.updateMany({ organization: null }, { organization: defaultOrganization._id }),
-    Department.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
-    Department.updateMany({ organization: null }, { organization: defaultOrganization._id }),
-    Incident.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
-    Incident.updateMany({ organization: null }, { organization: defaultOrganization._id }),
-    Maintenance.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
-    Maintenance.updateMany({ organization: null }, { organization: defaultOrganization._id }),
-    InventoryItem.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
-    InventoryItem.updateMany({ organization: null }, { organization: defaultOrganization._id }),
-    Supplier.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
-    Supplier.updateMany({ organization: null }, { organization: defaultOrganization._id }),
-    SystemSettings.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
-    SystemSettings.updateMany({ organization: null }, { organization: defaultOrganization._id }),
-  ]);
+  await assignDefaultOrganization(defaultOrganization._id);
 
   await Promise.all([
     dropLegacyIndex(User, "email_1"),
@@ -127,27 +71,24 @@ mongoose.connect(process.env.MONGODB_URI)
     dropLegacyIndex(SystemSettings, "key_1"),
   ]);
 
-  // 🔥 SEED ROLES
-  const roles = ["admin", "gerencia", "direccion", "departamento"];
-
-  for (let role of roles) {
+  for (const role of ["admin", "gerencia", "direccion", "departamento"]) {
     const exists = await Role.findOne({ name: role });
-
-    if (!exists) {
-      await Role.create({ name: role });
-      console.log("✅ Rol creado:", role);
-    }
+    if (!exists) await Role.create({ name: role });
   }
+};
 
-  // 🚀 SERVER START
-  const PORT = process.env.PORT || 3000;
+mongoose.connect(process.env.MONGODB_URI)
+  .then(async () => {
+    console.log("Conectado a MongoDB");
+    await initializeDatabase();
 
-  app.listen(PORT, () => {
-    console.log(`Servidor escuchando en puerto ${PORT}`);
-    startAttachmentCleanupSchedule();
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      console.log(`Servidor escuchando en puerto ${port}`);
+      startAttachmentCleanupSchedule();
+    });
+  })
+  .catch((error) => {
+    console.error("Error al conectar a MongoDB:", error);
+    process.exitCode = 1;
   });
-
-})
-.catch((error) => {
-  console.error('Error al conectar a MongoDB:', error);
-});
