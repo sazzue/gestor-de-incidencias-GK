@@ -18,6 +18,7 @@ import Catalogs            from "./pages/Catalogs.jsx";
 import ForgotPassword      from "./pages/ForgotPassword.jsx";
 import ResetPassword       from "./pages/ResetPassword.jsx";
 import ChangePassword      from "./pages/ChangePassword.jsx";
+import AuditLog            from "./pages/AuditLog.jsx";
 
 import PrivateRoute        from "./components/PrivateRoute.jsx";
 import InactivityLogout    from "./components/InactivityLogout.jsx";
@@ -104,6 +105,12 @@ function App() {
         <Route path="/settings" element={
           <PrivateRoute>
             <Layout><SystemSettings /></Layout>
+          </PrivateRoute>
+        } />
+
+        <Route path="/audit" element={
+          <PrivateRoute>
+            <Layout><AuditLog /></Layout>
           </PrivateRoute>
         } />
 

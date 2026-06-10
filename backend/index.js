@@ -12,6 +12,7 @@ const Maintenance = require("./models/Maintenance");
 const InventoryItem = require("./models/InventoryItem");
 const Supplier = require("./models/Supplier");
 const SystemSettings = require("./models/SystemSettings");
+const AuditLog = require("./models/AuditLog");
 const { startAttachmentCleanupSchedule } = require("./utils/attachmentCleanup");
 
 const dropLegacyIndex = async (Model, indexName) => {
@@ -43,6 +44,8 @@ const assignDefaultOrganization = async (organizationId) => {
     Supplier.updateMany({ organization: null }, { organization: organizationId }),
     SystemSettings.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
     SystemSettings.updateMany({ organization: null }, { organization: organizationId }),
+    AuditLog.updateMany({ organization: { $exists: false } }, { organization: organizationId }),
+    AuditLog.updateMany({ organization: null }, { organization: organizationId }),
   ]);
 };
 

@@ -10,6 +10,7 @@ app.use(securityHeaders);
 app.use(cors(buildCorsOptions()));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(require("./middleware/audit"));
 
 app.get("/", (req, res) => {
   res.json({ message: "API de incidencias funcionando" });
@@ -27,6 +28,7 @@ app.use("/api/suppliers", require("./routes/suppliers"));
 app.use("/api/departments", require("./routes/departments"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/storage", require("./routes/storage"));
+app.use("/api/audit", require("./routes/audit"));
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, service: "gestor-incidencias-api" });

@@ -3,6 +3,7 @@ const router = express.Router();
 
 const Incident = require("../models/incident");
 const InventoryItem = require("../models/InventoryItem");
+const AuditLog = require("../models/AuditLog");
 const auth = require("../middleware/authMiddleware");
 const requirePermission = require("../middleware/requirePermission");
 const { getR2ObjectStream, isR2Configured } = require("../utils/r2Storage");
@@ -155,6 +156,9 @@ router.get("/backup.zip", auth, requirePermission("SETTINGS_MANAGE"), async (req
     }
 
     const documents = await getDocuments(organization);
+    const auditLogs = await AuditLog.find({ organization })
+      .sort({ createdAt: -1 })
+      .lean();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
     res.setHeader("Content-Type", "application/zip");
@@ -165,6 +169,10 @@ router.get("/backup.zip", auth, requirePermission("SETTINGS_MANAGE"), async (req
       {
         name: "manifest.csv",
         buffer: Buffer.from(buildManifest(documents), "utf8"),
+      },
+      {
+        name: "audit-log.json",
+        buffer: Buffer.from(JSON.stringify(auditLogs, null, 2), "utf8"),
       },
     ];
 

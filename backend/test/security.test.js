@@ -4,6 +4,7 @@ const test = require("node:test");
 
 const createRateLimiter = require("../middleware/rateLimit");
 const { buildCorsOptions, securityHeaders } = require("../middleware/security");
+const { getAuditAction, getAuditModule, sanitizeAuditValue } = require("../utils/audit");
 
 test("CORS accepts the configured frontend and rejects unknown origins", () => {
   const previousFrontendUrl = process.env.FRONTEND_URL;
@@ -82,4 +83,20 @@ test("public registration is unavailable and API responses include security head
       server.close((error) => error ? reject(error) : resolve());
     });
   }
+});
+
+test("audit data removes secrets and classifies requests", () => {
+  const sanitized = sanitizeAuditValue({
+    email: "admin@example.com",
+    password: "hidden",
+    nested: { token: "hidden", status: "active" },
+  });
+
+  assert.deepEqual(sanitized, {
+    email: "admin@example.com",
+    nested: { status: "active" },
+  });
+  assert.equal(getAuditAction("POST"), "create");
+  assert.equal(getAuditAction("DELETE"), "delete");
+  assert.equal(getAuditModule("/api/incidents/123/status"), "incidents");
 });

@@ -233,6 +233,15 @@ function Sidebar({ isOpen = false, onNavigate }) {
               </button>
             )}
 
+            {canAccessSettings && (
+              <button
+                onClick={() => goTo("/audit")}
+                className={`sidebar-btn ${isActive("/audit") ? "active" : ""}`}
+              >
+                Bitacora
+              </button>
+            )}
+
             {canAccessOrganizations && (
               <button
                 onClick={() => goTo("/platform-identity")}
