@@ -24,6 +24,11 @@ const PERMISSIONS = {
   INVENTORY_DISPOSE: "INVENTORY_DISPOSE",
   INVENTORY_EXPORT: "INVENTORY_EXPORT",
 
+  SUPPLIERS_VIEW: "SUPPLIERS_VIEW",
+  SUPPLIERS_CREATE: "SUPPLIERS_CREATE",
+  SUPPLIERS_UPDATE: "SUPPLIERS_UPDATE",
+  SUPPLIERS_DELETE: "SUPPLIERS_DELETE",
+
   CATALOGS_MANAGE: "CATALOGS_MANAGE",
   SETTINGS_MANAGE: "SETTINGS_MANAGE",
   ORGANIZATIONS_MANAGE: "ORGANIZATIONS_MANAGE",
@@ -113,6 +118,10 @@ const PERMISSION_GROUPS = [
     key: "administration",
     label: "Administracion",
     permissions: [
+      { value: PERMISSIONS.SUPPLIERS_VIEW, label: "Ver proveedores" },
+      { value: PERMISSIONS.SUPPLIERS_CREATE, label: "Crear proveedores" },
+      { value: PERMISSIONS.SUPPLIERS_UPDATE, label: "Modificar proveedores" },
+      { value: PERMISSIONS.SUPPLIERS_DELETE, label: "Borrar proveedores" },
       { value: PERMISSIONS.CATALOGS_MANAGE, label: "Administrar catalogos" },
       { value: PERMISSIONS.SETTINGS_MANAGE, label: "Configurar empresa" },
     ],

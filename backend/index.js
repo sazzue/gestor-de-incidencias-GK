@@ -11,6 +11,7 @@ const Branch = require("./models/branch");
 const Incident = require("./models/incident");
 const Maintenance = require("./models/Maintenance");
 const InventoryItem = require("./models/InventoryItem");
+const Supplier = require("./models/Supplier");
 const SystemSettings = require("./models/SystemSettings");
 const { startAttachmentCleanupSchedule } = require("./utils/attachmentCleanup");
 
@@ -37,6 +38,7 @@ app.use("/api/branches", require("./routes/branches"));
 app.use("/api/incidents", require("./routes/incidents"));
 app.use("/api/maintenance", require("./routes/maintenance"));
 app.use("/api/inventory", require("./routes/inventory"));
+app.use("/api/suppliers", require("./routes/suppliers"));
 app.use("/api/departments", require("./routes/departments"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/storage", require("./routes/storage"));
@@ -110,6 +112,8 @@ mongoose.connect(process.env.MONGODB_URI)
     Maintenance.updateMany({ organization: null }, { organization: defaultOrganization._id }),
     InventoryItem.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
     InventoryItem.updateMany({ organization: null }, { organization: defaultOrganization._id }),
+    Supplier.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
+    Supplier.updateMany({ organization: null }, { organization: defaultOrganization._id }),
     SystemSettings.updateMany({ organization: { $exists: false } }, { organization: defaultOrganization._id }),
     SystemSettings.updateMany({ organization: null }, { organization: defaultOrganization._id }),
   ]);

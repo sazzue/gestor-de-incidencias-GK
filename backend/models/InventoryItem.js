@@ -45,6 +45,11 @@ const inventoryItemSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    supplier: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      default: null,
+    },
     responsible: {
       type: String,
       default: "",

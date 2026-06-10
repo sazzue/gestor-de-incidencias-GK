@@ -3,6 +3,7 @@ const multer = require("multer");
 const router = express.Router();
 
 const InventoryItem = require("../models/InventoryItem");
+const Supplier = require("../models/Supplier");
 const auth = require("../middleware/authMiddleware");
 const { hasPermission } = require("../utils/permissions");
 const { assertStorageWithinPlanLimit, assertWithinPlanLimit } = require("../utils/planLimits");
@@ -117,6 +118,33 @@ const canAccessItem = (user, item) => {
   return canUseBranch(user, branchId);
 };
 
+const getSupplierForInventory = async (user, provider) => {
+  const providerValue = provider?.toString().trim();
+  if (!providerValue) return { provider: "", supplier: null };
+
+  if (!providerValue.match(/^[a-f\d]{24}$/i)) {
+    return { provider: providerValue, supplier: null };
+  }
+
+  const supplier = await Supplier.findOne({
+    _id: providerValue,
+    organization: user.organization || null,
+  });
+
+  if (!supplier) return null;
+
+  if (!canUseBranch(user, supplier.branch) || !canUseDepartment(user, supplier.department)) {
+    return false;
+  }
+
+  return {
+    provider: supplier.name,
+    supplier: supplier._id,
+    branch: supplier.branch,
+    department: supplier.department,
+  };
+};
+
 router.get("/", auth, async (req, res) => {
   try {
     const query = getInventoryQueryForUser(req.user);
@@ -127,6 +155,7 @@ router.get("/", auth, async (req, res) => {
 
     const items = await InventoryItem.find(query)
       .populate("branch", "name")
+      .populate("supplier", "name address phone")
       .populate("createdBy", "nombre email")
       .populate("disposedBy", "nombre email")
       .sort({ createdAt: -1 });
@@ -146,12 +175,25 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
     const { model, brand, serialNumber, provider, responsible, price, branch } = req.body;
     const department = normalizeDepartment(req.body.department);
     const numericPrice = Number(price);
+    const supplierData = await getSupplierForInventory(req.user, provider);
 
-    if (!model || !brand || !serialNumber || !provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
+    if (supplierData === false) {
+      return res.status(403).json({ msg: "No autorizado para usar este proveedor" });
+    }
+
+    if (!model || !brand || !serialNumber || !supplierData?.provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
       return res.status(400).json({
         msg: "Datos incompletos",
         error: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios",
       });
+    }
+
+    if (
+      supplierData.supplier &&
+      (supplierData.branch?.toString() !== branch?.toString() ||
+        normalizeDepartment(supplierData.department) !== department)
+    ) {
+      return res.status(400).json({ msg: "El proveedor no pertenece a la sucursal y departamento seleccionados" });
     }
 
     if (!canUseBranch(req.user, branch)) {
@@ -183,7 +225,8 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       model,
       brand,
       serialNumber: serialNumber.trim(),
-      provider,
+      provider: supplierData.provider,
+      supplier: supplierData.supplier,
       responsible,
       price: numericPrice,
       branch,
@@ -202,6 +245,7 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
 
     const populated = await InventoryItem.findById(item._id)
       .populate("branch", "name")
+      .populate("supplier", "name address phone")
       .populate("createdBy", "nombre email")
       .populate("disposedBy", "nombre email");
 
@@ -265,6 +309,7 @@ router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, a
 
     const updated = await InventoryItem.findById(item._id)
       .populate("branch", "name")
+      .populate("supplier", "name address phone")
       .populate("createdBy", "nombre email")
       .populate("disposedBy", "nombre email");
 
@@ -287,12 +332,25 @@ router.put("/:id", auth, async (req, res) => {
     const { model, brand, serialNumber, provider, responsible, price, branch } = req.body;
     const department = normalizeDepartment(req.body.department);
     const numericPrice = Number(price);
+    const supplierData = await getSupplierForInventory(req.user, provider);
 
-    if (!model || !brand || !serialNumber || !provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
+    if (supplierData === false) {
+      return res.status(403).json({ msg: "No autorizado para usar este proveedor" });
+    }
+
+    if (!model || !brand || !serialNumber || !supplierData?.provider || !responsible || !branch || !department || !Number.isFinite(numericPrice)) {
       return res.status(400).json({
         msg: "Datos incompletos",
         error: "Articulo, categoria o marca, codigo, proveedor, responsable, valor, sucursal y departamento son obligatorios",
       });
+    }
+
+    if (
+      supplierData.supplier &&
+      (supplierData.branch?.toString() !== branch?.toString() ||
+        normalizeDepartment(supplierData.department) !== department)
+    ) {
+      return res.status(400).json({ msg: "El proveedor no pertenece a la sucursal y departamento seleccionados" });
     }
 
     const item = await InventoryItem.findOne({
@@ -319,7 +377,8 @@ router.put("/:id", auth, async (req, res) => {
     item.model = model;
     item.brand = brand;
     item.serialNumber = serialNumber.trim();
-    item.provider = provider;
+    item.provider = supplierData.provider;
+    item.supplier = supplierData.supplier;
     item.responsible = responsible;
     item.price = numericPrice;
     item.branch = branch;
@@ -328,6 +387,7 @@ router.put("/:id", auth, async (req, res) => {
 
     const updated = await InventoryItem.findById(item._id)
       .populate("branch", "name")
+      .populate("supplier", "name address phone")
       .populate("createdBy", "nombre email")
       .populate("disposedBy", "nombre email");
 
@@ -378,6 +438,7 @@ router.put("/:id/dispose", auth, async (req, res) => {
 
     const updated = await InventoryItem.findById(item._id)
       .populate("branch", "name")
+      .populate("supplier", "name address phone")
       .populate("createdBy", "nombre email")
       .populate("disposedBy", "nombre email");
 

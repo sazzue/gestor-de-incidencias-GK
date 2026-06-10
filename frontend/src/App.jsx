@@ -8,6 +8,7 @@ import Incidents           from "./pages/Incidents.jsx";
 import IncidentDetail      from "./pages/IncidentDetail.jsx";
 import MaintenanceCalendar from "./pages/MaintenanceCalendar.jsx";
 import Inventory           from "./pages/Inventory.jsx";
+import Suppliers           from "./pages/Suppliers.jsx";
 import CreateUser          from "./pages/CreateUser.jsx";
 import Info                from "./pages/Info.jsx";
 import SystemSettings      from "./pages/SystemSettings.jsx";
@@ -73,6 +74,12 @@ function App() {
         <Route path="/inventory" element={
           <PrivateRoute>
             <Layout><Inventory /></Layout>
+          </PrivateRoute>
+        } />
+
+        <Route path="/suppliers" element={
+          <PrivateRoute>
+            <Layout><Suppliers /></Layout>
           </PrivateRoute>
         } />
 

@@ -85,6 +85,10 @@ export const PERMISSION_GROUPS = [
     key: "administration",
     label: "Administracion",
     permissions: [
+      { value: "SUPPLIERS_VIEW", label: "Ver proveedores" },
+      { value: "SUPPLIERS_CREATE", label: "Crear proveedores" },
+      { value: "SUPPLIERS_UPDATE", label: "Modificar proveedores" },
+      { value: "SUPPLIERS_DELETE", label: "Borrar proveedores" },
       { value: "CATALOGS_MANAGE", label: "Administrar catalogos" },
       { value: "SETTINGS_MANAGE", label: "Configurar empresa" },
     ],

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
@@ -21,6 +21,7 @@ function Inventory() {
   const [items, setItems] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [filterBranch, setFilterBranch] = useState("");
   const [filterDepartment, setFilterDepartment] = useState("");
@@ -72,6 +73,37 @@ function Inventory() {
 
     return departments;
   }, [departments, isDepartmentLocked, userDepartment]);
+
+  const getSupplierOptions = useCallback((branchId, departmentName) => suppliers
+    .filter((supplier) => {
+      if (branchId && (supplier.branch?._id || supplier.branch) !== branchId) return false;
+      if (departmentName && supplier.department !== departmentName) return false;
+      return true;
+    })
+    .map((supplier) => ({
+      value: supplier._id,
+      label: supplier.name,
+      detail: [supplier.branch?.name, supplier.department].filter(Boolean).join(" / "),
+    })), [suppliers]);
+
+  const createSupplierOptions = useMemo(
+    () => getSupplierOptions(form.branch, form.department),
+    [form.branch, form.department, getSupplierOptions]
+  );
+
+  const editSupplierOptions = useMemo(() => {
+    const options = getSupplierOptions(editForm.branch, editForm.department);
+    const legacyProvider = editingItem?.provider;
+    if (editingItem && legacyProvider && !editingItem.supplier?._id) {
+      options.unshift({
+        value: legacyProvider,
+        label: legacyProvider,
+        detail: "Proveedor registrado previamente",
+      });
+    }
+
+    return options;
+  }, [editForm.branch, editForm.department, editingItem, getSupplierOptions]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -196,10 +228,23 @@ function Inventory() {
     }
   };
 
+  const fetchSuppliers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/suppliers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setSuppliers(Array.isArray(data) ? data : []);
+    } catch {
+      setSuppliers([]);
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
     fetchBranches();
     fetchDepartments();
+    fetchSuppliers();
     fetchInventory();
   }, [token]);
 
@@ -344,7 +389,7 @@ function Inventory() {
       model: item.model || "",
       brand: item.brand || "",
       serialNumber: item.serialNumber || "",
-      provider: item.provider || "",
+      provider: item.supplier?._id || item.provider || "",
       responsible: item.responsible || "",
       price: item.price ?? "",
       branch: item.branch?._id || item.branch || "",
@@ -528,7 +573,14 @@ function Inventory() {
             </div>
             <div className="form-group">
               <label>Proveedor</label>
-              <input value={form.provider} onChange={(e) => updateForm("provider", e.target.value)} />
+              <select value={form.provider} onChange={(e) => updateForm("provider", e.target.value)}>
+                <option value="">Seleccionar proveedor</option>
+                {createSupplierOptions.map((supplier) => (
+                  <option key={supplier.value} value={supplier.value}>
+                    {supplier.detail ? `${supplier.label} - ${supplier.detail}` : supplier.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label>Responsable / ubicacion</label>
@@ -540,7 +592,7 @@ function Inventory() {
             </div>
             <div className="form-group">
               <label>Sucursal</label>
-              <select value={form.branch} onChange={(e) => updateForm("branch", e.target.value)}>
+              <select value={form.branch} onChange={(e) => { updateForm("branch", e.target.value); updateForm("provider", ""); }}>
                 <option value="">Seleccionar sucursal</option>
                 {formBranches.map((branch) => (
                   <option key={branch._id} value={branch._id}>{branch.name}</option>
@@ -551,7 +603,7 @@ function Inventory() {
               <label>Departamento</label>
               <select
                 value={form.department}
-                onChange={(e) => updateForm("department", e.target.value)}
+                onChange={(e) => { updateForm("department", e.target.value); updateForm("provider", ""); }}
                 disabled={isDepartmentLocked}
               >
                 <option value="">Seleccionar departamento</option>
@@ -727,7 +779,14 @@ function Inventory() {
               </div>
               <div className="form-group">
                 <label>Proveedor</label>
-                <input value={editForm.provider} onChange={(e) => updateEditForm("provider", e.target.value)} />
+                <select value={editForm.provider} onChange={(e) => updateEditForm("provider", e.target.value)}>
+                  <option value="">Seleccionar proveedor</option>
+                  {editSupplierOptions.map((supplier) => (
+                    <option key={supplier.value} value={supplier.value}>
+                      {supplier.detail ? `${supplier.label} - ${supplier.detail}` : supplier.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="form-group">
                 <label>Responsable / ubicacion</label>
@@ -739,7 +798,7 @@ function Inventory() {
               </div>
               <div className="form-group">
                 <label>Sucursal</label>
-                <select value={editForm.branch} onChange={(e) => updateEditForm("branch", e.target.value)}>
+                <select value={editForm.branch} onChange={(e) => { updateEditForm("branch", e.target.value); updateEditForm("provider", ""); }}>
                   <option value="">Seleccionar sucursal</option>
                   {formBranches.map((branch) => (
                     <option key={branch._id} value={branch._id}>{branch.name}</option>
@@ -750,7 +809,7 @@ function Inventory() {
                 <label>Departamento</label>
                 <select
                   value={editForm.department}
-                  onChange={(e) => updateEditForm("department", e.target.value)}
+                  onChange={(e) => { updateEditForm("department", e.target.value); updateEditForm("provider", ""); }}
                   disabled={isDepartmentLocked}
                 >
                   <option value="">Seleccionar departamento</option>

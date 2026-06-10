@@ -63,6 +63,11 @@ function Sidebar({ isOpen = false, onNavigate }) {
   const canAccessCatalogs = hasPermission(user, "CATALOGS_MANAGE");
   const canAccessSettings = hasPermission(user, "SETTINGS_MANAGE");
   const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
+  const canAccessSuppliers =
+    hasPermission(user, "SUPPLIERS_VIEW") ||
+    hasPermission(user, "SUPPLIERS_CREATE") ||
+    hasPermission(user, "SUPPLIERS_UPDATE") ||
+    hasPermission(user, "SUPPLIERS_DELETE");
   const canViewMaintenance =
     hasPermission(user, "VIEW_MAINTENANCE_ALL") ||
     hasPermission(user, "VIEW_MAINTENANCE_DEPARTMENT") ||
@@ -192,6 +197,15 @@ function Sidebar({ isOpen = false, onNavigate }) {
             >
               Inventario
             </button>
+
+            {canAccessSuppliers && (
+              <button
+                onClick={() => goTo("/suppliers")}
+                className={`sidebar-btn ${isActive("/suppliers") ? "active" : ""}`}
+              >
+                Proveedores
+              </button>
+            )}
 
             <button
               disabled={!canAccessUsers}
