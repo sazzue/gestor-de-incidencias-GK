@@ -109,7 +109,7 @@ function App() {
         } />
 
         <Route path="/audit" element={
-          <PrivateRoute>
+          <PrivateRoute permissions={["AUDIT_VIEW"]}>
             <Layout><AuditLog /></Layout>
           </PrivateRoute>
         } />

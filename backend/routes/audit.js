@@ -6,7 +6,7 @@ const requirePermission = require("../middleware/requirePermission");
 const router = express.Router();
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-router.get("/", authMiddleware, requirePermission("SETTINGS_MANAGE"), async (req, res) => {
+router.get("/", authMiddleware, requirePermission("AUDIT_VIEW"), async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 25));

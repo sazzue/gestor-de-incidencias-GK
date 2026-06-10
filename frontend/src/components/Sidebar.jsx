@@ -62,6 +62,7 @@ function Sidebar({ isOpen = false, onNavigate }) {
   const canAccessUsers = hasPermission(user, "CREATE_USERS");
   const canAccessCatalogs = hasPermission(user, "CATALOGS_MANAGE");
   const canAccessSettings = hasPermission(user, "SETTINGS_MANAGE");
+  const canAccessAudit = hasPermission(user, "AUDIT_VIEW");
   const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
   const canAccessSuppliers =
     hasPermission(user, "SUPPLIERS_VIEW") ||
@@ -233,7 +234,7 @@ function Sidebar({ isOpen = false, onNavigate }) {
               </button>
             )}
 
-            {canAccessSettings && (
+            {canAccessAudit && (
               <button
                 onClick={() => goTo("/audit")}
                 className={`sidebar-btn ${isActive("/audit") ? "active" : ""}`}

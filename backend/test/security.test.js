@@ -5,6 +5,7 @@ const test = require("node:test");
 const createRateLimiter = require("../middleware/rateLimit");
 const { buildCorsOptions, securityHeaders } = require("../middleware/security");
 const { getAuditAction, getAuditModule, sanitizeAuditValue } = require("../utils/audit");
+const requirePermission = require("../middleware/requirePermission");
 
 test("CORS accepts the configured frontend and rejects unknown origins", () => {
   const previousFrontendUrl = process.env.FRONTEND_URL;
@@ -99,4 +100,30 @@ test("audit data removes secrets and classifies requests", () => {
   assert.equal(getAuditAction("POST"), "create");
   assert.equal(getAuditAction("DELETE"), "delete");
   assert.equal(getAuditModule("/api/incidents/123/status"), "incidents");
+});
+
+test("audit access requires AUDIT_VIEW instead of SETTINGS_MANAGE", () => {
+  const middleware = requirePermission("AUDIT_VIEW");
+  const buildResponse = () => ({
+    statusCode: 200,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; },
+  });
+
+  const settingsResponse = buildResponse();
+  middleware(
+    { user: { permissions: ["SETTINGS_MANAGE"] } },
+    settingsResponse,
+    () => assert.fail("SETTINGS_MANAGE must not grant audit access")
+  );
+  assert.equal(settingsResponse.statusCode, 403);
+
+  const auditResponse = buildResponse();
+  let continued = false;
+  middleware(
+    { user: { permissions: ["AUDIT_VIEW"] } },
+    auditResponse,
+    () => { continued = true; }
+  );
+  assert.equal(continued, true);
 });
