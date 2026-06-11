@@ -11,7 +11,6 @@ const initialForm = {
   serialNumber: "",
   provider: "",
   responsible: "",
-  price: "",
   branch: "",
   department: "",
   invoice: null,
@@ -166,18 +165,8 @@ function Inventory() {
     const total = filteredItems.length;
     const activos = filteredItems.filter((item) => item.status === "activo").length;
     const bajas = filteredItems.filter((item) => item.status === "baja").length;
-    const value = filteredItems
-      .filter((item) => item.status === "activo")
-      .reduce((sum, item) => sum + Number(item.price || 0), 0);
-
-    return { total, activos, bajas, value };
+    return { total, activos, bajas };
   }, [filteredItems]);
-
-  const formatCurrency = (value) =>
-    Number(value || 0).toLocaleString("es-MX", {
-      style: "currency",
-      currency: "MXN",
-    });
 
   const exportInventoryPdf = () => {
     if (!canExport) { alert("No tienes permisos para exportar inventario"); return; }
@@ -190,7 +179,6 @@ function Inventory() {
         { label: "Total", value: inventoryStats.total },
         { label: "Activos", value: inventoryStats.activos },
         { label: "Bajas", value: inventoryStats.bajas },
-        { label: "Valor activo", value: formatCurrency(inventoryStats.value) },
       ],
       columns: [
         { key: "article", label: "Articulo" },
@@ -200,7 +188,6 @@ function Inventory() {
         { key: "department", label: "Departamento" },
         { key: "provider", label: "Proveedor" },
         { key: "responsible", label: "Responsable / ubicacion" },
-        { key: "price", label: "Valor" },
         { key: "status", label: "Estado" },
       ],
       rows: filteredItems.map((item) => ({
@@ -211,7 +198,6 @@ function Inventory() {
         department: item.department || "Sin departamento",
         provider: item.provider,
         responsible: item.responsible || "Sin responsable",
-        price: formatCurrency(item.price),
         status: item.status,
       })),
     });
@@ -373,11 +359,11 @@ function Inventory() {
     event.preventDefault();
     setMessage(null);
 
-    if (!form.model.trim() || !form.brand.trim() || form.price === "" || !form.branch || !form.department) {
+    if (!form.model.trim() || !form.brand.trim() || !form.branch || !form.department) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Articulo, categoria o marca, valor, sucursal y departamento son obligatorios.",
+        detail: "Articulo, categoria o marca, sucursal y departamento son obligatorios.",
       });
       return;
     }
@@ -390,7 +376,6 @@ function Inventory() {
       formData.append("serialNumber", form.serialNumber);
       formData.append("provider", form.provider);
       formData.append("responsible", form.responsible);
-      formData.append("price", form.price);
       formData.append("branch", form.branch);
       formData.append("department", form.department);
       if (form.invoice) formData.append("invoice", form.invoice);
@@ -508,7 +493,6 @@ function Inventory() {
       serialNumber: item.serialNumber || "",
       provider: item.supplier?._id || item.provider || "",
       responsible: item.responsible || "",
-      price: item.price ?? "",
       branch: item.branch?._id || item.branch || "",
       department: item.department || "",
       invoice: null,
@@ -521,11 +505,11 @@ function Inventory() {
 
     if (!editingItem?._id) return;
 
-    if (!editForm.model.trim() || !editForm.brand.trim() || editForm.price === "" || !editForm.branch || !editForm.department) {
+    if (!editForm.model.trim() || !editForm.brand.trim() || !editForm.branch || !editForm.department) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
-        detail: "Articulo, categoria o marca, valor, sucursal y departamento son obligatorios.",
+        detail: "Articulo, categoria o marca, sucursal y departamento son obligatorios.",
       });
       return;
     }
@@ -541,7 +525,6 @@ function Inventory() {
           serialNumber: editForm.serialNumber,
           provider: editForm.provider,
           responsible: editForm.responsible,
-          price: editForm.price,
           branch: editForm.branch,
           department: editForm.department,
         }),
@@ -666,10 +649,6 @@ function Inventory() {
           <span>Bajas</span>
           <strong>{inventoryStats.bajas}</strong>
         </div>
-        <div className="stat-card value">
-          <span>Valor activo</span>
-          <strong>{formatCurrency(inventoryStats.value)}</strong>
-        </div>
       </div>
 
       {canCreate && (
@@ -724,13 +703,6 @@ function Inventory() {
               onSave={() => saveCatalogOption("responsible", form.responsible)}
               saving={savingCatalog === "responsible"}
             />
-            <div className="form-group">
-              <label>Valor (MXN) *</label>
-              <div className="money-input">
-                <span>$</span>
-                <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => updateForm("price", e.target.value)} placeholder="0.00" />
-              </div>
-            </div>
             <div className="form-group">
               <label>Sucursal *</label>
               <select value={form.branch} onChange={(e) => { updateForm("branch", e.target.value); updateForm("provider", ""); }}>
@@ -803,7 +775,6 @@ function Inventory() {
               <span>Articulo</span>
               <span>Ubicacion</span>
               <span>Responsable</span>
-              <span>Valor</span>
               <span>Estado</span>
               <span>Acciones</span>
             </div>
@@ -823,7 +794,6 @@ function Inventory() {
                   <span>{item.responsible || "Sin responsable"}</span>
                   {item.invoice?.key && <small>Comprobante cargado</small>}
                 </div>
-                <div className="value-cell">{formatCurrency(item.price)}</div>
                 <div className="status-cell">
                   <b className={`status ${item.status}`}>{item.status}</b>
                   {item.status === "baja" && (
@@ -949,13 +919,6 @@ function Inventory() {
                 saving={savingCatalog === "responsible"}
               />
               <div className="form-group">
-                <label>Valor (MXN) *</label>
-                <div className="money-input">
-                  <span>$</span>
-                  <input type="number" min="0" step="0.01" value={editForm.price} onChange={(e) => updateEditForm("price", e.target.value)} />
-                </div>
-              </div>
-              <div className="form-group">
                 <label>Sucursal *</label>
                 <select value={editForm.branch} onChange={(e) => { updateEditForm("branch", e.target.value); updateEditForm("provider", ""); }}>
                   <option value="">Seleccionar sucursal</option>
@@ -1048,7 +1011,6 @@ function Inventory() {
         .stat-card strong { font-size: 24px; }
         .stat-card.active strong { color: #22c55e; }
         .stat-card.danger strong { color: #f87171; }
-        .stat-card.value strong { color: #93c5fd; font-size: 20px; }
 
         .inventory-form {
           background: rgba(255,255,255,0.04);
@@ -1103,14 +1065,12 @@ function Inventory() {
           font-size: 12px;
         }
 
-        .catalog-input,
-        .money-input {
+        .catalog-input {
           display: flex;
           align-items: stretch;
         }
 
-        .catalog-input input,
-        .money-input input {
+        .catalog-input input {
           flex: 1;
           min-width: 0;
         }
@@ -1134,24 +1094,6 @@ function Inventory() {
         .catalog-add:disabled {
           cursor: not-allowed;
           opacity: 0.5;
-        }
-
-        .money-input > span {
-          display: grid;
-          place-items: center;
-          min-width: 38px;
-          padding: 0 10px;
-          border: 1px solid #1e293b;
-          border-right: 0;
-          border-radius: 8px 0 0 8px;
-          background: rgba(37,99,235,0.16);
-          color: #bfdbfe;
-          font-size: 15px;
-          font-weight: 700;
-        }
-
-        .money-input input {
-          border-radius: 0 8px 8px 0;
         }
 
         .btn-submit {
@@ -1203,7 +1145,7 @@ function Inventory() {
         .inventory-table-head,
         .inventory-row {
           display: grid;
-          grid-template-columns: minmax(220px, 1.4fr) minmax(170px, 1fr) minmax(160px, 1fr) minmax(110px, 0.7fr) minmax(110px, 0.7fr) minmax(220px, 1.1fr);
+          grid-template-columns: minmax(220px, 1.4fr) minmax(170px, 1fr) minmax(160px, 1fr) minmax(110px, 0.7fr) minmax(220px, 1.1fr);
           gap: 16px;
           align-items: center;
           padding: 14px 18px;
@@ -1259,12 +1201,6 @@ function Inventory() {
           color: #64748b;
           font-size: 12px;
           overflow-wrap: anywhere;
-        }
-
-        .value-cell {
-          color: #bfdbfe;
-          font-weight: 700;
-          font-size: 13px;
         }
 
         .status {

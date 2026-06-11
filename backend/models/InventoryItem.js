@@ -55,11 +55,6 @@ const inventoryItemSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
-    price: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
     branch: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",

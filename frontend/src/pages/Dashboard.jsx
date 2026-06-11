@@ -55,7 +55,6 @@ function Dashboard() {
   }, [requestJson]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDashboard();
   }, [fetchDashboard]);
 
@@ -88,9 +87,8 @@ function Dashboard() {
           return sum + Math.max(0, resolvedAt - created);
         }, 0) / resolvedWithDates.length / 1000 / 60 / 60
       : 0;
-    const inventoryValue = inventory
-      .filter((item) => item.status === "activo")
-      .reduce((sum, item) => sum + Number(item.price || 0), 0);
+    const activeInventory = inventory.filter((item) => item.status === "activo");
+    const inventoryWithoutResponsible = activeInventory.filter((item) => !item.responsible?.trim());
     const nextMaintenance = maintenances
       .filter((item) => item.status === "programado")
       .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
@@ -106,7 +104,8 @@ function Dashboard() {
       compliancePercent: resolved.length
         ? (resolvedWithinSla.length / resolved.length) * 100
         : 0,
-      inventoryValue,
+      activeInventory: activeInventory.length,
+      inventoryWithoutResponsible: inventoryWithoutResponsible.length,
       nextMaintenance,
     };
   }, [incidents, inventory, maintenances, now, settings.slaWarningPercent]);
@@ -143,21 +142,102 @@ function Dashboard() {
       .slice(0, 6);
   }, [incidents, now]);
 
-  const formatCurrency = (value) =>
-    Number(value || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+  const incidentTrend = useMemo(() => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - 29);
+
+    const periods = [
+      { label: "Hace 4 sem.", from: 0, to: 5 },
+      { label: "Hace 3 sem.", from: 6, to: 11 },
+      { label: "Hace 2 sem.", from: 12, to: 17 },
+      { label: "Semana pasada", from: 18, to: 23 },
+      { label: "Esta semana", from: 24, to: 29 },
+    ];
+
+    return periods.map((period) => ({
+      label: period.label,
+      count: incidents.filter((incident) => {
+        const createdAt = new Date(incident.createdAt).getTime();
+        if (!Number.isFinite(createdAt)) return false;
+        const day = Math.floor((createdAt - start.getTime()) / dayMs);
+        return day >= period.from && day <= period.to;
+      }).length,
+    }));
+  }, [incidents]);
+
+  const recentActivity = useMemo(() => {
+    const activity = [
+      ...incidents.map((incident) => ({
+        id: `incident-${incident._id}`,
+        type: "Incidencia",
+        title: incident.status === "resuelto" ? `Se resolvio ${getFolio(incident)}` : `Se actualizo ${getFolio(incident)}`,
+        detail: incident.title || "Incidencia sin titulo",
+        date: incident.updatedAt || incident.createdAt,
+        path: `/incidents/${incident._id}`,
+      })),
+      ...maintenances.map((maintenance) => ({
+        id: `maintenance-${maintenance._id}`,
+        type: "Mantenimiento",
+        title: maintenance.status === "finalizado" ? "Mantenimiento finalizado" : "Mantenimiento programado",
+        detail: maintenance.title || "Mantenimiento sin titulo",
+        date: maintenance.updatedAt || maintenance.createdAt || maintenance.date,
+        path: "/maintenance",
+      })),
+      ...inventory.map((item) => ({
+        id: `inventory-${item._id}`,
+        type: "Inventario",
+        title: item.status === "baja" ? "Articulo dado de baja" : "Articulo registrado",
+        detail: [item.model, item.brand].filter(Boolean).join(" / ") || "Articulo sin nombre",
+        date: item.updatedAt || item.createdAt,
+        path: "/inventory",
+      })),
+    ];
+
+    return activity
+      .filter((item) => item.date && Number.isFinite(new Date(item.date).getTime()))
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 6);
+  }, [incidents, inventory, maintenances]);
 
   const maxDepartmentCount = Math.max(...byDepartment.map(([, count]) => count), 1);
   const maxPriorityCount = Math.max(...byPriority.map((item) => item.count), 1);
+  const maxTrendCount = Math.max(...incidentTrend.map((item) => item.count), 1);
+  const currentDate = new Date().toLocaleDateString("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="dashboard">
       <header className="header">
         <div>
+          <span className="eyebrow">Resumen operativo</span>
           <h1>Panel ejecutivo</h1>
-          <p>Bienvenido, {user?.nombre || "usuario"}</p>
+          <p>Bienvenido, {user?.nombre || "usuario"} · {currentDate}</p>
         </div>
-        <span className="role-badge">{user?.role || "sin rol"}</span>
+        <div className="header-actions">
+          <button className="secondary-action" onClick={() => navigate("/inventory")}>Ver inventario</button>
+          <button className="primary-action" onClick={() => navigate("/create")}>Nueva incidencia</button>
+          <span className="role-badge">{user?.role || "sin rol"}</span>
+        </div>
       </header>
+
+      <section className={`operation-status ${stats.overdue > 0 ? "attention" : "healthy"}`}>
+        <div className="status-indicator" />
+        <div>
+          <strong>{stats.overdue > 0 ? "La operacion requiere atencion" : "Operacion dentro de los tiempos establecidos"}</strong>
+          <span>
+            {stats.overdue > 0
+              ? `${stats.overdue} incidencia${stats.overdue === 1 ? "" : "s"} con SLA vencido.`
+              : `${stats.open} incidencia${stats.open === 1 ? "" : "s"} abierta${stats.open === 1 ? "" : "s"} y ninguna vencida.`}
+          </span>
+        </div>
+        <button onClick={() => navigate("/incidents")}>Revisar incidencias</button>
+      </section>
 
       <section className="kpis">
         <button className="metric" onClick={() => navigate("/incidents")}>
@@ -176,9 +256,9 @@ function Dashboard() {
           <small>Criticas y altas abiertas</small>
         </button>
         <button className="metric" onClick={() => navigate("/inventory")}>
-          <span>Valor activo</span>
-          <strong>{formatCurrency(stats.inventoryValue)}</strong>
-          <small>{inventory.filter((item) => item.status === "activo").length} equipos activos</small>
+          <span>Inventario activo</span>
+          <strong>{stats.activeInventory}</strong>
+          <small>{stats.inventoryWithoutResponsible} sin responsable asignado</small>
         </button>
       </section>
 
@@ -268,6 +348,54 @@ function Dashboard() {
         </div>
       </section>
 
+      <section className="insights-grid">
+        <div className="panel trend-panel">
+          <div className="panel-title">
+            <div>
+              <h2>Tendencia de incidencias</h2>
+              <p>Reportes creados durante los ultimos 30 dias</p>
+            </div>
+            <b>{incidentTrend.reduce((sum, item) => sum + item.count, 0)} reportes</b>
+          </div>
+          <div className="trend-chart" aria-label="Incidencias creadas en los ultimos 30 dias">
+            {incidentTrend.map((item) => (
+              <div className="trend-column" key={item.label}>
+                <div className="trend-value">{item.count}</div>
+                <div className="trend-track">
+                  <i style={{ height: `${Math.max((item.count / maxTrendCount) * 100, item.count ? 8 : 2)}%` }} />
+                </div>
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel activity-panel">
+          <div className="panel-title">
+            <div>
+              <h2>Actividad reciente</h2>
+              <p>Ultimos movimientos de la operacion</p>
+            </div>
+          </div>
+          {recentActivity.length === 0 ? (
+            <div className="empty-state">Todavia no hay actividad para mostrar.</div>
+          ) : (
+            <div className="activity-list">
+              {recentActivity.map((item) => (
+                <button key={item.id} className="activity-item" onClick={() => navigate(item.path)}>
+                  <span className={`activity-icon ${item.type.toLowerCase()}`}>{item.type.slice(0, 1)}</span>
+                  <span className="activity-copy">
+                    <b>{item.title}</b>
+                    <small>{item.detail}</small>
+                  </span>
+                  <time>{formatDate(item.date)}</time>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       <style>{`
         .dashboard { min-height: 100vh; padding: 28px; color: #fff; }
         .header {
@@ -279,6 +407,35 @@ function Dashboard() {
         }
         .header h1 { font-size: 26px; line-height: 1.15; }
         .header p { color: #94a3b8; font-size: 14px; margin-top: 5px; }
+        .eyebrow {
+          display: block;
+          margin-bottom: 6px;
+          color: #60a5fa;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .header-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+        .header-actions button,
+        .operation-status button {
+          padding: 9px 13px;
+          border-radius: 8px;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .primary-action {
+          border: 1px solid #2563eb;
+          background: #2563eb;
+          color: #fff;
+        }
+        .secondary-action {
+          border: 1px solid rgba(148,163,184,0.24);
+          background: rgba(255,255,255,0.045);
+          color: #cbd5e1;
+        }
         .role-badge {
           padding: 7px 13px;
           border-radius: 999px;
@@ -286,6 +443,39 @@ function Dashboard() {
           color: #cbd5e1;
           font-size: 12px;
           text-transform: capitalize;
+        }
+        .operation-status {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 13px;
+          padding: 14px 16px;
+          margin-bottom: 18px;
+          border: 1px solid rgba(34,197,94,0.2);
+          border-radius: 9px;
+          background: linear-gradient(90deg, rgba(34,197,94,0.1), rgba(255,255,255,0.025));
+        }
+        .operation-status.attention {
+          border-color: rgba(239,68,68,0.25);
+          background: linear-gradient(90deg, rgba(239,68,68,0.11), rgba(255,255,255,0.025));
+        }
+        .status-indicator {
+          width: 9px;
+          height: 9px;
+          border-radius: 999px;
+          background: #22c55e;
+          box-shadow: 0 0 0 5px rgba(34,197,94,0.12);
+        }
+        .operation-status.attention .status-indicator {
+          background: #ef4444;
+          box-shadow: 0 0 0 5px rgba(239,68,68,0.12);
+        }
+        .operation-status strong { display: block; color: #e2e8f0; font-size: 13px; }
+        .operation-status span { display: block; margin-top: 3px; color: #94a3b8; font-size: 12px; }
+        .operation-status button {
+          border: 1px solid rgba(96,165,250,0.3);
+          background: rgba(96,165,250,0.1);
+          color: #bfdbfe;
         }
         .kpis {
           display: grid;
@@ -338,6 +528,8 @@ function Dashboard() {
         }
         .panel h2, .panel-title h2 { font-size: 15px; color: #e2e8f0; margin-bottom: 12px; }
         .panel-title h2 { margin-bottom: 0; }
+        .panel-title p { margin-top: 4px; color: #64748b; font-size: 12px; }
+        .panel-title > b { color: #93c5fd; font-size: 12px; white-space: nowrap; }
         .panel-title button {
           padding: 7px 10px;
           border-radius: 7px;
@@ -429,16 +621,98 @@ function Dashboard() {
           color: #94a3b8;
           font-size: 13px;
         }
+        .insights-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+          gap: 18px;
+          margin-top: 18px;
+        }
+        .trend-chart {
+          height: 230px;
+          display: grid;
+          grid-template-columns: repeat(5, minmax(52px, 1fr));
+          gap: 12px;
+          align-items: end;
+          padding-top: 12px;
+        }
+        .trend-column {
+          height: 100%;
+          display: grid;
+          grid-template-rows: 20px minmax(100px, 1fr) 34px;
+          gap: 7px;
+          text-align: center;
+        }
+        .trend-value { color: #dbeafe; font-size: 12px; font-weight: 800; }
+        .trend-track {
+          position: relative;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          border-bottom: 1px solid rgba(148,163,184,0.16);
+          background: linear-gradient(to top, rgba(148,163,184,0.06) 1px, transparent 1px);
+          background-size: 100% 25%;
+        }
+        .trend-track i {
+          display: block;
+          width: min(42px, 68%);
+          min-height: 3px;
+          border-radius: 7px 7px 2px 2px;
+          background: linear-gradient(180deg, #60a5fa, #2563eb);
+          box-shadow: 0 8px 20px rgba(37,99,235,0.2);
+        }
+        .trend-column > span { color: #94a3b8; font-size: 10px; line-height: 1.2; }
+        .activity-list { display: grid; }
+        .activity-item {
+          width: 100%;
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          padding: 11px 0;
+          border: 0;
+          border-bottom: 1px solid rgba(148,163,184,0.1);
+          background: transparent;
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+        }
+        .activity-item:last-child { border-bottom: 0; }
+        .activity-item:hover .activity-copy b { color: #93c5fd; }
+        .activity-icon {
+          display: grid;
+          place-items: center;
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
+          background: rgba(96,165,250,0.12);
+          color: #93c5fd;
+          font-size: 11px;
+          font-weight: 800;
+        }
+        .activity-icon.mantenimiento { background: rgba(245,158,11,0.12); color: #fbbf24; }
+        .activity-icon.inventario { background: rgba(34,197,94,0.12); color: #86efac; }
+        .activity-copy { min-width: 0; }
+        .activity-copy b, .activity-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .activity-copy b { color: #e2e8f0; font-size: 12px; }
+        .activity-copy small, .activity-item time { margin-top: 3px; color: #64748b; font-size: 10px; }
+        .activity-item time { white-space: nowrap; }
         @media (max-width: 1000px) {
-          .executive-grid { grid-template-columns: 1fr; }
+          .executive-grid, .insights-grid { grid-template-columns: 1fr; }
           .panel.large { grid-row: auto; }
         }
         @media (max-width: 650px) {
           .dashboard { padding: 16px; }
           .header { align-items: flex-start; flex-direction: column; }
+          .header-actions { width: 100%; }
+          .header-actions button { flex: 1; }
+          .operation-status { grid-template-columns: auto 1fr; }
+          .operation-status button { grid-column: 1 / -1; }
           .queue-item { flex-direction: column; }
           .queue-meta { flex: auto; align-items: flex-start; }
           .bar-row { grid-template-columns: 82px minmax(0, 1fr) 28px; }
+          .trend-chart { gap: 6px; overflow-x: auto; }
+          .activity-item { grid-template-columns: 34px minmax(0, 1fr); }
+          .activity-item time { grid-column: 2; margin-top: -6px; }
         }
       `}</style>
     </div>

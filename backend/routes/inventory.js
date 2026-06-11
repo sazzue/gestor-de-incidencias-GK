@@ -207,9 +207,8 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       return res.status(403).json({ msg: "No tienes permisos para registrar articulos" });
     }
 
-    const { model, brand, serialNumber, provider, responsible, price, branch } = req.body;
+    const { model, brand, serialNumber, provider, responsible, branch } = req.body;
     const department = normalizeDepartment(req.body.department);
-    const numericPrice = Number(price);
     const supplierData = await getSupplierForInventory(req.user, provider);
 
     if (supplierData === false) {
@@ -220,10 +219,10 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       return res.status(400).json({ msg: "El proveedor seleccionado no existe" });
     }
 
-    if (!model?.trim() || !brand?.trim() || !branch || !department || !Number.isFinite(numericPrice) || numericPrice < 0) {
+    if (!model?.trim() || !brand?.trim() || !branch || !department) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Articulo, categoria o marca, valor, sucursal y departamento son obligatorios",
+        error: "Articulo, categoria o marca, sucursal y departamento son obligatorios",
       });
     }
 
@@ -266,7 +265,6 @@ router.post("/", auth, upload.single("invoice"), handleUploadErrors, async (req,
       provider: supplierData?.provider || "",
       supplier: supplierData.supplier,
       responsible: responsible?.trim() || "",
-      price: numericPrice,
       branch,
       department,
       createdBy: req.user.id,
@@ -367,9 +365,8 @@ router.put("/:id", auth, async (req, res) => {
       return res.status(403).json({ msg: "No tienes permisos para actualizar articulos" });
     }
 
-    const { model, brand, serialNumber, provider, responsible, price, branch } = req.body;
+    const { model, brand, serialNumber, provider, responsible, branch } = req.body;
     const department = normalizeDepartment(req.body.department);
-    const numericPrice = Number(price);
     const supplierData = await getSupplierForInventory(req.user, provider);
 
     if (supplierData === false) {
@@ -380,10 +377,10 @@ router.put("/:id", auth, async (req, res) => {
       return res.status(400).json({ msg: "El proveedor seleccionado no existe" });
     }
 
-    if (!model?.trim() || !brand?.trim() || !branch || !department || !Number.isFinite(numericPrice) || numericPrice < 0) {
+    if (!model?.trim() || !brand?.trim() || !branch || !department) {
       return res.status(400).json({
         msg: "Datos incompletos",
-        error: "Articulo, categoria o marca, valor, sucursal y departamento son obligatorios",
+        error: "Articulo, categoria o marca, sucursal y departamento son obligatorios",
       });
     }
 
@@ -421,7 +418,6 @@ router.put("/:id", auth, async (req, res) => {
     item.provider = supplierData?.provider || "";
     item.supplier = supplierData.supplier;
     item.responsible = responsible?.trim() || "";
-    item.price = numericPrice;
     item.branch = branch;
     item.department = department;
     await item.save();
