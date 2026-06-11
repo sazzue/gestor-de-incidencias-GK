@@ -263,7 +263,7 @@ function Dashboard() {
       </section>
 
       <section className="executive-grid">
-        <div className="panel large">
+        <div className="panel large attention-panel">
           <div className="panel-title">
             <h2>Focos de atencion</h2>
             <button onClick={() => navigate("/incidents")}>Ver todo</button>
@@ -519,6 +519,19 @@ function Dashboard() {
           background: rgba(255,255,255,0.045);
         }
         .panel.large { grid-row: span 3; }
+        .attention-panel {
+          padding: 0;
+          overflow: hidden;
+        }
+        .attention-panel .panel-title {
+          padding: 18px 18px 0;
+        }
+        .attention-panel .queue-item {
+          padding: 13px 18px;
+        }
+        .attention-panel .empty-state {
+          margin: 0 18px 18px;
+        }
         .panel-title {
           display: flex;
           align-items: center;

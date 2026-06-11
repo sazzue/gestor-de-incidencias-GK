@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import {
@@ -32,6 +32,7 @@ function CreateUser() {
   const [departments, setDepartments] = useState([]);
   const [branches, setBranches] = useState([]);
   const [users, setUsers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [message, setMessage] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
@@ -41,6 +42,25 @@ function CreateUser() {
   const token = localStorage.getItem("token");
   const currentUser = token ? jwtDecode(token) : null;
   const headers = { Authorization: `Bearer ${token}` };
+  const filteredUsers = useMemo(() => {
+    const query = searchTerm.trim().toLocaleLowerCase("es");
+    if (!query) return users;
+
+    return users.filter((user) => {
+      const searchableValues = [
+        user.nombre,
+        user.username,
+        user.email,
+        user.role,
+        user.department,
+        ...(user.branches || []).map((branch) => branch?.name || branch),
+      ];
+
+      return searchableValues.some((value) =>
+        String(value || "").toLocaleLowerCase("es").includes(query)
+      );
+    });
+  }, [searchTerm, users]);
   const sanitizeAssignablePermissions = (permissions = []) =>
     permissions.filter((permission) => !PLATFORM_ONLY_PERMISSIONS.includes(permission));
   const usesBranchScope = (accessScopes = {}) =>
@@ -506,12 +526,29 @@ function CreateUser() {
           <div className="panel-title">
             <div>
               <h2>Usuarios registrados</h2>
-              <p>{users.length} usuarios activos en esta empresa.</p>
+              <p>
+                {searchTerm.trim()
+                  ? `${filteredUsers.length} de ${users.length} usuarios encontrados.`
+                  : `${users.length} usuarios activos en esta empresa.`}
+              </p>
             </div>
           </div>
 
+          <div className="user-search">
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por nombre, usuario, correo, rol o sucursal"
+              aria-label="Buscar usuarios"
+            />
+            {searchTerm && (
+              <button type="button" onClick={() => setSearchTerm("")}>Limpiar</button>
+            )}
+          </div>
+
           <div className="users-table">
-            {users.map((user) => (
+            {filteredUsers.map((user) => (
               <div className="user-row" key={user._id}>
                 <div className="avatar">{user.nombre?.[0]?.toUpperCase() || "?"}</div>
                 <div className="user-main">
@@ -526,6 +563,11 @@ function CreateUser() {
                 </div>
               </div>
             ))}
+            {filteredUsers.length === 0 && (
+              <div className="empty-search">
+                No se encontraron usuarios que coincidan con "{searchTerm.trim()}".
+              </div>
+            )}
           </div>
         </section>
       </div>
@@ -706,7 +748,11 @@ function CreateUser() {
         .notice.success { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #86efac; }
         .notice.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fca5a5; }
         .notice span { color: var(--app-text); }
+        .user-search { position: relative; display: flex; gap: 8px; margin-bottom: 14px; }
+        .user-search input { width: 100%; padding-right: 76px; }
+        .user-search button { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); border: 0; background: transparent; color: var(--app-accent); cursor: pointer; font-size: 12px; font-weight: 700; }
         .users-table { display: flex; flex-direction: column; gap: 8px; }
+        .empty-search { padding: 24px 16px; border: 1px dashed rgba(255,255,255,0.12); border-radius: 8px; color: var(--app-text); opacity: 0.7; text-align: center; font-size: 13px; }
         .user-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 12px; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; background: rgba(255,255,255,0.03); }
         .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--app-accent); color: white; font-weight: 800; }
         .user-main { display: flex; flex-direction: column; min-width: 0; }
