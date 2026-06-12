@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import { hasPermission } from "../config/permissions";
@@ -8,17 +8,31 @@ import { exportPdfReport } from "../utils/pdfReport";
 const API_URL = import.meta.env.VITE_API_URL;
 const normalizeDepartment = (department) =>
   department?.toString().trim().toLowerCase() || "";
+const MAINTENANCE_FILTERS_KEY = "maintenance-filters";
+const readStoredFilters = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(MAINTENANCE_FILTERS_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+const normalizeText = (value) => String(value || "").trim().toLocaleLowerCase("es");
+const getLocalDayStart = (value) => new Date(`${value}T00:00:00`);
+const getLocalDayEnd = (value) => new Date(`${value}T23:59:59.999`);
 
 function MaintenanceCalendar() {
+  const storedFilters = useMemo(() => readStoredFilters(), []);
   const [date, setDate] = useState(new Date());
   const [maintenances, setMaintenances] = useState([]);
-  const [filtered, setFiltered] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus, setFilterStatus] = useState(storedFilters.filterStatus || "all");
   const [showModal, setShowModal] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm || "");
+  const [selectedBranch, setSelectedBranch] = useState(storedFilters.selectedBranch || "");
+  const [selectedDepartment, setSelectedDepartment] = useState(storedFilters.selectedDepartment || "");
+  const [startDate, setStartDate] = useState(storedFilters.startDate || "");
+  const [endDate, setEndDate] = useState(storedFilters.endDate || "");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -69,6 +83,25 @@ function MaintenanceCalendar() {
     departmentOptions.find((item) => item.value === normalizeDepartment(department))?.label ||
     department ||
     "Sin departamento";
+  const invalidDateRange = Boolean(startDate && endDate && startDate > endDate);
+  const filtered = useMemo(() => {
+    if (invalidDateRange) return [];
+
+    const query = normalizeText(searchTerm);
+    return maintenances.filter((maintenance) => {
+      const branchId = String(maintenance.branch?._id || maintenance.branch || "");
+      const branchName = maintenance.branch?.name || branches.find((branch) => String(branch._id) === branchId)?.name || "";
+      const department = normalizeDepartment(maintenance.department?.name || maintenance.department);
+      const searchableValues = [maintenance.title, maintenance.description, branchName, department];
+
+      if (filterStatus !== "all" && maintenance.status !== filterStatus) return false;
+      if (selectedBranch && branchId !== selectedBranch) return false;
+      if (selectedDepartment && department !== selectedDepartment) return false;
+      if (startDate && new Date(maintenance.date) < getLocalDayStart(startDate)) return false;
+      if (endDate && new Date(maintenance.date) > getLocalDayEnd(endDate)) return false;
+      return !query || searchableValues.some((value) => normalizeText(value).includes(query));
+    });
+  }, [branches, endDate, filterStatus, invalidDateRange, maintenances, searchTerm, selectedBranch, selectedDepartment, startDate]);
 
   const getUserBranchIds = () => {
     const userBranches = Array.isArray(user?.branches) ? user.branches : [];
@@ -172,17 +205,6 @@ function MaintenanceCalendar() {
     }
   }
 
-  function filterByDate(data) {
-    let result = [...data];
-    switch (filterStatus) {
-      case "programado":
-      case "finalizado": result = result.filter((m) => m.status === filterStatus); break;
-    }
-    if (selectedBranch) result = result.filter((m) => m.branch?._id === selectedBranch);
-    if (selectedDepartment) result = result.filter((m) => normalizeDepartment(m.department) === selectedDepartment);
-    setFiltered(result);
-  }
-
   const createMaintenance = async () => {
     setModalMessage(null);
     setMessage(null);
@@ -219,7 +241,7 @@ function MaintenanceCalendar() {
         });
         return;
       }
-      setMaintenances((prev) => { const updated = [...prev, data]; filterByDate(updated); return updated; });
+      setMaintenances((prev) => [...prev, data]);
       setShowModal(false);
       setMessage({
         type: "success",
@@ -252,9 +274,15 @@ function MaintenanceCalendar() {
   }, [isMaintenanceDepartmentUser, userDepartment]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    filterByDate(maintenances);
-  }, [filterStatus, maintenances, selectedBranch, selectedDepartment]);
+    sessionStorage.setItem(MAINTENANCE_FILTERS_KEY, JSON.stringify({
+      searchTerm,
+      filterStatus,
+      selectedBranch,
+      selectedDepartment,
+      startDate,
+      endDate,
+    }));
+  }, [endDate, filterStatus, searchTerm, selectedBranch, selectedDepartment, startDate]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/branches`, { headers: { Authorization: `Bearer ${token}` } })
@@ -407,6 +435,14 @@ function MaintenanceCalendar() {
   });
   const programadosCount = filtered.filter((item) => item.status === "programado").length;
   const finalizadosCount = filtered.filter((item) => item.status === "finalizado").length;
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterStatus("all");
+    setSelectedBranch("");
+    setSelectedDepartment("");
+    setStartDate("");
+    setEndDate("");
+  };
 
   const renderCalendarTile = ({ date: tileDate, view }) => {
     if (view !== "month") return null;
@@ -454,8 +490,8 @@ function MaintenanceCalendar() {
 
         <div className="summary-strip">
           <div>
-            <span>Total filtrado</span>
-            <strong>{filtered.length}</strong>
+            <span>Resultados</span>
+            <strong>{filtered.length}/{maintenances.length}</strong>
           </div>
           <div>
             <span>Programados</span>
@@ -479,6 +515,15 @@ function MaintenanceCalendar() {
             </div>
           )}
           <div className="filters">
+            <input
+              className="maintenance-search"
+              type="search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar titulo, descripcion o sucursal"
+              aria-label="Buscar mantenimientos"
+            />
+
             <button className={filterStatus === "all" ? "active" : ""} onClick={() => setFilterStatus("all")}>Todos</button>
             <button className={filterStatus === "programado" ? "active" : ""} onClick={() => setFilterStatus("programado")}>Programados</button>
             <button className={filterStatus === "finalizado" ? "active" : ""} onClick={() => setFilterStatus("finalizado")}>Finalizados</button>
@@ -496,7 +541,20 @@ function MaintenanceCalendar() {
                 ))}
               </select>
             )}
+
+            <label className="maintenance-date-filter">
+              <span>Desde</span>
+              <input type="date" value={startDate} max={endDate || undefined} onChange={(e) => setStartDate(e.target.value)} />
+            </label>
+            <label className="maintenance-date-filter">
+              <span>Hasta</span>
+              <input type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} />
+            </label>
+            <button className="clear-filters" type="button" onClick={clearFilters}>Limpiar filtros</button>
           </div>
+          {invalidDateRange && (
+            <div className="filter-error">La fecha inicial no puede ser posterior a la fecha final.</div>
+          )}
         </section>
 
         <div className="calendar-workspace">
@@ -707,7 +765,12 @@ function MaintenanceCalendar() {
         .filters { display: flex; gap: 8px; flex-wrap: wrap; }
         .filters button { padding: 8px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 12px; transition: 0.2s; }
         .filters button.active, .filters button:hover { background: #3b82f6; color: white; border-color: #3b82f6; }
-        .filters select { min-width: 180px; padding: 8px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: var(--app-input); color: #e2e8f0; font-size: 12px; }
+        .filters select, .filters input { min-width: 180px; padding: 8px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: var(--app-input); color: #e2e8f0; font-size: 12px; }
+        .filters .maintenance-search { flex: 1 1 280px; }
+        .maintenance-date-filter { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 5px; color: #94a3b8; font-size: 11px; }
+        .maintenance-date-filter input { width: 100%; min-width: 0; }
+        .filters .clear-filters { border-color: rgba(148,163,184,0.25); color: #cbd5e1; }
+        .filter-error { margin-top: 10px; color: #fca5a5; font-size: 12px; }
         .export-btn, .create-btn { padding: 10px 12px; border-radius: 8px; border: none; color: white; cursor: pointer; font-size: 14px; font-weight: 800; }
         .export-btn { background: #22c55e; }
         .create-btn { background: #3b82f6; }
@@ -755,7 +818,7 @@ function MaintenanceCalendar() {
         }
         @media (max-width: 520px) {
           .summary-strip { grid-template-columns: 1fr; }
-          .filters select, .filters button { width: 100%; }
+          .filters select, .filters input, .filters button, .maintenance-date-filter { width: 100%; }
           .react-calendar__tile { min-height: 70px; }
           .tile-events { display: none; }
         }

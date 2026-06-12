@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
@@ -18,17 +18,31 @@ const priorityLabels = {
   alta: "Alta",
   critica: "Critica",
 };
+const INCIDENT_FILTERS_KEY = "incident-filters";
+const readStoredFilters = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(INCIDENT_FILTERS_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+const getLocalDayStart = (value) => new Date(`${value}T00:00:00`);
+const getLocalDayEnd = (value) => new Date(`${value}T23:59:59.999`);
+const normalizeText = (value) => String(value || "").trim().toLocaleLowerCase("es");
 
 function Incidents() {
+  const storedFilters = useMemo(() => readStoredFilters(), []);
   const [incidents, setIncidents] = useState([]);
-  const [filteredIncidents, setFilteredIncidents] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [selectedBranch, setSelectedBranch] = useState("");
-  const [filterDept, setFilterDept] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm || "");
+  const [selectedBranch, setSelectedBranch] = useState(storedFilters.selectedBranch || "");
+  const [filterDept, setFilterDept] = useState(storedFilters.filterDept || "");
+  const [filterStatus, setFilterStatus] = useState(storedFilters.filterStatus || "");
+  const [filterPriority, setFilterPriority] = useState(storedFilters.filterPriority || "");
+  const [filterSla, setFilterSla] = useState(storedFilters.filterSla || "");
+  const [startDate, setStartDate] = useState(storedFilters.startDate || "");
+  const [endDate, setEndDate] = useState(storedFilters.endDate || "");
   const [uploadingIncidentId, setUploadingIncidentId] = useState(null);
   const [resolutionComments, setResolutionComments] = useState({});
   const [, setFollowUpReadVersion] = useState(0);
@@ -45,6 +59,32 @@ function Incidents() {
   const getFolio = (incident) => incident.folio || `INC-${incident._id.slice(-6).toUpperCase()}`;
   const getIncidentSlaState = (incident) =>
     getSlaState(incident, settings.slaWarningPercent, now);
+  const invalidDateRange = Boolean(startDate && endDate && startDate > endDate);
+  const filteredIncidents = useMemo(() => {
+    if (invalidDateRange) return [];
+
+    const query = normalizeText(searchTerm);
+    return incidents.filter((incident) => {
+      const branchId = String(incident.branch?._id || incident.branch || "");
+      const department = normalizeText(incident.department?.name || incident.department);
+      const searchableValues = [
+        incident.folio || (incident._id ? `INC-${incident._id.slice(-6).toUpperCase()}` : ""),
+        incident.title,
+        incident.description,
+        incident.assignedTo?.nombre,
+        incident.assignedTo?.email,
+      ];
+
+      if (selectedBranch && branchId !== selectedBranch) return false;
+      if (filterDept && department !== normalizeText(filterDept)) return false;
+      if (filterStatus && incident.status !== filterStatus) return false;
+      if (filterPriority && incident.priority !== filterPriority) return false;
+      if (filterSla && getSlaState(incident, settings.slaWarningPercent, now) !== filterSla) return false;
+      if (startDate && new Date(incident.createdAt) < getLocalDayStart(startDate)) return false;
+      if (endDate && new Date(incident.createdAt) > getLocalDayEnd(endDate)) return false;
+      return !query || searchableValues.some((value) => normalizeText(value).includes(query));
+    });
+  }, [endDate, filterDept, filterPriority, filterSla, filterStatus, incidents, invalidDateRange, now, searchTerm, selectedBranch, settings.slaWarningPercent, startDate]);
   const canViewIncidents = hasPermission(user, "INCIDENTS_VIEW");
   const canExportIncidents = hasPermission(user, "INCIDENTS_EXPORT");
   const canUpdateStatus = hasPermission(user, "INCIDENTS_UPDATE_STATUS");
@@ -100,8 +140,17 @@ function Incidents() {
   }, [canViewIncidents, user]);
 
   useEffect(() => {
-    filterIncidents();
-  }, [incidents, selectedBranch, filterDept, filterStatus, startDate, endDate]);
+    sessionStorage.setItem(INCIDENT_FILTERS_KEY, JSON.stringify({
+      searchTerm,
+      selectedBranch,
+      filterDept,
+      filterStatus,
+      filterPriority,
+      filterSla,
+      startDate,
+      endDate,
+    }));
+  }, [endDate, filterDept, filterPriority, filterSla, filterStatus, searchTerm, selectedBranch, startDate]);
 
   useEffect(() => {
     const refreshReadState = () => setFollowUpReadVersion((version) => version + 1);
@@ -153,34 +202,15 @@ function Incidents() {
     }
   };
 
-  const filterIncidents = () => {
-    let result = [...incidents];
-
-    if (selectedBranch) {
-      result = result.filter((i) => {
-        if (i.branch?._id) return i.branch._id === selectedBranch;
-        if (typeof i.branch === "string") return i.branch === selectedBranch;
-        return false;
-      });
-    }
-
-    if (filterDept) {
-      result = result.filter(
-        (i) => i.department && i.department.toLowerCase().trim() === filterDept
-      );
-    }
-
-    if (filterStatus) result = result.filter((i) => i.status === filterStatus);
-
-    if (startDate)
-      result = result.filter((i) => new Date(i.createdAt) >= new Date(startDate));
-
-    if (endDate)
-      result = result.filter(
-        (i) => new Date(i.createdAt) <= new Date(endDate + "T23:59:59")
-      );
-
-    setFilteredIncidents(result);
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedBranch("");
+    setFilterDept(user?.accessScopes?.incidents === "department" ? normalizeText(user.department) : "");
+    setFilterStatus("");
+    setFilterPriority("");
+    setFilterSla("");
+    setStartDate("");
+    setEndDate("");
   };
 
   const exportIncidentsPdf = () => {
@@ -311,7 +341,7 @@ function Incidents() {
       <div className="page-header">
         <div>
           <h1>Incidencias</h1>
-          <p>Mostrando {filteredIncidents.length} resultados</p>
+          <p>Mostrando {filteredIncidents.length} de {incidents.length} resultados</p>
         </div>
         {canCreate && (
           <button className="btn-primary" onClick={() => navigate("/create")}>
@@ -322,6 +352,15 @@ function Incidents() {
 
       {/* FILTROS */}
       <div className="filters-bar">
+        <input
+          className="search-input"
+          type="search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar folio, titulo o responsable"
+          aria-label="Buscar incidencias"
+        />
+
         <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
           <option value="">Todas las sucursales</option>
           {branches.map((b) => <option key={b._id} value={b._id}>{b.name}</option>)}
@@ -341,13 +380,41 @@ function Incidents() {
           <option value="resuelto">Resuelto</option>
         </select>
 
-        <input type="date" onChange={(e) => setStartDate(e.target.value)} />
-        <input type="date" onChange={(e) => setEndDate(e.target.value)} />
+        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+          <option value="">Todas las prioridades</option>
+          {Object.entries(priorityLabels).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+
+        <select value={filterSla} onChange={(e) => setFilterSla(e.target.value)}>
+          <option value="">Todos los SLA</option>
+          <option value="on-time">A tiempo</option>
+          <option value="warning">Proxima a vencer</option>
+          <option value="overdue">Vencida</option>
+          <option value="met">Cumplida</option>
+          <option value="breached">Incumplida</option>
+          <option value="none">Sin limite</option>
+        </select>
+
+        <label className="date-filter">
+          <span>Desde</span>
+          <input type="date" value={startDate} max={endDate || undefined} onChange={(e) => setStartDate(e.target.value)} />
+        </label>
+        <label className="date-filter">
+          <span>Hasta</span>
+          <input type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} />
+        </label>
+
+        <button className="btn-clear" type="button" onClick={clearFilters}>Limpiar filtros</button>
 
         {canExportIncidents && (
           <button className="btn-export" onClick={exportIncidentsPdf}>Exportar PDF</button>
         )}
       </div>
+      {invalidDateRange && (
+        <div className="filter-error">La fecha inicial no puede ser posterior a la fecha final.</div>
+      )}
 
       {/* GRID */}
       {!canViewIncidents && (
@@ -543,6 +610,9 @@ function Incidents() {
           outline: none;
           box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
         }
+        .filters-bar .search-input { flex-basis: 280px; }
+        .date-filter { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 5px; color: #94a3b8; font-size: 11px; }
+        .date-filter input { width: 100%; flex: none; }
 
         .btn-export {
           flex: 1 1 160px;
@@ -558,6 +628,10 @@ function Incidents() {
           transition: 0.2s;
         }
         .btn-export:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(34,197,94,0.3); }
+
+        .btn-clear { flex: 1 1 150px; min-width: 0; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.25); background: transparent; color: #cbd5e1; cursor: pointer; font-size: 13px; }
+        .btn-clear:hover { border-color: #60a5fa; color: #bfdbfe; }
+        .filter-error { margin: -14px 0 20px; color: #fca5a5; font-size: 12px; }
 
         .grid {
           display: grid;
@@ -847,6 +921,8 @@ function Incidents() {
           .filters-bar { flex-direction: column; }
           .filters-bar select,
           .filters-bar input,
+          .date-filter,
+          .btn-clear,
           .btn-export {
             width: 100%;
             flex-basis: auto;
