@@ -4,6 +4,17 @@ import { useAuthUser } from "../hooks/useAuthUser";
 import { exportPdfReport } from "../utils/pdfReport";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const INVENTORY_FILTERS_KEY = "inventory-filters";
+const readStoredFilters = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(INVENTORY_FILTERS_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+const normalizeText = (value) => String(value || "").trim().toLocaleLowerCase("es");
+const getLocalDayStart = (value) => new Date(`${value}T00:00:00`);
+const getLocalDayEnd = (value) => new Date(`${value}T23:59:59.999`);
 
 const initialForm = {
   model: "",
@@ -49,6 +60,7 @@ function CatalogInput({ id, label, value, options, placeholder, onChange, onSave
 }
 
 function Inventory() {
+  const storedFilters = useMemo(() => readStoredFilters(), []);
   const [items, setItems] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -56,9 +68,14 @@ function Inventory() {
   const [catalogs, setCatalogs] = useState(emptyCatalogs);
   const [savingCatalog, setSavingCatalog] = useState("");
   const [form, setForm] = useState(initialForm);
-  const [filterBranch, setFilterBranch] = useState("");
-  const [filterDepartment, setFilterDepartment] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm || "");
+  const [filterBranch, setFilterBranch] = useState(storedFilters.filterBranch || "");
+  const [filterDepartment, setFilterDepartment] = useState(storedFilters.filterDepartment || "");
+  const [filterStatus, setFilterStatus] = useState(storedFilters.filterStatus || "");
+  const [filterBrand, setFilterBrand] = useState(storedFilters.filterBrand || "");
+  const [filterResponsible, setFilterResponsible] = useState(storedFilters.filterResponsible || "");
+  const [startDate, setStartDate] = useState(storedFilters.startDate || "");
+  const [endDate, setEndDate] = useState(storedFilters.endDate || "");
   const [message, setMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [disposeItem, setDisposeItem] = useState(null);
@@ -152,14 +169,43 @@ function Inventory() {
     return options;
   }, [editForm.branch, editForm.department, editingItem, getSupplierOptions]);
 
+  const brandOptions = useMemo(() => Array.from(new Set([
+    ...catalogs.brand,
+    ...items.map((item) => item.brand).filter(Boolean),
+  ])).sort((left, right) => left.localeCompare(right, "es")), [catalogs.brand, items]);
+
+  const invalidDateRange = Boolean(startDate && endDate && startDate > endDate);
   const filteredItems = useMemo(() => {
+    if (invalidDateRange) return [];
+
+    const query = normalizeText(searchTerm);
     return items.filter((item) => {
-      if (filterBranch && item.branch?._id !== filterBranch) return false;
-      if (filterDepartment && item.department !== filterDepartment) return false;
+      const branchId = String(item.branch?._id || item.branch || "");
+      const branchName = item.branch?.name || branches.find((branch) => String(branch._id) === branchId)?.name || "";
+      const department = normalizeText(item.department?.name || item.department);
+      const supplierName = item.supplier?.name || item.provider;
+      const hasResponsible = Boolean(normalizeText(item.responsible));
+      const searchableValues = [
+        item.model,
+        item.brand,
+        item.serialNumber,
+        supplierName,
+        item.responsible,
+        branchName,
+        department,
+      ];
+
+      if (filterBranch && branchId !== filterBranch) return false;
+      if (filterDepartment && department !== normalizeText(filterDepartment)) return false;
       if (filterStatus && item.status !== filterStatus) return false;
-      return true;
+      if (filterBrand && normalizeText(item.brand) !== normalizeText(filterBrand)) return false;
+      if (filterResponsible === "assigned" && !hasResponsible) return false;
+      if (filterResponsible === "unassigned" && hasResponsible) return false;
+      if (startDate && new Date(item.createdAt) < getLocalDayStart(startDate)) return false;
+      if (endDate && new Date(item.createdAt) > getLocalDayEnd(endDate)) return false;
+      return !query || searchableValues.some((value) => normalizeText(value).includes(query));
     });
-  }, [items, filterBranch, filterDepartment, filterStatus]);
+  }, [branches, endDate, filterBranch, filterBrand, filterDepartment, filterResponsible, filterStatus, invalidDateRange, items, searchTerm, startDate]);
 
   const inventoryStats = useMemo(() => {
     const total = filteredItems.length;
@@ -167,6 +213,17 @@ function Inventory() {
     const bajas = filteredItems.filter((item) => item.status === "baja").length;
     return { total, activos, bajas };
   }, [filteredItems]);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterBranch("");
+    setFilterDepartment(isDepartmentLocked ? userDepartment : "");
+    setFilterStatus("");
+    setFilterBrand("");
+    setFilterResponsible("");
+    setStartDate("");
+    setEndDate("");
+  };
 
   const exportInventoryPdf = () => {
     if (!canExport) { alert("No tienes permisos para exportar inventario"); return; }
@@ -354,6 +411,19 @@ function Inventory() {
       setFilterDepartment(userDepartment);
     }
   }, [isDepartmentLocked, userDepartment]);
+
+  useEffect(() => {
+    sessionStorage.setItem(INVENTORY_FILTERS_KEY, JSON.stringify({
+      searchTerm,
+      filterBranch,
+      filterDepartment,
+      filterStatus,
+      filterBrand,
+      filterResponsible,
+      startDate,
+      endDate,
+    }));
+  }, [endDate, filterBranch, filterBrand, filterDepartment, filterResponsible, filterStatus, searchTerm, startDate]);
 
   const createItem = async (event) => {
     event.preventDefault();
@@ -638,8 +708,8 @@ function Inventory() {
 
       <div className="stats-grid">
         <div className="stat-card">
-          <span>Total</span>
-          <strong>{inventoryStats.total}</strong>
+          <span>Resultados</span>
+          <strong>{inventoryStats.total}/{items.length}</strong>
         </div>
         <div className="stat-card active">
           <span>Activos</span>
@@ -743,6 +813,14 @@ function Inventory() {
       )}
 
       <div className="toolbar">
+        <input
+          className="inventory-search"
+          type="search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar articulo, codigo, proveedor o responsable"
+          aria-label="Buscar inventario"
+        />
         <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
           <option value="">Todas las sucursales</option>
           {filterBranches.map((branch) => (
@@ -764,7 +842,28 @@ function Inventory() {
           <option value="activo">Activos</option>
           <option value="baja">Bajas</option>
         </select>
+        <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)}>
+          <option value="">Todas las categorias / marcas</option>
+          {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+        </select>
+        <select value={filterResponsible} onChange={(e) => setFilterResponsible(e.target.value)}>
+          <option value="">Con y sin responsable</option>
+          <option value="assigned">Con responsable</option>
+          <option value="unassigned">Sin responsable</option>
+        </select>
+        <label className="inventory-date-filter">
+          <span>Alta desde</span>
+          <input type="date" value={startDate} max={endDate || undefined} onChange={(e) => setStartDate(e.target.value)} />
+        </label>
+        <label className="inventory-date-filter">
+          <span>Alta hasta</span>
+          <input type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} />
+        </label>
+        <button className="clear-filters" type="button" onClick={clearFilters}>Limpiar filtros</button>
       </div>
+      {invalidDateRange && (
+        <div className="filter-error">La fecha inicial no puede ser posterior a la fecha final.</div>
+      )}
 
       <div className="inventory-grid">
         {filteredItems.length === 0 ? (
@@ -1050,6 +1149,7 @@ function Inventory() {
         .form-group select,
         .form-group textarea,
         .toolbar select,
+        .toolbar input,
         .modal-content textarea,
         .modal-content input {
           padding: 10px 12px;
@@ -1126,9 +1226,16 @@ function Inventory() {
           margin-bottom: 18px;
         }
 
-        .toolbar select {
+        .toolbar select,
+        .toolbar input {
           min-width: 220px;
         }
+        .toolbar .inventory-search { flex: 1 1 320px; }
+        .inventory-date-filter { flex: 1 1 190px; min-width: 0; display: flex; flex-direction: column; gap: 5px; color: #94a3b8; font-size: 11px; }
+        .inventory-date-filter input { width: 100%; min-width: 0; }
+        .clear-filters { flex: 1 1 150px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.25); background: transparent; color: #cbd5e1; cursor: pointer; font-weight: 600; }
+        .clear-filters:hover { border-color: #60a5fa; color: #bfdbfe; }
+        .filter-error { margin: -8px 0 18px; color: #fca5a5; font-size: 12px; }
 
         .inventory-grid {
           min-width: 0;
@@ -1284,7 +1391,7 @@ function Inventory() {
 
         @media (max-width: 700px) {
           .inventory-page { padding: 16px; }
-          .toolbar select { width: 100%; }
+          .toolbar select, .toolbar input, .inventory-date-filter, .clear-filters { width: 100%; flex-basis: auto; }
           .modal-actions { flex-direction: column; }
         }
 
