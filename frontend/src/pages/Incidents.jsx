@@ -921,15 +921,33 @@ function Incidents() {
           .page { padding: 14px; }
           .grid { grid-template-columns: minmax(0, 1fr); }
           .card { padding: 16px; border-radius: 12px; }
-          .filters-bar { flex-direction: column; }
+          .filters-bar {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            align-items: end;
+            gap: 8px;
+            padding: 10px;
+            margin-bottom: 18px;
+          }
           .filters-bar select,
           .filters-bar input,
           .date-filter,
           .btn-clear,
           .btn-export {
             width: 100%;
-            flex-basis: auto;
+            min-width: 0;
+            max-width: none;
           }
+          .filters-bar select,
+          .filters-bar input,
+          .btn-clear,
+          .btn-export {
+            height: 36px;
+            padding: 6px 8px;
+            font-size: 12px;
+          }
+          .filters-bar .search-input { grid-column: 1 / -1; }
+          .date-filter { font-size: 9px; }
         }
       `}</style>
     </div>

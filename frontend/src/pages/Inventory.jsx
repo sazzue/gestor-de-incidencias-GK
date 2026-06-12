@@ -1391,7 +1391,24 @@ function Inventory() {
 
         @media (max-width: 700px) {
           .inventory-page { padding: 16px; }
-          .toolbar select, .toolbar input, .inventory-date-filter, .clear-filters { width: 100%; flex-basis: auto; }
+          .toolbar {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+          }
+          .toolbar select, .toolbar input, .inventory-date-filter, .clear-filters {
+            width: 100%;
+            min-width: 0;
+            flex-basis: auto;
+          }
+          .toolbar select, .toolbar input, .clear-filters {
+            min-height: 36px;
+            padding: 7px 8px;
+            font-size: 12px;
+          }
+          .toolbar .inventory-search { grid-column: 1 / -1; }
+          .inventory-date-filter { font-size: 9px; gap: 4px; }
+          .clear-filters { grid-column: 1 / -1; }
           .modal-actions { flex-direction: column; }
         }
 

@@ -818,7 +818,28 @@ function MaintenanceCalendar() {
         }
         @media (max-width: 520px) {
           .summary-strip { grid-template-columns: 1fr; }
-          .filters select, .filters input, .filters button, .maintenance-date-filter { width: 100%; }
+          .filters {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 7px;
+          }
+          .filters select, .filters input, .filters button, .maintenance-date-filter {
+            width: 100%;
+            min-width: 0;
+          }
+          .filters .maintenance-search { grid-column: 1 / -1; }
+          .filters > button:nth-of-type(-n + 3) {
+            grid-column: span 2;
+            padding: 7px 4px;
+            font-size: 11px;
+          }
+          .filters select, .maintenance-date-filter { grid-column: span 3; }
+          .filters select, .filters input {
+            padding: 7px 8px;
+            font-size: 11px;
+          }
+          .maintenance-date-filter { gap: 4px; font-size: 9px; }
+          .filters .clear-filters { grid-column: 1 / -1; padding: 7px 8px; }
           .react-calendar__tile { min-height: 70px; }
           .tile-events { display: none; }
         }
