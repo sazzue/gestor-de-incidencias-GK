@@ -584,19 +584,21 @@ function Incidents() {
 
         .filters-bar {
           display: flex;
-          gap: 10px;
+          align-items: flex-end;
+          gap: 8px;
           flex-wrap: wrap;
           margin-bottom: 24px;
-          padding: 16px;
+          padding: 12px;
           background: rgba(255,255,255,0.03);
           border-radius: 12px;
           border: 1px solid rgba(255,255,255,0.06);
         }
         .filters-bar select,
         .filters-bar input {
-          flex: 1 1 180px;
+          flex: 0 1 180px;
           min-width: 0;
-          padding: 9px 12px;
+          height: 38px;
+          padding: 7px 10px;
           border-radius: 8px;
           border: 1px solid #1e293b;
           background: var(--app-input);
@@ -610,14 +612,15 @@ function Incidents() {
           outline: none;
           box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
         }
-        .filters-bar .search-input { flex-basis: 280px; }
-        .date-filter { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 5px; color: #94a3b8; font-size: 11px; }
+        .filters-bar .search-input { flex: 1 1 240px; max-width: 300px; }
+        .date-filter { flex: 0 1 170px; min-width: 150px; display: flex; flex-direction: column; gap: 4px; color: #94a3b8; font-size: 10px; }
         .date-filter input { width: 100%; flex: none; }
 
         .btn-export {
-          flex: 1 1 160px;
-          min-width: 0;
-          padding: 9px 14px;
+          flex: 0 0 auto;
+          min-width: 125px;
+          height: 38px;
+          padding: 7px 14px;
           border-radius: 8px;
           border: none;
           background: linear-gradient(135deg, #22c55e, #16a34a);
@@ -629,7 +632,7 @@ function Incidents() {
         }
         .btn-export:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(34,197,94,0.3); }
 
-        .btn-clear { flex: 1 1 150px; min-width: 0; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.25); background: transparent; color: #cbd5e1; cursor: pointer; font-size: 13px; }
+        .btn-clear { flex: 0 0 auto; min-width: 125px; height: 38px; padding: 7px 12px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.25); background: transparent; color: #cbd5e1; cursor: pointer; font-size: 12px; }
         .btn-clear:hover { border-color: #60a5fa; color: #bfdbfe; }
         .filter-error { margin: -14px 0 20px; color: #fca5a5; font-size: 12px; }
 
