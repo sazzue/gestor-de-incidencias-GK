@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { hasPermission } from "../config/permissions";
+import { ACCESS_SCOPES, hasPermission } from "../config/permissions";
 import { useAuthUser } from "../hooks/useAuthUser";
 import { useSystemSettings } from "../hooks/useSystemSettings";
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+const getAssignedBranchIds = (user) => {
+  const branches = Array.isArray(user?.branches) ? user.branches : [];
+  const ids = branches.length > 0 ? branches : user?.branch ? [user.branch] : [];
+
+  return ids.map((item) => item?._id || item).filter(Boolean).map(String);
+};
 
 function CreateIncidencia() {
   const [branches, setBranches] = useState([]);
@@ -22,10 +29,21 @@ function CreateIncidencia() {
   const token = localStorage.getItem("token");
   const user = useAuthUser();
   const { settings } = useSystemSettings();
+  const shouldLimitBranches = user?.accessScopes?.incidents === ACCESS_SCOPES.BRANCH;
+  const assignedBranchIds = getAssignedBranchIds(user);
+  const availableBranches = shouldLimitBranches
+    ? branches.filter((item) => assignedBranchIds.includes(String(item._id)))
+    : branches;
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (branch && !availableBranches.some((item) => String(item._id) === String(branch))) {
+      setBranch("");
+    }
+  }, [availableBranches, branch]);
 
   const fetchData = async () => {
     try {
@@ -182,10 +200,13 @@ function CreateIncidencia() {
           <label>Sucursal</label>
           <select value={branch} onChange={(e) => setBranch(e.target.value)}>
             <option value="">Seleccionar sucursal</option>
-            {branches.map((b) => (
+            {availableBranches.map((b) => (
               <option key={b._id} value={b._id}>{b.name}</option>
             ))}
           </select>
+          {shouldLimitBranches && availableBranches.length === 0 && (
+            <span className="field-hint error">No tienes sucursales asignadas para crear solicitudes.</span>
+          )}
         </div>
 
         <div className="form-group">
@@ -316,6 +337,15 @@ function CreateIncidencia() {
         .file-hint {
           color: #64748b;
           font-size: 12px;
+        }
+
+        .field-hint {
+          color: #64748b;
+          font-size: 12px;
+        }
+
+        .field-hint.error {
+          color: #fca5a5;
         }
 
         .btn-submit {

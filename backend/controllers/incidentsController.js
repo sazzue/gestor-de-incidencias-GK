@@ -130,6 +130,12 @@ const getAssignedBranchIds = (user) => {
   return ids.map((branch) => String(branch?._id || branch)).filter(Boolean);
 };
 
+const canCreateIncidentForBranch = (user, branchId) => {
+  if (user?.accessScopes?.incidents !== ACCESS_SCOPES.BRANCH) return true;
+
+  return getAssignedBranchIds(user).includes(String(branchId));
+};
+
 const escapeRegExp = (value) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -375,6 +381,12 @@ const createIncident = async (req, res) => {
 
     if (!title || !description || !branch || !department) {
       return res.status(400).json({ msg: "Datos incompletos" });
+    }
+
+    if (!canCreateIncidentForBranch(req.user, branch)) {
+      return res.status(403).json({
+        msg: "No puedes crear incidencias para sucursales no asignadas",
+      });
     }
 
     const normalizedPriority = priority.toString().toLowerCase().trim();
