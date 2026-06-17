@@ -59,6 +59,14 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
+    key: "internalTasks",
+    label: "Tareas internas",
+    permissions: [
+      { value: "INTERNAL_TASKS_VIEW", label: "Ver tareas internas" },
+      { value: "INTERNAL_TASKS_CREATE", label: "Crear tareas internas" },
+    ],
+  },
+  {
     key: "maintenance",
     label: "Mantenimientos",
     permissions: [

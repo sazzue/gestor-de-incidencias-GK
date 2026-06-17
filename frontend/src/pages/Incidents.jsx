@@ -19,9 +19,9 @@ const priorityLabels = {
   critica: "Critica",
 };
 const INCIDENT_FILTERS_KEY = "incident-filters";
-const readStoredFilters = () => {
+const readStoredFilters = (storageKey = INCIDENT_FILTERS_KEY) => {
   try {
-    return JSON.parse(sessionStorage.getItem(INCIDENT_FILTERS_KEY)) || {};
+    return JSON.parse(sessionStorage.getItem(storageKey)) || {};
   } catch {
     return {};
   }
@@ -30,8 +30,20 @@ const getLocalDayStart = (value) => new Date(`${value}T00:00:00`);
 const getLocalDayEnd = (value) => new Date(`${value}T23:59:59.999`);
 const normalizeText = (value) => String(value || "").trim().toLocaleLowerCase("es");
 
-function Incidents() {
-  const storedFilters = useMemo(() => readStoredFilters(), []);
+function Incidents({
+  type = "incident",
+  title = "Incidencias",
+  createLabel = "Crear solicitud",
+  createPath = "/create",
+  detailBasePath = "/incidents",
+  viewPermission = "INCIDENTS_VIEW",
+  createPermission = "CREATE_INCIDENT",
+  emptyPermissionMessage = "No tienes permisos para ver incidencias.",
+  exportTitle = "Reporte de incidencias",
+  searchLabel = "Buscar incidencias",
+} = {}) {
+  const filtersKey = `${INCIDENT_FILTERS_KEY}-${type}`;
+  const storedFilters = useMemo(() => readStoredFilters(filtersKey), [filtersKey]);
   const [incidents, setIncidents] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -85,11 +97,11 @@ function Incidents() {
       return !query || searchableValues.some((value) => normalizeText(value).includes(query));
     });
   }, [endDate, filterDept, filterPriority, filterSla, filterStatus, incidents, invalidDateRange, now, searchTerm, selectedBranch, settings.slaWarningPercent, startDate]);
-  const canViewIncidents = hasPermission(user, "INCIDENTS_VIEW");
+  const canViewIncidents = hasPermission(user, viewPermission);
   const canExportIncidents = hasPermission(user, "INCIDENTS_EXPORT");
   const canUpdateStatus = hasPermission(user, "INCIDENTS_UPDATE_STATUS");
   const canCloseIncidents = hasPermission(user, "INCIDENTS_CLOSE");
-  const canCreate = hasPermission(user, "CREATE_INCIDENT");
+  const canCreate = hasPermission(user, createPermission);
 
   const canAccessIncidentScope = (incident) => {
     const scope = user?.accessScopes?.incidents;
@@ -128,7 +140,7 @@ function Incidents() {
     fetchIncidents();
     fetchBranches();
     fetchDepartments();
-  }, [user, canViewIncidents]);
+  }, [user, canViewIncidents, type]);
 
   useEffect(() => {
     if (
@@ -140,7 +152,7 @@ function Incidents() {
   }, [canViewIncidents, user]);
 
   useEffect(() => {
-    sessionStorage.setItem(INCIDENT_FILTERS_KEY, JSON.stringify({
+    sessionStorage.setItem(filtersKey, JSON.stringify({
       searchTerm,
       selectedBranch,
       filterDept,
@@ -150,7 +162,7 @@ function Incidents() {
       startDate,
       endDate,
     }));
-  }, [endDate, filterDept, filterPriority, filterSla, filterStatus, searchTerm, selectedBranch, startDate]);
+  }, [endDate, filterDept, filterPriority, filterSla, filterStatus, filtersKey, searchTerm, selectedBranch, startDate]);
 
   useEffect(() => {
     const refreshReadState = () => setFollowUpReadVersion((version) => version + 1);
@@ -166,7 +178,7 @@ function Incidents() {
   const fetchIncidents = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/api/incidents`, {
+      const res = await fetch(`${API_URL}/api/incidents?type=${encodeURIComponent(type)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -232,7 +244,7 @@ function Incidents() {
     }));
     const branchName = branches.find((b) => b._id === selectedBranch)?.name || "todas";
     exportPdfReport({
-      title: "Reporte de incidencias",
+      title: exportTitle,
       subtitle: `Sucursal: ${branchName}`,
       summary: [
         { label: "Total", value: filteredIncidents.length },
@@ -340,12 +352,12 @@ function Incidents() {
       {/* HEADER */}
       <div className="page-header">
         <div>
-          <h1>Incidencias</h1>
+          <h1>{title}</h1>
           <p>Mostrando {filteredIncidents.length} de {incidents.length} resultados</p>
         </div>
         {canCreate && (
-          <button className="btn-primary" onClick={() => navigate("/create")}>
-            Crear solicitud
+          <button className="btn-primary" onClick={() => navigate(createPath)}>
+            {createLabel}
           </button>
         )}
       </div>
@@ -358,7 +370,7 @@ function Incidents() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar folio, titulo o responsable"
-          aria-label="Buscar incidencias"
+          aria-label={searchLabel}
         />
 
         <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
@@ -418,7 +430,7 @@ function Incidents() {
 
       {/* GRID */}
       {!canViewIncidents && (
-        <div className="empty-state">No tienes permisos para ver incidencias.</div>
+        <div className="empty-state">{emptyPermissionMessage}</div>
       )}
 
       <div className="grid">
@@ -522,7 +534,7 @@ function Incidents() {
             <span className="upload-hint">Max. 5 MB por archivo, 10 archivos, 30 MB por incidencia.</span>
 
             <div className="actions">
-              <button className="btn-view" onClick={() => navigate(`/incidents/${inc._id}`)}>
+              <button className="btn-view" onClick={() => navigate(`${detailBasePath}/${inc._id}`)}>
                 Ver ticket
               </button>
               {inc.status === "resuelto" ? (

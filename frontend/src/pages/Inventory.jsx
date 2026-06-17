@@ -20,6 +20,7 @@ const initialForm = {
   model: "",
   brand: "",
   serialNumber: "",
+  quantity: 1,
   provider: "",
   responsible: "",
   branch: "",
@@ -86,6 +87,11 @@ function Inventory() {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState(initialForm);
   const [isUpdatingItem, setIsUpdatingItem] = useState(false);
+  const [movementItem, setMovementItem] = useState(null);
+  const [movementForm, setMovementForm] = useState({ type: "entrada", quantity: 1, reason: "" });
+  const [isMovingStock, setIsMovingStock] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const token = localStorage.getItem("token");
   const user = useAuthUser();
@@ -211,7 +217,8 @@ function Inventory() {
     const total = filteredItems.length;
     const activos = filteredItems.filter((item) => item.status === "activo").length;
     const bajas = filteredItems.filter((item) => item.status === "baja").length;
-    return { total, activos, bajas };
+    const existencias = filteredItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    return { total, activos, bajas, existencias };
   }, [filteredItems]);
 
   const clearFilters = () => {
@@ -234,6 +241,7 @@ function Inventory() {
       subtitle: "Articulos registrados y asignados por sucursal",
       summary: [
         { label: "Total", value: inventoryStats.total },
+        { label: "Existencias", value: inventoryStats.existencias },
         { label: "Activos", value: inventoryStats.activos },
         { label: "Bajas", value: inventoryStats.bajas },
       ],
@@ -241,6 +249,7 @@ function Inventory() {
         { key: "article", label: "Articulo" },
         { key: "category", label: "Categoria / marca" },
         { key: "code", label: "Codigo" },
+        { key: "quantity", label: "Cantidad" },
         { key: "branch", label: "Sucursal" },
         { key: "department", label: "Departamento" },
         { key: "provider", label: "Proveedor" },
@@ -251,6 +260,7 @@ function Inventory() {
         article: item.model || "Sin articulo",
         category: item.brand || "Sin categoria",
         code: item.serialNumber,
+        quantity: Number(item.quantity) || 0,
         branch: item.branch?.name || "Sin sucursal",
         department: item.department || "Sin departamento",
         provider: item.provider,
@@ -444,6 +454,7 @@ function Inventory() {
       formData.append("model", form.model);
       formData.append("brand", form.brand);
       formData.append("serialNumber", form.serialNumber);
+      formData.append("quantity", form.quantity || 1);
       formData.append("provider", form.provider);
       formData.append("responsible", form.responsible);
       formData.append("branch", form.branch);
@@ -555,12 +566,128 @@ function Inventory() {
     }
   };
 
+  const downloadTemplate = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/inventory/template`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setMessage({ type: "error", title: data.msg || "No se pudo descargar la plantilla" });
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "plantilla-inventario.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setMessage({ type: "error", title: "Error de conexion", detail: "No se pudo descargar la plantilla." });
+    }
+  };
+
+  const importInventory = async () => {
+    if (!importFile) {
+      setMessage({ type: "error", title: "Plantilla requerida", detail: "Selecciona el archivo CSV exportado desde Excel." });
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      const formData = new FormData();
+      formData.append("file", importFile);
+      const res = await fetch(`${API_URL}/api/inventory/import`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok && !data.created?.length) {
+        setMessage({
+          type: "error",
+          title: data.msg || "No se pudo importar inventario",
+          detail: data.errors?.map((error) => `Fila ${error.row}: ${error.msg}`).join(" | ") || data.error,
+        });
+        return;
+      }
+
+      setItems((current) => [...(data.created || []), ...current]);
+      (data.created || []).forEach((item) => {
+        addCatalogOption("article", item.model);
+        addCatalogOption("brand", item.brand);
+        addCatalogOption("responsible", item.responsible);
+      });
+      setImportFile(null);
+      setMessage({
+        type: data.errors?.length ? "error" : "success",
+        title: `Importacion completada: ${data.summary?.created || 0} agregado(s)`,
+        detail: data.errors?.length
+          ? data.errors.map((error) => `Fila ${error.row}: ${error.msg}`).join(" | ")
+          : "Los articulos quedaron agregados al inventario.",
+      });
+    } catch {
+      setMessage({ type: "error", title: "Error de conexion", detail: "No se pudo importar el inventario." });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const openMovement = (item, type) => {
+    setMovementItem(item);
+    setMovementForm({ type, quantity: 1, reason: "" });
+  };
+
+  const submitMovement = async () => {
+    if (!movementItem?._id) return;
+
+    if (!movementForm.reason.trim()) {
+      setMessage({ type: "error", title: "Motivo requerido", detail: "Escribe el motivo del movimiento." });
+      return;
+    }
+
+    try {
+      setIsMovingStock(true);
+      const res = await fetch(`${API_URL}/api/inventory/${movementItem._id}/movements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(movementForm),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({ type: "error", title: data.msg || "No se pudo mover existencia", detail: data.error || `Error ${res.status}` });
+        return;
+      }
+
+      setItems((current) => current.map((item) => (item._id === data._id ? data : item)));
+      setMovementItem(null);
+      setMovementForm({ type: "entrada", quantity: 1, reason: "" });
+      setMessage({
+        type: "success",
+        title: movementForm.type === "entrada" ? "Entrada registrada" : "Salida registrada",
+        detail: `Existencia actual: ${data.quantity || 0}.`,
+      });
+    } catch {
+      setMessage({ type: "error", title: "Error de conexion", detail: "No se pudo mover existencia." });
+    } finally {
+      setIsMovingStock(false);
+    }
+  };
+
   const openEditItem = (item) => {
     setEditingItem(item);
     setEditForm({
       model: item.model || "",
       brand: item.brand || "",
       serialNumber: item.serialNumber || "",
+      quantity: item.quantity || 1,
       provider: item.supplier?._id || item.provider || "",
       responsible: item.responsible || "",
       branch: item.branch?._id || item.branch || "",
@@ -694,9 +821,14 @@ function Inventory() {
           <h1>Inventario</h1>
           <p>Articulos, activos y recursos asignados por sucursal</p>
         </div>
-        {canExport && (
-          <button className="export-btn" onClick={exportInventoryPdf}>Exportar PDF</button>
-        )}
+        <div className="header-actions">
+          {canCreate && (
+            <button className="secondary-btn" type="button" onClick={downloadTemplate}>Descargar plantilla</button>
+          )}
+          {canExport && (
+            <button className="export-btn" onClick={exportInventoryPdf}>Exportar PDF</button>
+          )}
+        </div>
       </div>
 
       {message && (
@@ -712,6 +844,10 @@ function Inventory() {
           <strong>{inventoryStats.total}/{items.length}</strong>
         </div>
         <div className="stat-card active">
+          <span>Existencias</span>
+          <strong>{inventoryStats.existencias}</strong>
+        </div>
+        <div className="stat-card active">
           <span>Activos</span>
           <strong>{inventoryStats.activos}</strong>
         </div>
@@ -720,6 +856,23 @@ function Inventory() {
           <strong>{inventoryStats.bajas}</strong>
         </div>
       </div>
+
+      {canCreate && (
+        <div className="inventory-import">
+          <div>
+            <h2>Importar desde Excel</h2>
+            <p>Usa la plantilla CSV, editala en Excel y vuelve a cargarla.</p>
+          </div>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(event) => setImportFile(event.target.files?.[0] || null)}
+          />
+          <button type="button" className="btn-submit" disabled={isImporting} onClick={importInventory}>
+            {isImporting ? "Importando..." : "Importar inventario"}
+          </button>
+        </div>
+      )}
 
       {canCreate && (
         <form className="inventory-form" onSubmit={createItem}>
@@ -751,6 +904,16 @@ function Inventory() {
             <div className="form-group">
               <label>Codigo / serie (opcional)</label>
               <input value={form.serialNumber} onChange={(e) => updateForm("serialNumber", e.target.value)} placeholder="Se genera S/N automaticamente" />
+            </div>
+            <div className="form-group">
+              <label>Cantidad *</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={form.quantity}
+                onChange={(e) => updateForm("quantity", e.target.value)}
+              />
             </div>
             <div className="form-group">
               <label>Proveedor (opcional)</label>
@@ -882,6 +1045,7 @@ function Inventory() {
                 <div className="item-identity">
                   <strong>{item.model || "Sin articulo"}</strong>
                   <span>{item.brand || "Sin categoria"} · {item.serialNumber || "Sin codigo"}</span>
+                  <small>Existencia: {Number(item.quantity) || 0}</small>
                   <small>Proveedor: {item.provider || "Sin proveedor"}</small>
                 </div>
                 <div className="location-cell">
@@ -907,6 +1071,12 @@ function Inventory() {
                     <button type="button" onClick={() => openEditItem(item)}>
                       Editar
                     </button>
+                  )}
+                  {canUpdate && item.status === "activo" && (
+                    <>
+                      <button type="button" onClick={() => openMovement(item, "entrada")}>Entrada</button>
+                      <button type="button" onClick={() => openMovement(item, "salida")}>Salida</button>
+                    </>
                   )}
                   {canUpdate && (
                     <button type="button" onClick={() => { setInvoiceItem(item); setInvoiceFile(null); }}>
@@ -939,6 +1109,49 @@ function Inventory() {
             <div className="modal-actions">
               <button type="button" onClick={submitDispose}>Confirmar baja</button>
               <button type="button" onClick={() => { setDisposeItem(null); setDisposeReason(""); }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {movementItem && (
+        <div className="modal">
+          <div className="modal-content">
+            <h3>{movementForm.type === "entrada" ? "Alta de producto" : "Salida de producto"}</h3>
+            <p>{movementItem.brand} {movementItem.model} - existencia actual: {Number(movementItem.quantity) || 0}</p>
+            <div className="form-group">
+              <label>Movimiento</label>
+              <select
+                value={movementForm.type}
+                onChange={(e) => setMovementForm((current) => ({ ...current, type: e.target.value }))}
+              >
+                <option value="entrada">Entrada / alta</option>
+                <option value="salida">Salida</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Cantidad</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={movementForm.quantity}
+                onChange={(e) => setMovementForm((current) => ({ ...current, quantity: e.target.value }))}
+              />
+            </div>
+            <textarea
+              rows={4}
+              placeholder="Motivo del movimiento"
+              value={movementForm.reason}
+              onChange={(e) => setMovementForm((current) => ({ ...current, reason: e.target.value }))}
+            />
+            <div className="modal-actions">
+              <button type="button" disabled={isMovingStock} onClick={submitMovement}>
+                {isMovingStock ? "Guardando..." : "Guardar movimiento"}
+              </button>
+              <button type="button" onClick={() => setMovementItem(null)}>
                 Cancelar
               </button>
             </div>
@@ -1071,6 +1284,12 @@ function Inventory() {
         .page-header h1 { font-size: 22px; }
         .page-header p { color: #94a3b8; font-size: 13px; margin-top: 4px; }
 
+        .header-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
         .notice {
           display: flex;
           flex-direction: column;
@@ -1119,6 +1338,28 @@ function Inventory() {
           margin-bottom: 18px;
         }
 
+        .inventory-import {
+          display: grid;
+          grid-template-columns: minmax(220px, 1fr) minmax(220px, 0.8fr) auto;
+          gap: 12px;
+          align-items: end;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 8px;
+          padding: 18px;
+          margin-bottom: 18px;
+        }
+
+        .inventory-import h2 { font-size: 16px; margin-bottom: 4px; }
+        .inventory-import p { color: #94a3b8; font-size: 13px; }
+        .inventory-import input {
+          padding: 10px 12px;
+          border-radius: 8px;
+          border: 1px solid #1e293b;
+          background: var(--app-input);
+          color: #e2e8f0;
+        }
+
         .form-title h2 {
           font-size: 16px;
           margin-bottom: 16px;
@@ -1151,7 +1392,8 @@ function Inventory() {
         .toolbar select,
         .toolbar input,
         .modal-content textarea,
-        .modal-content input {
+        .modal-content input,
+        .modal-content select {
           padding: 10px 12px;
           border-radius: 8px;
           border: 1px solid #1e293b;
@@ -1215,6 +1457,16 @@ function Inventory() {
           border-radius: 8px;
           background: #22c55e;
           color: white;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .secondary-btn {
+          padding: 10px 14px;
+          border-radius: 8px;
+          border: 1px solid rgba(96,165,250,0.35);
+          background: rgba(96,165,250,0.1);
+          color: #bfdbfe;
           font-weight: 700;
           cursor: pointer;
         }
@@ -1410,6 +1662,7 @@ function Inventory() {
           .inventory-date-filter { font-size: 9px; gap: 4px; }
           .clear-filters { grid-column: 1 / -1; }
           .modal-actions { flex-direction: column; }
+          .inventory-import { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 1050px) {

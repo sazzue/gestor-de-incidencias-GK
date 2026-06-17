@@ -59,6 +59,8 @@ function Sidebar({ isOpen = false, onNavigate }) {
 
   const canCreateIncidents = hasPermission(user, "CREATE_INCIDENT");
   const canViewIncidents = hasPermission(user, "INCIDENTS_VIEW");
+  const canViewInternalTasks = hasPermission(user, "INTERNAL_TASKS_VIEW");
+  const canCreateInternalTasks = hasPermission(user, "INTERNAL_TASKS_CREATE");
   const canAccessUsers = hasPermission(user, "CREATE_USERS");
   const canAccessCatalogs = hasPermission(user, "CATALOGS_MANAGE");
   const canAccessSettings = hasPermission(user, "SETTINGS_MANAGE");
@@ -97,7 +99,7 @@ function Sidebar({ isOpen = false, onNavigate }) {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        const res = await fetch(`${API_URL}/api/incidents`, {
+        const res = await fetch(`${API_URL}/api/incidents?type=incident`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -182,6 +184,23 @@ function Sidebar({ isOpen = false, onNavigate }) {
             >
               Crear solicitud
             </button>
+
+            <button
+              disabled={!canViewInternalTasks}
+              onClick={() => goTo("/internal-tasks")}
+              className={`sidebar-btn ${isActive("/internal-tasks") ? "active" : ""} ${!canViewInternalTasks ? "disabled" : ""}`}
+            >
+              Tareas internas
+            </button>
+
+            {canCreateInternalTasks && (
+              <button
+                onClick={() => goTo("/internal-tasks/create")}
+                className={`sidebar-btn ${isActive("/internal-tasks/create") ? "active" : ""}`}
+              >
+                Crear tarea interna
+              </button>
+            )}
 
             <button
               disabled={!canViewMaintenance}

@@ -78,6 +78,12 @@ const incidentSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    type: {
+      type: String,
+      enum: ["incident", "internal_task"],
+      default: "incident",
+      index: true,
+    },
     priority: {
       type: String,
       enum: ["baja", "media", "alta", "critica"],
@@ -141,7 +147,8 @@ incidentSchema.pre("validate", function setTicketDefaults(next) {
     const date = new Date();
     const stamp = date.toISOString().slice(0, 10).replace(/-/g, "");
     const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-    this.folio = `INC-${stamp}-${suffix}`;
+    const prefix = this.type === "internal_task" ? "TIN" : "INC";
+    this.folio = `${prefix}-${stamp}-${suffix}`;
   }
 
   if (!this.dueAt) {

@@ -98,6 +98,8 @@ const VALUE_LABELS = {
   INCIDENTS_ASSIGN: "Asignar incidencias",
   INCIDENTS_COMMENT: "Comentar incidencias",
   INCIDENTS_CLOSE: "Cerrar incidencias",
+  INTERNAL_TASKS_VIEW: "Ver tareas internas",
+  INTERNAL_TASKS_CREATE: "Crear tareas internas",
   MAINTENANCE_VIEW: "Ver mantenimientos",
   MAINTENANCE_CREATE: "Crear mantenimientos",
   INVENTORY_VIEW: "Ver inventario",

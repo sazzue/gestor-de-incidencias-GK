@@ -18,6 +18,45 @@ const invoiceSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const movementSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["entrada", "salida"],
+      required: true,
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+    previousQuantity: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    newQuantity: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    reason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }
+);
+
 const inventoryItemSchema = new mongoose.Schema(
   {
     organization: {
@@ -39,6 +78,11 @@ const inventoryItemSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 0,
     },
     provider: {
       type: String,
@@ -90,6 +134,7 @@ const inventoryItemSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    movements: [movementSchema],
   },
   { timestamps: true }
 );

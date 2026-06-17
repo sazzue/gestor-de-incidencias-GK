@@ -54,15 +54,58 @@ function App() {
           </PrivateRoute>
         } />
 
+        <Route path="/internal-tasks" element={
+          <PrivateRoute>
+            <Layout>
+              <Incidents
+                type="internal_task"
+                title="Tareas internas"
+                createLabel="Crear tarea interna"
+                createPath="/internal-tasks/create"
+                detailBasePath="/internal-tasks"
+                viewPermission="INTERNAL_TASKS_VIEW"
+                createPermission="INTERNAL_TASKS_CREATE"
+                emptyPermissionMessage="No tienes permisos para ver tareas internas."
+                exportTitle="Reporte de tareas internas"
+                searchLabel="Buscar tareas internas"
+              />
+            </Layout>
+          </PrivateRoute>
+        } />
+
         <Route path="/incidents/:id" element={
           <PrivateRoute>
             <Layout><IncidentDetail /></Layout>
           </PrivateRoute>
         } />
 
+        <Route path="/internal-tasks/:id" element={
+          <PrivateRoute>
+            <Layout><IncidentDetail backPath="/internal-tasks" /></Layout>
+          </PrivateRoute>
+        } />
+
         <Route path="/create" element={
           <PrivateRoute>
             <Layout><CreateIncidencia /></Layout>
+          </PrivateRoute>
+        } />
+
+        <Route path="/internal-tasks/create" element={
+          <PrivateRoute>
+            <Layout>
+              <CreateIncidencia
+                type="internal_task"
+                pageTitle="Crear tarea interna"
+                subtitle="Asigna una tarea a tu departamento"
+                backPath="/internal-tasks"
+                permission="INTERNAL_TASKS_CREATE"
+                submitLabel="Guardar tarea interna"
+                successTitle="Tarea interna creada correctamente"
+                successDetail="La tarea quedo registrada para seguimiento."
+                noAccessMessage="No tienes permisos para crear tareas internas."
+              />
+            </Layout>
           </PrivateRoute>
         } />
 

@@ -11,6 +11,9 @@ const PERMISSIONS = {
   INCIDENTS_VIEW_COMMENTS: "INCIDENTS_VIEW_COMMENTS",
   INCIDENTS_EXPORT: "INCIDENTS_EXPORT",
 
+  INTERNAL_TASKS_VIEW: "INTERNAL_TASKS_VIEW",
+  INTERNAL_TASKS_CREATE: "INTERNAL_TASKS_CREATE",
+
   MAINTENANCE_VIEW: "MAINTENANCE_VIEW",
   MAINTENANCE_CREATE: "MAINTENANCE_CREATE",
   MAINTENANCE_CONFIRM: "MAINTENANCE_CONFIRM",
@@ -90,6 +93,14 @@ const PERMISSION_GROUPS = [
       { value: PERMISSIONS.INCIDENTS_CLOSE, label: "Cerrar incidencias" },
       { value: PERMISSIONS.INCIDENTS_VIEW_COMMENTS, label: "Ver comentarios privados" },
       { value: PERMISSIONS.INCIDENTS_EXPORT, label: "Exportar reportes" },
+    ],
+  },
+  {
+    key: "internalTasks",
+    label: "Tareas internas",
+    permissions: [
+      { value: PERMISSIONS.INTERNAL_TASKS_VIEW, label: "Ver tareas internas" },
+      { value: PERMISSIONS.INTERNAL_TASKS_CREATE, label: "Crear tareas internas" },
     ],
   },
   {

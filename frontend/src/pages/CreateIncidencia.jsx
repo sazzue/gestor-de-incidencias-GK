@@ -13,7 +13,17 @@ const getAssignedBranchIds = (user) => {
   return ids.map((item) => item?._id || item).filter(Boolean).map(String);
 };
 
-function CreateIncidencia() {
+function CreateIncidencia({
+  type = "incident",
+  pageTitle = "Crear solicitud",
+  subtitle = "Registra una nueva incidencia",
+  backPath = "/incidents",
+  permission = "CREATE_INCIDENT",
+  submitLabel = "Enviar solicitud",
+  successTitle = "Solicitud creada correctamente",
+  successDetail = "La incidencia ya quedo registrada.",
+  noAccessMessage = "No tienes permisos para crear solicitudes.",
+} = {}) {
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [department, setDepartment] = useState("");
@@ -30,6 +40,7 @@ function CreateIncidencia() {
   const user = useAuthUser();
   const { settings } = useSystemSettings();
   const shouldLimitBranches = user?.accessScopes?.incidents === ACCESS_SCOPES.BRANCH;
+  const isInternalTask = type === "internal_task";
   const assignedBranchIds = getAssignedBranchIds(user);
   const availableBranches = shouldLimitBranches
     ? branches.filter((item) => assignedBranchIds.includes(String(item._id)))
@@ -63,7 +74,9 @@ function CreateIncidencia() {
     setMessage(null);
     setIsSubmitting(true);
 
-    if (!title || !description || !branch || !department) {
+    const selectedDepartment = isInternalTask ? user?.department : department;
+
+    if (!title || !description || !branch || !selectedDepartment) {
       setMessage({
         type: "error",
         title: "Faltan campos obligatorios",
@@ -78,8 +91,9 @@ function CreateIncidencia() {
       formData.append("title", title);
       formData.append("description", description);
       formData.append("branch", branch);
-      formData.append("department", department);
+      formData.append("department", isInternalTask ? user?.department || "" : department);
       formData.append("priority", priority);
+      formData.append("type", type);
       attachments.forEach((file) => formData.append("attachments", file));
 
       const res = await fetch(`${API_URL}/api/incidents`, {
@@ -102,8 +116,8 @@ function CreateIncidencia() {
 
       setMessage({
         type: "success",
-        title: "Solicitud creada correctamente",
-        detail: "La incidencia ya quedo registrada.",
+        title: successTitle,
+        detail: successDetail,
       });
       setTitle("");
       setDescription("");
@@ -125,13 +139,13 @@ function CreateIncidencia() {
 
   if (
     !user ||
-    !hasPermission(user, "CREATE_INCIDENT")
+    !hasPermission(user, permission)
   ) {
     return (
       <div className="page center">
         <div className="form-card">
           <h2>Sin acceso</h2>
-          <p>No tienes permisos para crear solicitudes.</p>
+          <p>{noAccessMessage}</p>
         </div>
       </div>
     );
@@ -141,10 +155,10 @@ function CreateIncidencia() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Crear solicitud</h1>
-          <p>Registra una nueva incidencia</p>
+          <h1>{pageTitle}</h1>
+          <p>{subtitle}</p>
         </div>
-        <button className="btn-back" onClick={() => navigate("/incidents")}>
+        <button className="btn-back" onClick={() => navigate(backPath)}>
           Volver
         </button>
       </div>
@@ -166,6 +180,7 @@ function CreateIncidencia() {
           />
         </div>
 
+        {!isInternalTask && (
         <div className="form-group">
           <label>Departamento</label>
           <select value={department} onChange={(e) => setDepartment(e.target.value)}>
@@ -175,6 +190,14 @@ function CreateIncidencia() {
             ))}
           </select>
         </div>
+        )}
+
+        {isInternalTask && (
+          <div className="form-group">
+            <label>Departamento</label>
+            <input value={user?.department || "Sin departamento"} disabled />
+          </div>
+        )}
 
         <div className="form-group">
           <label>Prioridad</label>
@@ -228,7 +251,7 @@ function CreateIncidencia() {
         </div>
 
         <button className="btn-submit" onClick={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? "Enviando..." : "Enviar solicitud"}
+          {isSubmitting ? "Enviando..." : submitLabel}
         </button>
       </div>
 

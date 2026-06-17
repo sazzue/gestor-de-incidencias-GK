@@ -13,6 +13,36 @@ const MAX_TOTAL_ATTACHMENT_SIZE = 30 * 1024 * 1024;
 const DEFAULT_R2_STORAGE_LIMIT_GB = 9;
 const RESOLVED_STATUS = "resuelto";
 const VALID_PRIORITIES = new Set(["baja", "media", "alta", "critica"]);
+const RECORD_TYPES = {
+  INCIDENT: "incident",
+  INTERNAL_TASK: "internal_task",
+};
+
+const getRecordType = (value) =>
+  value === RECORD_TYPES.INTERNAL_TASK ? RECORD_TYPES.INTERNAL_TASK : RECORD_TYPES.INCIDENT;
+
+const getViewPermission = (type) =>
+  type === RECORD_TYPES.INTERNAL_TASK ? PERMISSIONS.INTERNAL_TASKS_VIEW : PERMISSIONS.INCIDENTS_VIEW;
+
+const getCreatePermission = (type) =>
+  type === RECORD_TYPES.INTERNAL_TASK ? PERMISSIONS.INTERNAL_TASKS_CREATE : PERMISSIONS.INCIDENTS_CREATE;
+
+const getRecordLabel = (type) =>
+  type === RECORD_TYPES.INTERNAL_TASK ? "tareas internas" : "incidencias";
+
+const getTypeFilter = (type) =>
+  type === RECORD_TYPES.INTERNAL_TASK
+    ? { type: RECORD_TYPES.INTERNAL_TASK }
+    : { $or: [{ type: RECORD_TYPES.INCIDENT }, { type: { $exists: false } }, { type: null }] };
+
+const combineFilters = (...filters) => {
+  const cleanFilters = filters.filter((filter) => filter && Object.keys(filter).length > 0);
+
+  if (cleanFilters.length === 0) return {};
+  if (cleanFilters.length === 1) return cleanFilters[0];
+
+  return { $and: cleanFilters };
+};
 
 const getTotalAttachmentSize = (attachments = []) =>
   attachments.reduce((total, attachment) => total + (attachment.size || 0), 0);
@@ -61,26 +91,28 @@ const getAttachmentErrorStatus = (error) => {
 };
 
 const canViewIncident = (user, incident) => {
-  if (!hasPermission(user, PERMISSIONS.INCIDENTS_VIEW)) return false;
+  const type = getRecordType(incident?.type);
+  if (!hasPermission(user, getViewPermission(type))) return false;
+  const scope = user?.accessScopes?.incidents;
 
-  if (hasPermission(user, "VIEW_INCIDENTS_ALL")) return true;
+  if (scope === ACCESS_SCOPES.ALL) return true;
 
   if (
-    user?.accessScopes?.incidents === ACCESS_SCOPES.ASSIGNED &&
+    scope === ACCESS_SCOPES.ASSIGNED &&
     incident?.assignedTo &&
     String(incident.assignedTo?._id || incident.assignedTo) === String(user?.id)
   ) {
     return true;
   }
 
-  if (hasPermission(user, "VIEW_INCIDENTS_DEPARTMENT")) {
+  if (scope === ACCESS_SCOPES.DEPARTMENT) {
     const userDepartment = user?.department?.toLowerCase().trim();
     const incidentDepartment = incident?.department?.toLowerCase().trim();
 
     if (userDepartment && incidentDepartment === userDepartment) return true;
   }
 
-  if (hasPermission(user, "VIEW_INCIDENTS_BRANCH")) {
+  if (scope === ACCESS_SCOPES.BRANCH) {
     const branchIds = Array.isArray(user?.branches) && user.branches.length > 0
       ? user.branches.map(String)
       : user?.branch
@@ -174,6 +206,7 @@ const getAssignableUserFilter = (user) => {
 
 const canAssignIncident = (user, incident) => {
   if (!hasPermission(user, PERMISSIONS.INCIDENTS_ASSIGN)) return false;
+  if (!canViewIncident(user, incident)) return false;
   return canUseIncidentScope(user, incident);
 };
 
@@ -250,21 +283,24 @@ const uploadFilesForIncident = async ({ incident, files, userId, organization })
 
 const getIncidents = async (req, res) => {
   try {
-    if (!hasPermission(req.user, PERMISSIONS.INCIDENTS_VIEW)) {
-      return res.status(403).json({ msg: "No tienes permisos para ver incidencias" });
+    const type = getRecordType(req.query.type);
+
+    if (!hasPermission(req.user, getViewPermission(type))) {
+      return res.status(403).json({ msg: `No tienes permisos para ver ${getRecordLabel(type)}` });
     }
 
     const department = req.user?.department;
     const branch = req.user?.branch;
     const branches = Array.isArray(req.user?.branches) ? req.user.branches : [];
+    const scope = req.user?.accessScopes?.incidents;
     let query = null;
 
-    if (hasPermission(req.user, "VIEW_INCIDENTS_ALL")) {
-      query = getOrganizationFilter(req);
+    if (scope === ACCESS_SCOPES.ALL) {
+      query = combineFilters(getOrganizationFilter(req), getTypeFilter(type));
     } else {
       const filters = [];
 
-      if (hasPermission(req.user, "VIEW_INCIDENTS_DEPARTMENT")) {
+      if (scope === ACCESS_SCOPES.DEPARTMENT) {
         if (!department) {
           return res.status(400).json({ msg: "Departamento requerido" });
         }
@@ -274,7 +310,7 @@ const getIncidents = async (req, res) => {
         });
       }
 
-      if (hasPermission(req.user, "VIEW_INCIDENTS_BRANCH")) {
+      if (scope === ACCESS_SCOPES.BRANCH) {
         const branchIds = branches.length > 0 ? branches : branch ? [branch] : [];
 
         if (branchIds.length === 0) {
@@ -284,17 +320,16 @@ const getIncidents = async (req, res) => {
         filters.push({ branch: { $in: branchIds } });
       }
 
-      filters.push({ assignedTo: req.user.id });
+      if (scope === ACCESS_SCOPES.ASSIGNED) {
+        filters.push({ assignedTo: req.user.id });
+      }
 
       if (filters.length === 0) {
         return res.status(403).json({ msg: "No tienes permisos para ver incidencias" });
       }
 
       const permissionQuery = filters.length === 1 ? filters[0] : { $or: filters };
-      query = {
-        ...getOrganizationFilter(req),
-        ...permissionQuery,
-      };
+      query = combineFilters(getOrganizationFilter(req), getTypeFilter(type), permissionQuery);
     }
 
     const incidents = await Incident.find(query)
@@ -371,11 +406,15 @@ const getIncidentById = async (req, res) => {
 
 const createIncident = async (req, res) => {
   try {
-    const { title, description, branch, department, priority = "media" } = req.body;
+    const { title, description, branch, priority = "media" } = req.body;
+    const type = getRecordType(req.body.type);
+    const department = type === RECORD_TYPES.INTERNAL_TASK
+      ? req.user?.department
+      : req.body.department;
 
-    if (!hasPermission(req.user, "CREATE_INCIDENT")) {
+    if (!hasPermission(req.user, getCreatePermission(type))) {
       return res.status(403).json({
-        msg: "No tienes permisos para crear incidencias",
+        msg: `No tienes permisos para crear ${getRecordLabel(type)}`,
       });
     }
 
@@ -410,6 +449,7 @@ const createIncident = async (req, res) => {
     const incident = await Incident.create({
       title,
       description,
+      type,
       organization: req.user.organization || null,
       branch,
       department: department.toLowerCase().trim(),
@@ -463,7 +503,7 @@ const createIncident = async (req, res) => {
     const status = getAttachmentErrorStatus(error);
 
     res.status(status).json({
-      msg: "Error al crear incidencia",
+      msg: "Error al crear ticket",
       error: error.message
     });
   }
@@ -678,6 +718,10 @@ const updateStatus = async (req, res) => {
       return res.status(400).json({
         msg: "La incidencia ya esta resuelta y no puede cambiar de estatus",
       });
+    }
+
+    if (!canViewIncident(req.user, incident)) {
+      return res.status(403).json({ msg: "No autorizado para cambiar este estatus" });
     }
 
     const isResolving = status === RESOLVED_STATUS && incident.status !== RESOLVED_STATUS;

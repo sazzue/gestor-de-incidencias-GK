@@ -16,7 +16,7 @@ const priorityLabels = {
   critica: "Critica",
 };
 
-function IncidentDetail() {
+function IncidentDetail({ backPath = "/incidents" } = {}) {
   const { settings } = useSystemSettings();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -253,7 +253,7 @@ function IncidentDetail() {
   if (!incident) {
     return (
       <div className="ticket-page">
-        <button className="ghost-btn" onClick={() => navigate("/incidents")}>Volver</button>
+        <button className="ghost-btn" onClick={() => navigate(backPath)}>Volver</button>
         {message && <div className={`notice ${message.type}`}>{message.title}</div>}
       </div>
     );
@@ -263,7 +263,7 @@ function IncidentDetail() {
     <div className="ticket-page">
       <div className="ticket-header">
         <div>
-          <button className="ghost-btn" onClick={() => navigate("/incidents")}>Volver</button>
+          <button className="ghost-btn" onClick={() => navigate(backPath)}>Volver</button>
           <p className="folio">{incident.folio || `INC-${incident._id.slice(-6).toUpperCase()}`}</p>
           <h1>{incident.title}</h1>
         </div>
