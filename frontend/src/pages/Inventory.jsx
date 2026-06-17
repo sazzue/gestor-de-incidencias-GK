@@ -582,7 +582,7 @@ function Inventory() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "plantilla-inventario.csv";
+      link.download = "plantilla-inventario.xlsx";
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -594,7 +594,7 @@ function Inventory() {
 
   const importInventory = async () => {
     if (!importFile) {
-      setMessage({ type: "error", title: "Plantilla requerida", detail: "Selecciona el archivo CSV exportado desde Excel." });
+      setMessage({ type: "error", title: "Plantilla requerida", detail: "Selecciona la plantilla de Excel." });
       return;
     }
 
@@ -861,11 +861,11 @@ function Inventory() {
         <div className="inventory-import">
           <div>
             <h2>Importar desde Excel</h2>
-            <p>Usa la plantilla CSV, editala en Excel y vuelve a cargarla.</p>
+            <p>Usa la plantilla de Excel, completala y vuelve a cargarla.</p>
           </div>
           <input
             type="file"
-            accept=".csv"
+            accept=".xlsx,.csv"
             onChange={(event) => setImportFile(event.target.files?.[0] || null)}
           />
           <button type="button" className="btn-submit" disabled={isImporting} onClick={importInventory}>
