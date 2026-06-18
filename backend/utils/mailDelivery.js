@@ -25,6 +25,7 @@ const createSmtpTransporter = ({ host, port, secure, user, pass }) =>
     host,
     port: Number(port || 587),
     secure: Boolean(secure) || Number(port) === 465,
+    family: 4,
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 15000,
