@@ -34,14 +34,6 @@ const createSmtpTransporter = ({ host, port, secure, user, pass }) =>
   });
 
 const getGlobalMailSettings = () => {
-  if (process.env.RESEND_API_KEY && process.env.MAIL_FROM) {
-    return {
-      type: "resend",
-      from: process.env.MAIL_FROM,
-      resend: new Resend(process.env.RESEND_API_KEY),
-    };
-  }
-
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     return {
       type: "global-smtp",
@@ -56,6 +48,14 @@ const getGlobalMailSettings = () => {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       }),
+    };
+  }
+
+  if (process.env.RESEND_API_KEY && process.env.MAIL_FROM) {
+    return {
+      type: "resend",
+      from: process.env.MAIL_FROM,
+      resend: new Resend(process.env.RESEND_API_KEY),
     };
   }
 
@@ -91,7 +91,23 @@ const sendMail = async ({ to, subject, text, html }) => {
     return result;
   }
 
-  return settings.transporter.sendMail(message);
+  try {
+    return await settings.transporter.sendMail(message);
+  } catch (error) {
+    console.error("sendMail smtp error:", {
+      type: settings.type,
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT || 587,
+      secure: process.env.SMTP_SECURE === "true",
+      from: settings.from,
+      code: error.code,
+      command: error.command,
+      responseCode: error.responseCode,
+      response: error.response,
+      message: error.message,
+    });
+    throw error;
+  }
 };
 
 module.exports = {
