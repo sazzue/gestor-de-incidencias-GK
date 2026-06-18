@@ -1,5 +1,9 @@
 const nodemailer = require("nodemailer");
 const { Resend } = require("resend");
+const dns = require("dns");
+const net = require("net");
+
+dns.setDefaultResultOrder?.("ipv4first");
 
 const getFrontendUrl = () => {
   const frontendUrl = process.env.FRONTEND_URL?.trim().replace(/\/+$/, "");
@@ -18,9 +22,28 @@ const formatAddress = ({ name, email }) => {
   return `"${name.replace(/"/g, "'")}" <${email}>`;
 };
 
-const createSmtpTransporter = ({ host, port, secure, user, pass }) =>
-  nodemailer.createTransport({
-    host,
+const resolveIpv4Host = async (host) => {
+  if (net.isIP(host)) return host;
+
+  try {
+    const result = await dns.promises.lookup(host, { family: 4 });
+    return result.address;
+  } catch (error) {
+    console.error("smtp ipv4 lookup error:", {
+      host,
+      code: error.code,
+      message: error.message,
+    });
+    return host;
+  }
+};
+
+const createSmtpTransporter = async ({ host, port, secure, user, pass }) => {
+  const originalHost = host?.trim();
+  const resolvedHost = await resolveIpv4Host(originalHost);
+
+  return nodemailer.createTransport({
+    host: resolvedHost,
     port: Number(port || 587),
     secure: Boolean(secure) || Number(port) === 465,
     family: 4,
@@ -31,17 +54,20 @@ const createSmtpTransporter = ({ host, port, secure, user, pass }) =>
       user,
       pass,
     },
+    ...(net.isIP(originalHost) ? {} : { tls: { servername: originalHost } }),
   });
+};
 
-const getGlobalMailSettings = () => {
+const getGlobalMailSettings = async () => {
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     return {
       type: "global-smtp",
+      resolvedHost: await resolveIpv4Host(process.env.SMTP_HOST),
       from: process.env.MAIL_FROM || formatAddress({
         name: "Gestor de reportes",
         email: process.env.SMTP_USER,
       }),
-      transporter: createSmtpTransporter({
+      transporter: await createSmtpTransporter({
         host: process.env.SMTP_HOST,
         port: process.env.SMTP_PORT || 587,
         secure: process.env.SMTP_SECURE === "true",
@@ -62,16 +88,16 @@ const getGlobalMailSettings = () => {
   return null;
 };
 
-const getMailSettings = () => getGlobalMailSettings();
+const getMailSettings = async () => getGlobalMailSettings();
 
 const isMailDeliveryConfigured = async () =>
-  Boolean(getMailSettings());
+  Boolean(await getMailSettings());
 
 const sendMail = async ({ to, subject, text, html }) => {
   const recipients = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
   if (recipients.length === 0) return null;
 
-  const settings = getMailSettings();
+  const settings = await getMailSettings();
 
   if (!settings) {
     throw new Error("El servicio de correo no esta configurado");
@@ -97,6 +123,7 @@ const sendMail = async ({ to, subject, text, html }) => {
     console.error("sendMail smtp error:", {
       type: settings.type,
       host: process.env.SMTP_HOST,
+      resolvedHost: settings.resolvedHost,
       port: process.env.SMTP_PORT || 587,
       secure: process.env.SMTP_SECURE === "true",
       from: settings.from,
