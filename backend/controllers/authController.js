@@ -238,7 +238,7 @@ exports.forgotPassword = async (req, res) => {
 
     if (!user) return res.json({ msg: genericMsg });
 
-    if (!getFrontendUrl() || !(await isMailDeliveryConfigured(user.organization || null))) {
+    if (!getFrontendUrl() || !(await isMailDeliveryConfigured())) {
       console.error("forgot-password error: email delivery configuration is incomplete");
       return res.status(503).json({
         msg: "El servicio de correo no esta configurado. Intenta mas tarde.",

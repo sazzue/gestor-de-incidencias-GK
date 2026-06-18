@@ -1,7 +1,5 @@
 const nodemailer = require("nodemailer");
 const { Resend } = require("resend");
-const Organization = require("../models/Organization");
-const { decryptSecret } = require("./secretCrypto");
 
 const getFrontendUrl = () => {
   const frontendUrl = process.env.FRONTEND_URL?.trim().replace(/\/+$/, "");
@@ -35,41 +33,6 @@ const createSmtpTransporter = ({ host, port, secure, user, pass }) =>
     },
   });
 
-const getOrganizationMailSettings = async (organization) => {
-  if (!organization) return null;
-
-  const organizationDoc = typeof organization === "object" && organization.mailSettings
-    ? organization
-    : await Organization.findById(organization).select("mailSettings name");
-  const settings = organizationDoc?.mailSettings;
-
-  if (
-    !settings?.enabled ||
-    settings.provider !== "smtp" ||
-    !settings.fromEmail ||
-    !settings.smtpHost ||
-    !settings.smtpUser ||
-    !settings.smtpPassEncrypted
-  ) {
-    return null;
-  }
-
-  return {
-    type: "organization-smtp",
-    from: formatAddress({
-      name: settings.fromName || organizationDoc.name || "Gestor de reportes",
-      email: settings.fromEmail,
-    }),
-    transporter: createSmtpTransporter({
-      host: settings.smtpHost,
-      port: settings.smtpPort,
-      secure: settings.smtpSecure,
-      user: settings.smtpUser,
-      pass: decryptSecret(settings.smtpPassEncrypted),
-    }),
-  };
-};
-
 const getGlobalMailSettings = () => {
   if (process.env.RESEND_API_KEY && process.env.MAIL_FROM) {
     return {
@@ -99,17 +62,16 @@ const getGlobalMailSettings = () => {
   return null;
 };
 
-const getMailSettings = async (organization) =>
-  await getOrganizationMailSettings(organization) || getGlobalMailSettings();
+const getMailSettings = () => getGlobalMailSettings();
 
-const isMailDeliveryConfigured = async (organization) =>
-  Boolean(await getMailSettings(organization));
+const isMailDeliveryConfigured = async () =>
+  Boolean(getMailSettings());
 
-const sendMail = async ({ organization, to, subject, text, html }) => {
+const sendMail = async ({ to, subject, text, html }) => {
   const recipients = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
   if (recipients.length === 0) return null;
 
-  const settings = await getMailSettings(organization);
+  const settings = getMailSettings();
 
   if (!settings) {
     throw new Error("El servicio de correo no esta configurado");
