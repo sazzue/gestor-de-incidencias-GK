@@ -262,6 +262,7 @@ const getInventoryQueryForUser = (user) => {
   if (
     hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
     hasPermission(user, "CREATE_INVENTORY") ||
+    hasPermission(user, "INVENTORY_EDIT") ||
     hasPermission(user, "INVENTORY_UPDATE") ||
     hasPermission(user, "DISPOSE_INVENTORY")
   ) {
@@ -298,6 +299,7 @@ const canAccessItem = (user, item) => {
     !(
       hasPermission(user, "VIEW_INVENTORY_BRANCH") ||
       hasPermission(user, "CREATE_INVENTORY") ||
+      hasPermission(user, "INVENTORY_EDIT") ||
       hasPermission(user, "INVENTORY_UPDATE") ||
       hasPermission(user, "DISPOSE_INVENTORY")
     )
@@ -810,7 +812,7 @@ router.put("/:id/invoice", auth, upload.single("invoice"), handleUploadErrors, a
 
 router.put("/:id", auth, async (req, res) => {
   try {
-    if (!hasPermission(req.user, "INVENTORY_UPDATE")) {
+    if (!hasPermission(req.user, "INVENTORY_EDIT")) {
       return res.status(403).json({ msg: "No tienes permisos para actualizar articulos" });
     }
 

@@ -99,10 +99,11 @@ function Inventory() {
   const canViewAll = hasPermission(user, "VIEW_INVENTORY_ALL");
   const canViewDepartment = hasPermission(user, "VIEW_INVENTORY_DEPARTMENT");
   const canCreate = hasPermission(user, "CREATE_INVENTORY");
+  const canEdit = hasPermission(user, "INVENTORY_EDIT");
   const canUpdate = hasPermission(user, "INVENTORY_UPDATE");
   const canDispose = hasPermission(user, "DISPOSE_INVENTORY");
   const canExport = hasPermission(user, "INVENTORY_EXPORT");
-  const canView = canViewAll || canViewDepartment || hasPermission(user, "VIEW_INVENTORY_BRANCH") || canCreate || canUpdate || canDispose;
+  const canView = canViewAll || canViewDepartment || hasPermission(user, "VIEW_INVENTORY_BRANCH") || canCreate || canEdit || canUpdate || canDispose;
   const userDepartment = user?.department?.toString().trim().toLowerCase() || "";
   const isDepartmentLocked = !canViewAll && canViewDepartment && Boolean(userDepartment);
 
@@ -1067,7 +1068,7 @@ function Inventory() {
                   {item.invoice?.key && (
                     <button type="button" onClick={() => downloadInvoice(item)}>Comprobante</button>
                   )}
-                  {canUpdate && item.status === "activo" && (
+                  {canEdit && item.status === "activo" && (
                     <button type="button" onClick={() => openEditItem(item)}>
                       Editar
                     </button>

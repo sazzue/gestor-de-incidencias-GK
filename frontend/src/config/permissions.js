@@ -85,7 +85,8 @@ export const PERMISSION_GROUPS = [
     permissions: [
       { value: "INVENTORY_VIEW", label: "Ver inventario" },
       { value: "INVENTORY_CREATE", label: "Registrar articulos" },
-      { value: "INVENTORY_UPDATE", label: "Actualizar articulos/comprobantes" },
+      { value: "INVENTORY_EDIT", label: "Editar productos" },
+      { value: "INVENTORY_UPDATE", label: "Actualizar existencias/comprobantes" },
       { value: "INVENTORY_DISPOSE", label: "Dar de baja articulos" },
       { value: "INVENTORY_EXPORT", label: "Exportar reportes" },
     ],

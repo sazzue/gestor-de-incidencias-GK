@@ -18,6 +18,7 @@ const canViewCatalogs = (user) => [
   "VIEW_INVENTORY_DEPARTMENT",
   "VIEW_INVENTORY_BRANCH",
   "CREATE_INVENTORY",
+  "INVENTORY_EDIT",
   "INVENTORY_UPDATE",
 ].some((permission) => hasPermission(user, permission));
 
@@ -57,7 +58,11 @@ router.get("/", auth, async (req, res) => {
 
 router.post("/", auth, async (req, res) => {
   try {
-    if (!hasPermission(req.user, "CREATE_INVENTORY") && !hasPermission(req.user, "INVENTORY_UPDATE")) {
+    if (
+      !hasPermission(req.user, "CREATE_INVENTORY") &&
+      !hasPermission(req.user, "INVENTORY_EDIT") &&
+      !hasPermission(req.user, "INVENTORY_UPDATE")
+    ) {
       return res.status(403).json({ msg: "No tienes permisos para guardar opciones de inventario" });
     }
 

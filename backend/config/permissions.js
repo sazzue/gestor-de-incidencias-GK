@@ -24,6 +24,7 @@ const PERMISSIONS = {
 
   INVENTORY_VIEW: "INVENTORY_VIEW",
   INVENTORY_CREATE: "INVENTORY_CREATE",
+  INVENTORY_EDIT: "INVENTORY_EDIT",
   INVENTORY_UPDATE: "INVENTORY_UPDATE",
   INVENTORY_DISPOSE: "INVENTORY_DISPOSE",
   INVENTORY_EXPORT: "INVENTORY_EXPORT",
@@ -122,7 +123,8 @@ const PERMISSION_GROUPS = [
     permissions: [
       { value: PERMISSIONS.INVENTORY_VIEW, label: "Ver inventario" },
       { value: PERMISSIONS.INVENTORY_CREATE, label: "Registrar articulos" },
-      { value: PERMISSIONS.INVENTORY_UPDATE, label: "Actualizar articulos/comprobantes" },
+      { value: PERMISSIONS.INVENTORY_EDIT, label: "Editar productos" },
+      { value: PERMISSIONS.INVENTORY_UPDATE, label: "Actualizar existencias/comprobantes" },
       { value: PERMISSIONS.INVENTORY_DISPOSE, label: "Dar de baja articulos" },
       { value: PERMISSIONS.INVENTORY_EXPORT, label: "Exportar reportes" },
     ],
