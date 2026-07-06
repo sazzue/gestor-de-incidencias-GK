@@ -17,6 +17,35 @@ const getFrontendUrl = () => {
   }
 };
 
+const getMailConfigurationStatus = () => {
+  const hasSmtpHost = Boolean(process.env.SMTP_HOST?.trim());
+  const hasSmtpUser = Boolean(process.env.SMTP_USER?.trim());
+  const hasSmtpPass = Boolean(process.env.SMTP_PASS?.trim());
+  const hasResendKey = Boolean(process.env.RESEND_API_KEY?.trim());
+  const hasMailFrom = Boolean(process.env.MAIL_FROM?.trim());
+  const frontendUrl = getFrontendUrl();
+
+  const smtpReady = hasSmtpHost && hasSmtpUser && hasSmtpPass;
+  const resendReady = hasResendKey && hasMailFrom;
+
+  const missing = [];
+  if (!frontendUrl) missing.push("FRONTEND_URL");
+
+  if (!smtpReady && !resendReady) {
+    if (!hasSmtpHost) missing.push("SMTP_HOST");
+    if (!hasSmtpUser) missing.push("SMTP_USER");
+    if (!hasSmtpPass) missing.push("SMTP_PASS");
+    if (hasResendKey && !hasMailFrom) missing.push("MAIL_FROM");
+  }
+
+  return {
+    ready: Boolean(frontendUrl && (smtpReady || resendReady)),
+    frontendUrlConfigured: Boolean(frontendUrl),
+    provider: smtpReady ? "smtp" : resendReady ? "resend" : "none",
+    missing,
+  };
+};
+
 const formatAddress = ({ name, email }) => {
   if (!name) return email;
   return `"${name.replace(/"/g, "'")}" <${email}>`;
@@ -140,6 +169,7 @@ const sendMail = async ({ to, subject, text, html }) => {
 module.exports = {
   createSmtpTransporter,
   getFrontendUrl,
+  getMailConfigurationStatus,
   isMailDeliveryConfigured,
   sendMail,
 };
