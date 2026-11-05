@@ -34,14 +34,16 @@ function Layout({ children }) {
     try {
       if (!token || jwtDecode(token).role !== "gerencia") { setEvaluation({ eligible: false }); return; }
     } catch { setEvaluation({ eligible: false }); return; }
-    fetch(`${import.meta.env.VITE_API_URL}/api/evaluations/monthly/status`, {
+    const checkStatus = () => fetch(`${import.meta.env.VITE_API_URL}/api/evaluations/monthly/status`, {
       headers: { Authorization: `Bearer ${token}` },
     }).then(async (response) => {
       if (!response.ok) throw new Error("No se pudo consultar la evaluacion mensual.");
       return response.json();
     }).then((data) => { if (active) setEvaluation({ eligible: true, ...data }); })
       .catch(() => { if (active) setEvaluation({ eligible: false }); });
-    return () => { active = false; };
+    checkStatus();
+    const interval = setInterval(checkStatus, 60_000);
+    return () => { active = false; clearInterval(interval); };
   }, [refreshEvaluation]);
 
   const skipKey = evaluation?.month ? `monthly-evaluation-skipped:${evaluation.month}` : "";
@@ -60,6 +62,7 @@ function Layout({ children }) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.msg || "No se pudo guardar la evaluacion.");
+      setEvaluation((current) => current ? { ...current, submitted: true, score: data.score } : current);
       setRefreshEvaluation((value) => value + 1);
     } catch (error) { setEvaluationError(error.message); }
     finally { setSaving(false); }
@@ -112,7 +115,7 @@ function Layout({ children }) {
       {showEvaluation && (
         <div className="evaluation-backdrop">
           <section className="evaluation-dialog" role="dialog" aria-modal="true" aria-labelledby="evaluation-title">
-            <header><span>Evaluacion mensual · {evaluation.month}</span><h1 id="evaluation-title">Desempeño del departamento de Sistemas</h1>
+            <header><span className="evaluation-month">Mes evaluado: {new Date(`${evaluation.month}-01T12:00:00Z`).toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" })}</span><h1 id="evaluation-title">Desempeño del departamento de Sistemas</h1>
               <p>Califica el servicio recibido este mes según tu experiencia en tu sucursal.</p>
             </header>
             <form onSubmit={submitEvaluation}>
@@ -172,6 +175,7 @@ function Layout({ children }) {
         .evaluation-backdrop { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 20px; background: rgba(2,6,23,.84); backdrop-filter: blur(8px); }
         .evaluation-dialog { width: min(760px, 100%); max-height: min(92vh, 900px); overflow-y: auto; padding: 28px; border: 1px solid rgba(148,163,184,.22); border-radius: 18px; background: #111827; color: #e2e8f0; box-shadow: 0 24px 90px rgba(0,0,0,.55); }
         .evaluation-dialog header span { color: #60a5fa; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+        .evaluation-dialog header .evaluation-month { display: inline-flex; margin-bottom: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(59,130,246,.14); }
         .evaluation-dialog h1 { margin: 8px 0; color: white; font-size: 24px; }
         .evaluation-dialog header p, .evaluation-item p { color: #aab7ca; font-size: 14px; }
         .evaluation-item { min-width: 0; margin: 18px 0; padding: 14px; border: 1px solid rgba(148,163,184,.2); border-radius: 12px; }
