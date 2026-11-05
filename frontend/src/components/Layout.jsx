@@ -8,6 +8,7 @@ function Layout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [evaluation, setEvaluation] = useState(null);
   const [answers, setAnswers] = useState({});
+  const [activeBranchId, setActiveBranchId] = useState("");
   const [saving, setSaving] = useState(false);
   const [evaluationError, setEvaluationError] = useState("");
   const [refreshEvaluation, setRefreshEvaluation] = useState(0);
@@ -49,6 +50,13 @@ function Layout({ children }) {
   const skipKey = evaluation?.month ? `monthly-evaluation-skipped:${evaluation.month}` : "";
   const skipped = skipKey && sessionStorage.getItem(skipKey) === "1";
   const showEvaluation = evaluation?.eligible && !evaluation.submitted && (evaluation.locked || !skipped);
+  const pendingBranches = (evaluation?.branches || []).filter((branch) => !branch.submitted);
+
+  useEffect(() => {
+    if (!pendingBranches.some((branch) => branch.id === activeBranchId)) {
+      setActiveBranchId(pendingBranches[0]?.id || "");
+    }
+  }, [evaluation?.branches, activeBranchId]);
 
   const submitEvaluation = async (event) => {
     event.preventDefault();
@@ -58,11 +66,21 @@ function Layout({ children }) {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/evaluations/monthly`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ answers: criteria.map(({ id }) => ({ criterion: id, rating: Number(answers[id]), comment: answers[`${id}-comment`] || "" })) }),
+        body: JSON.stringify({
+          branchId: activeBranchId,
+          answers: criteria.map(({ id }) => ({ criterion: id, rating: Number(answers[id]), comment: answers[`${id}-comment`] || "" })),
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.msg || "No se pudo guardar la evaluacion.");
-      setEvaluation((current) => current ? { ...current, submitted: true, score: data.score } : current);
+      setEvaluation((current) => current ? {
+        ...current,
+        branches: current.branches.map((branch) => branch.id === activeBranchId
+          ? { ...branch, submitted: true, score: data.score }
+          : branch),
+        submitted: current.branches.every((branch) => branch.id === activeBranchId || branch.submitted),
+      } : current);
+      setAnswers({});
       setRefreshEvaluation((value) => value + 1);
     } catch (error) { setEvaluationError(error.message); }
     finally { setSaving(false); }
@@ -116,8 +134,13 @@ function Layout({ children }) {
         <div className="evaluation-backdrop">
           <section className="evaluation-dialog" role="dialog" aria-modal="true" aria-labelledby="evaluation-title">
             <header><span className="evaluation-month">Mes evaluado: {new Date(`${evaluation.month}-01T12:00:00Z`).toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" })}</span><h1 id="evaluation-title">Desempeño del departamento de Sistemas</h1>
-              <p>Califica el servicio recibido este mes según tu experiencia en tu sucursal.</p>
+              <p>Califica el servicio recibido este mes según tu experiencia en la sucursal seleccionada.</p>
             </header>
+            <label className="evaluation-branch-label">Sucursal a evaluar
+              <select value={activeBranchId} onChange={(event) => { setActiveBranchId(event.target.value); setAnswers({}); }}>
+                {pendingBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              </select>
+            </label>
             <form onSubmit={submitEvaluation}>
               {criteria.map((item) => (
                 <fieldset key={item.id} className="evaluation-item">
@@ -138,7 +161,7 @@ function Layout({ children }) {
               {evaluationError && <p className="evaluation-error" role="alert">{evaluationError}</p>}
               <footer><small>Calificacion ponderada: la respuesta a solicitudes urgentes representa la mitad del resultado.</small>
                 <div>{!evaluation.locked && <button type="button" className="evaluation-skip" onClick={() => { sessionStorage.setItem(skipKey, "1"); setEvaluation({ ...evaluation }); }}>Omitir por ahora</button>}
-                  <button className="evaluation-submit" disabled={saving}>{saving ? "Guardando…" : "Enviar evaluacion"}</button></div>
+                  <button className="evaluation-submit" disabled={saving || !activeBranchId}>{saving ? "Guardando…" : "Enviar evaluacion"}</button></div>
               </footer>
             </form>
           </section>
@@ -179,6 +202,8 @@ function Layout({ children }) {
         .evaluation-dialog h1 { margin: 8px 0; color: white; font-size: 24px; }
         .evaluation-dialog header p, .evaluation-item p { color: #aab7ca; font-size: 14px; }
         .evaluation-item { min-width: 0; margin: 18px 0; padding: 14px; border: 1px solid rgba(148,163,184,.2); border-radius: 12px; }
+        .evaluation-branch-label { display: flex; flex-direction: column; gap: 7px; margin-top: 18px; color: #bfdbfe; font-size: 13px; font-weight: 700; }
+        .evaluation-branch-label select { width: 100%; padding: 10px; border: 1px solid #334155; border-radius: 8px; background: #020617; color: white; }
         .evaluation-item legend { padding: 0 6px; color: white; font-weight: 700; }
         .evaluation-item legend span { color: #60a5fa; margin-left: 5px; }
         .rating-options { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }

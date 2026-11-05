@@ -14,6 +14,7 @@ const InventoryCatalog = require("./models/InventoryCatalog");
 const Supplier = require("./models/Supplier");
 const SystemSettings = require("./models/SystemSettings");
 const AuditLog = require("./models/AuditLog");
+const MonthlyEvaluation = require("./models/MonthlyEvaluation");
 const { startAttachmentCleanupSchedule } = require("./utils/attachmentCleanup");
 
 const dropLegacyIndex = async (Model, indexName) => {
@@ -75,7 +76,10 @@ const initializeDatabase = async () => {
     dropLegacyIndex(Department, "name_1"),
     dropLegacyIndex(InventoryItem, "serialNumber_1"),
     dropLegacyIndex(SystemSettings, "key_1"),
+    dropLegacyIndex(MonthlyEvaluation, "manager_1_month_1"),
   ]);
+
+  await MonthlyEvaluation.createIndexes();
 
   for (const role of ["admin", "gerencia", "direccion", "departamento"]) {
     const exists = await Role.findOne({ name: role });

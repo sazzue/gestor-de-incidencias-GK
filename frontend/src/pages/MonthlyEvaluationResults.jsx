@@ -1,15 +1,6 @@
 import { useEffect, useState } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL;
-const criterionLabels = {
-  urgent: "Solicitudes urgentes",
-  application: "Respuestas en aplicación",
-  followup: "Seguimiento",
-  maintenance: "Mantenimientos",
-  service: "Actitud de servicio",
-  communication: "Comunicación",
-};
-
 function MonthlyEvaluationResults() {
   const [month, setMonth] = useState(() => new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Mexico_City", year: "numeric", month: "2-digit",
@@ -52,22 +43,24 @@ function MonthlyEvaluationResults() {
         <div className="results-summary">
           <article><span>Puntos acumulados</span><strong>{report.totalPoints} / {report.possiblePoints}</strong></article>
           <article><span>Logro mensual promedio</span><strong>{report.attainment}%</strong></article>
-          <article><span>Evaluaciones recibidas</span><strong>{report.count}</strong></article>
+          <article><span>Gerentes que respondieron</span><strong>{report.count} / {report.expectedCount}</strong></article>
           <article className={report.targetReached ? "goal-met" : "goal-pending"}><span>Meta de 100 puntos</span><strong>{report.targetReached ? "Alcanzada" : "No alcanzada"}</strong></article>
         </div>
-        <p className="results-note">El consolidado promedia el puntaje ponderado de las evaluaciones recibidas; se requieren 100 puntos promedio para alcanzar la meta.</p>
-        {report.evaluations.length === 0 ? <div className="results-empty">No hay evaluaciones enviadas para este mes.</div> : (
+        <p className="results-note">El total suma los puntos recibidos y considera también las evaluaciones pendientes. Cada sucursal muestra los gerentes elegibles, su estado y puntaje.</p>
+        {report.branches.length === 0 ? <div className="results-empty">No hay sucursales registradas para esta empresa.</div> : (
           <div className="results-table-wrap"><table className="results-table">
-            <thead><tr><th>Gerente</th><th>Sucursal</th>{Object.entries(criterionLabels).map(([key, label]) => <th key={key}>{label}</th>)}<th>Total</th></tr></thead>
-            <tbody>{report.evaluations.map((evaluation) => <tr key={evaluation._id}>
-              <td>{evaluation.manager?.nombre || evaluation.manager?.email || "Usuario"}</td>
-              <td>{evaluation.branch?.name || "Sin sucursal"}</td>
-              {Object.keys(criterionLabels).map((key) => {
-                const answer = evaluation.answers.find((item) => item.criterion === key);
-                return <td key={key} title={answer?.achievementBand || ""}>{answer?.weightedPoints ?? "—"}</td>;
-              })}
-              <td><strong>{evaluation.score}</strong></td>
-            </tr>)}</tbody>
+            <thead><tr><th>Sucursal</th><th>Gerente elegible</th><th>Estado</th><th>Puntos</th></tr></thead>
+            {report.branches.map((branch) => <tbody key={branch.id}>
+              <tr className="branch-heading"><th colSpan="4">{branch.name} · {branch.status === "sin_gerente_elegible" ? "Sin gerente elegible" : branch.status === "respondida" ? "Respondida" : "Pendiente"}</th></tr>
+              {branch.managers.length === 0 ? <tr><td>{branch.name}</td><td>—</td><td>Sin gerente elegible</td><td>—</td></tr> : branch.managers.map((manager) => (
+                <tr key={manager.managerId}>
+                  <td>{branch.name}</td><td>{manager.managerName}</td>
+                  <td><span className={`response-state ${manager.status}`}>{manager.status === "respondida" ? "Respondió" : "Pendiente"}</span></td>
+                  <td>{manager.score === null ? "—" : `${manager.score} / 100`}</td>
+                </tr>
+              ))}
+              {branch.managers.length > 0 && <tr className="branch-total"><td colSpan="3">Total de sucursal ({branch.submittedCount}/{branch.expectedCount} respondidas)</td><td><strong>{branch.totalPoints} / {branch.possiblePoints}</strong></td></tr>}
+            </tbody>)}
           </table></div>
         )}
       </>}
@@ -90,6 +83,10 @@ function MonthlyEvaluationResults() {
         .results-table { width: 100%; border-collapse: collapse; background: #111827; font-size: 13px; }
         .results-table th, .results-table td { padding: 12px; text-align: left; border-bottom: 1px solid #263449; white-space: nowrap; }
         .results-table th { color: #bfdbfe; background: #172554; font-size: 12px; }
+        .results-table .branch-heading th { padding-top: 16px; background: #1e293b; color: #fff; font-size: 14px; }
+        .results-table .branch-total td { background: rgba(30,41,59,.65); font-weight: 700; }
+        .response-state { font-weight: 700; text-transform: capitalize; }
+        .response-state.respondida { color: #86efac; } .response-state.pendiente { color: #fbbf24; }
         .results-table td { color: #cbd5e1; }
         .results-table tbody tr:last-child td { border-bottom: 0; }
         .results-empty { padding: 24px; border: 1px dashed #475569; border-radius: 12px; color: #94a3b8; text-align: center; }
