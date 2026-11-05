@@ -42,6 +42,7 @@ export const PERMISSION_GROUPS = [
     permissions: [
       { value: "USERS_MANAGE", label: "Administrar usuarios y permisos" },
       { value: "AUDIT_VIEW", label: "Consultar bitacora de auditoria" },
+      { value: "EVALUATIONS_RESULTS_VIEW", label: "Consultar resultados de evaluaciones mensuales" },
     ],
   },
   {

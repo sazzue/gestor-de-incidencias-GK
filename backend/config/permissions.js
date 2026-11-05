@@ -1,6 +1,7 @@
 const PERMISSIONS = {
   USERS_MANAGE: "USERS_MANAGE",
   AUDIT_VIEW: "AUDIT_VIEW",
+  EVALUATIONS_RESULTS_VIEW: "EVALUATIONS_RESULTS_VIEW",
 
   INCIDENTS_VIEW: "INCIDENTS_VIEW",
   INCIDENTS_CREATE: "INCIDENTS_CREATE",
@@ -80,6 +81,7 @@ const PERMISSION_GROUPS = [
     permissions: [
       { value: PERMISSIONS.USERS_MANAGE, label: "Administrar usuarios y permisos" },
       { value: PERMISSIONS.AUDIT_VIEW, label: "Consultar bitacora de auditoria" },
+      { value: PERMISSIONS.EVALUATIONS_RESULTS_VIEW, label: "Consultar resultados de evaluaciones mensuales" },
     ],
   },
   {

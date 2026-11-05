@@ -11,6 +11,13 @@ function Layout({ children }) {
   const [saving, setSaving] = useState(false);
   const [evaluationError, setEvaluationError] = useState("");
   const [refreshEvaluation, setRefreshEvaluation] = useState(0);
+  const responseOptions = [
+    "Cumplimiento total",
+    "Cumplimiento mayoritario",
+    "Cumplimiento parcial",
+    "Cumplimiento insuficiente",
+    "No iniciado / nulo",
+  ];
 
   const criteria = [
     { id: "urgent", title: "Respuesta de solicitudes urgentes", weight: 50, description: "Resuelve de inmediato solicitudes que afectan ventas u operación." },
@@ -114,10 +121,13 @@ function Layout({ children }) {
                   <legend>{item.title} <span>{item.weight}%</span></legend>
                   <p>{item.description}</p>
                   <div className="rating-options" role="radiogroup" aria-label={item.title}>
-                  {[0, 1, 2, 3, 4, 5].map((score) => <label key={score}>
+                  {responseOptions.map((label, index) => {
+                    const score = index + 1;
+                    return <label key={score}>
                       <input required type="radio" name={item.id} value={score} checked={Number(answers[item.id]) === score} onChange={() => setAnswers((old) => ({ ...old, [item.id]: score }))} />
-                      <span>{score} · {score === 0 ? "No cumple" : score === 1 ? "Bajo" : score === 5 ? "Excelente" : ""}</span>
-                    </label>)}
+                      <span>{label}</span>
+                    </label>;
+                  })}
                   </div>
                   <input className="evaluation-comment" maxLength={500} placeholder="Comentario opcional" value={answers[`${item.id}-comment`] || ""} onChange={(event) => setAnswers((old) => ({ ...old, [`${item.id}-comment`]: event.target.value }))} />
                 </fieldset>

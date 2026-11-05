@@ -19,6 +19,7 @@ import ForgotPassword      from "./pages/ForgotPassword.jsx";
 import ResetPassword       from "./pages/ResetPassword.jsx";
 import ChangePassword      from "./pages/ChangePassword.jsx";
 import AuditLog            from "./pages/AuditLog.jsx";
+import MonthlyEvaluationResults from "./pages/MonthlyEvaluationResults.jsx";
 
 import PrivateRoute        from "./components/PrivateRoute.jsx";
 import InactivityLogout    from "./components/InactivityLogout.jsx";
@@ -154,6 +155,12 @@ function App() {
         <Route path="/audit" element={
           <PrivateRoute permissions={["AUDIT_VIEW"]}>
             <Layout><AuditLog /></Layout>
+          </PrivateRoute>
+        } />
+
+        <Route path="/evaluation-results" element={
+          <PrivateRoute permissions={["EVALUATIONS_RESULTS_VIEW"]}>
+            <Layout><MonthlyEvaluationResults /></Layout>
           </PrivateRoute>
         } />
 

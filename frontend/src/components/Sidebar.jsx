@@ -65,6 +65,7 @@ function Sidebar({ isOpen = false, onNavigate }) {
   const canAccessCatalogs = hasPermission(user, "CATALOGS_MANAGE");
   const canAccessSettings = hasPermission(user, "SETTINGS_MANAGE");
   const canAccessAudit = hasPermission(user, "AUDIT_VIEW");
+  const canAccessEvaluationResults = hasPermission(user, "EVALUATIONS_RESULTS_VIEW");
   const canAccessOrganizations = Boolean(user?.isPlatformAdmin);
   const canAccessSuppliers =
     hasPermission(user, "SUPPLIERS_VIEW") ||
@@ -259,6 +260,15 @@ function Sidebar({ isOpen = false, onNavigate }) {
                 className={`sidebar-btn ${isActive("/audit") ? "active" : ""}`}
               >
                 Bitacora
+              </button>
+            )}
+
+            {canAccessEvaluationResults && (
+              <button
+                onClick={() => goTo("/evaluation-results")}
+                className={`sidebar-btn ${isActive("/evaluation-results") ? "active" : ""}`}
+              >
+                Resultados de evaluacion
               </button>
             )}
 
