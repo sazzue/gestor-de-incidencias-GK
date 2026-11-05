@@ -12,11 +12,11 @@ function Layout({ children }) {
   const [evaluationError, setEvaluationError] = useState("");
   const [refreshEvaluation, setRefreshEvaluation] = useState(0);
   const responseOptions = [
-    "Cumplimiento total",
-    "Cumplimiento mayoritario",
-    "Cumplimiento parcial",
-    "Cumplimiento insuficiente",
-    "No iniciado / nulo",
+    "Cumplimiento total · 100%",
+    "Cumplimiento mayoritario · 75%",
+    "Cumplimiento parcial · 50%",
+    "Cumplimiento insuficiente · 0%",
+    "No iniciado / nulo · 0%",
   ];
 
   const criteria = [
