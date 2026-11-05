@@ -88,7 +88,8 @@ function Incidents({
       ];
 
       if (selectedBranch && branchId !== selectedBranch) return false;
-      if (filterDept && department !== normalizeText(filterDept)) return false;
+      const isOwnRequest = String(incident.createdBy?._id || incident.createdBy || "") === String(user?.id || "");
+      if (filterDept && department !== normalizeText(filterDept) && !isOwnRequest) return false;
       if (filterStatus && incident.status !== filterStatus) return false;
       if (filterPriority && incident.priority !== filterPriority) return false;
       if (filterSla && getSlaState(incident, settings.slaWarningPercent, now) !== filterSla) return false;
@@ -96,7 +97,7 @@ function Incidents({
       if (endDate && new Date(incident.createdAt) > getLocalDayEnd(endDate)) return false;
       return !query || searchableValues.some((value) => normalizeText(value).includes(query));
     });
-  }, [endDate, filterDept, filterPriority, filterSla, filterStatus, incidents, invalidDateRange, now, searchTerm, selectedBranch, settings.slaWarningPercent, startDate]);
+  }, [endDate, filterDept, filterPriority, filterSla, filterStatus, incidents, invalidDateRange, now, searchTerm, selectedBranch, settings.slaWarningPercent, startDate, user?.id]);
   const canViewIncidents = hasPermission(user, viewPermission);
   const canExportIncidents = hasPermission(user, "INCIDENTS_EXPORT");
   const canUpdateStatus = hasPermission(user, "INCIDENTS_UPDATE_STATUS");
@@ -107,6 +108,11 @@ function Incidents({
     const scope = user?.accessScopes?.incidents;
 
     if (scope === "all") return true;
+
+    if (
+      type === "incident" &&
+      String(incident.createdBy?._id || incident.createdBy || "") === String(user?.id || "")
+    ) return true;
 
     if (scope === "branch") {
       const branchIds = Array.isArray(user?.branches) && user.branches.length > 0
@@ -147,7 +153,7 @@ function Incidents({
       user?.accessScopes?.incidents === "department" &&
       canViewIncidents
     ) {
-      setFilterDept(user.department?.toLowerCase().trim());
+      setFilterDept("");
     }
   }, [canViewIncidents, user]);
 
@@ -217,7 +223,7 @@ function Incidents({
   const clearFilters = () => {
     setSearchTerm("");
     setSelectedBranch("");
-    setFilterDept(user?.accessScopes?.incidents === "department" ? normalizeText(user.department) : "");
+    setFilterDept("");
     setFilterStatus("");
     setFilterPriority("");
     setFilterSla("");
@@ -454,6 +460,9 @@ function Incidents({
                 <span className={`priority ${inc.priority || "media"}`}>
                   {priorityLabels[inc.priority] || "Media"}
                 </span>
+                {String(inc.createdBy?._id || inc.createdBy || "") === String(user?.id || "") && normalizeText(inc.department) !== normalizeText(user?.department) && (
+                  <span className="own-request-badge">Solicitud enviada</span>
+                )}
                 <span className={`status ${inc.status}`}>
                   {inc.status.replace("_", " ")}
                 </span>
@@ -854,6 +863,7 @@ function Incidents({
         .priority.media { background: rgba(96,165,250,0.14); color: #93c5fd; }
         .priority.alta { background: rgba(245,158,11,0.16); color: #fbbf24; }
         .priority.critica { background: rgba(239,68,68,0.18); color: #fca5a5; }
+        .own-request-badge { padding: 4px 9px; border: 1px solid rgba(34,197,94,.3); border-radius: 999px; background: rgba(34,197,94,.12); color: #86efac; font-size: 11px; font-weight: 700; white-space: nowrap; }
         .sla.on-time, .sla.met { color: #86efac; }
         .sla.warning { color: #fbbf24; }
         .sla.overdue, .sla.breached { color: #fca5a5; font-weight: 700; }

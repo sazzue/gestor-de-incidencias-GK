@@ -1,0 +1,127 @@
+configure data
+
+  ! ===== ACL BASICAS COMO PLANTILLA ORIGINAL =====
+  access-list ce.rt permit udp any any range 5060 5061 log
+  access-list ce.rt permit tcp any any range 5060 5061 log
+  access-list ce.rt permit udp any any range 16384 32767 log
+  access-list ce.mt permit tcp any any eq 23 log
+  access-list ce.mt permit tcp any any eq 22 log
+  access-list ce.mt permit tcp any any eq 49 log
+  access-list ce.mt permit udp any any eq 161 log
+  access-list ce.mt permit udp any any eq 53 log
+  access-list ce.mt permit tcp any any eq 53 log
+  access-list ce.mt permit udp any any eq 123 log
+  access-list ce.mt permit icmp any any log
+  access-list ce.bs permit ip any any log
+
+  no crypto install-tunnel-route
+  no lldp dhcp-client default-route
+  no lldp dhcp-client enable
+
+  ! ===== WAN TELMEX =====
+  interface GigabitEthernet 0/0
+    no ip address
+    mtu auto
+    desc "CNOC_CB2-2508-0433 TIP-2507-14695"
+    no ipv6 enable
+    speed 100
+    duplex full
+    flowcontrol auto
+    no lldp dhcp-client default-route
+    no lldp dhcp-client enable
+    no service dhcp
+    ip dns server static
+    no shutdown
+  exit
+
+  interface GigabitEthernet 0/0.1200
+    ip address 187.196.103.42 255.255.255.252
+    mtu auto
+    desc "CONEXI HEIGHT= N CON CB2-2508-0433 TIP-2507-14695"
+    no ipv6 enable
+    no service dhcp
+    ip dns server static
+    napt
+    no firewall enable
+    no shutdown
+  exit
+
+  ! ===== PUERTOS LAN HACIA PBX / SWITCH CLIENTE =====
+  interface GigabitEthernet 1/1
+    speed auto
+    duplex auto
+    flowcontrol auto
+    switchport mode access
+    switchport access vlan 1
+    no shutdown
+  exit
+
+  interface GigabitEthernet 1/2
+    speed auto
+    duplex auto
+    flowcontrol auto
+    switchport mode access
+    switchport access vlan 1
+    no shutdown
+  exit
+
+  interface GigabitEthernet 1/3
+    speed auto
+    duplex auto
+    flowcontrol auto
+    switchport mode access
+    switchport access vlan 1
+    no shutdown
+  exit
+
+  interface GigabitEthernet 1/4
+    speed auto
+    duplex auto
+    flowcontrol auto
+    switchport mode access
+    switchport access vlan 1
+    no shutdown
+  exit
+
+  ! ===== LAN AUDIOCODES HACIA GRANDSTREAM =====
+  interface VLAN 1
+    ip address 192.168.0.1 255.255.255.0 alias "LAN_IF"
+    mtu auto
+    desc "incoming_connection vlan 1"
+    no ipv6 enable
+    no service dhcp
+    ip dns server static
+    no napt
+    no firewall enable
+    no link-state monitor
+    no shutdown
+  exit
+
+  ! ===== LOOPBACK SIP / WAN USADA POR TELMEX =====
+  interface Loopback 1
+    ip address 172.19.127.105 alias "WAN_LOOPBACK"
+    mtu auto
+    desc "LAN Loopback 1"
+    no ipv6 enable
+    network wan
+    napt
+    no firewall enable
+    no shutdown
+  exit
+
+  ! ===== NAT / RUTA DEFAULT =====
+  ip nat translation udp-timeout 120
+  ip nat translation tcp-timeout 3600
+  ip nat translation icmp-timeout 6
+  ip route 0.0.0.0 0.0.0.0 187.196.103.41 GigabitEthernet 0/0.1200 1
+
+  ip domain name home
+  ip domain localhost "msbr"
+
+exit
+
+! DESPUES DE CARGAR:
+! 1) Save/Burn configuration.
+! 2) Probar ping desde Grandstream 192.168.0.2 hacia 192.168.0.1.
+! 3) Probar desde AudioCodes ping 187.196.103.41.
+! 4) Probar desde AudioCodes ping 172.25.37.227 y 172.25.37.235.

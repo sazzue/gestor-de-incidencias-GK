@@ -93,6 +93,11 @@ const getAttachmentErrorStatus = (error) => {
 const canViewIncident = (user, incident) => {
   const type = getRecordType(incident?.type);
   if (!hasPermission(user, getViewPermission(type))) return false;
+  // Quien levanto una solicitud puede consultar su avance aunque pertenezca a otro departamento.
+  if (
+    type === RECORD_TYPES.INCIDENT &&
+    String(incident?.createdBy?._id || incident?.createdBy || "") === String(user?.id || "")
+  ) return true;
   const scope = user?.accessScopes?.incidents;
 
   if (scope === ACCESS_SCOPES.ALL) return true;
@@ -306,7 +311,10 @@ const getIncidents = async (req, res) => {
         }
 
         filters.push({
-          department: Array.isArray(department) ? { $in: department } : department
+          $or: [
+            { department: Array.isArray(department) ? { $in: department } : department },
+            ...(type === RECORD_TYPES.INCIDENT ? [{ createdBy: req.user.id }] : []),
+          ],
         });
       }
 
@@ -522,6 +530,10 @@ const addAttachments = async (req, res) => {
 
     if (!canViewIncident(req.user, incident)) {
       return res.status(403).json({ msg: "No autorizado para modificar esta incidencia" });
+    }
+
+    if (!canUseIncidentScope(req.user, incident)) {
+      return res.status(403).json({ msg: "Solo puedes agregar archivos a incidencias dentro de tu alcance" });
     }
 
     const attachments = await uploadFilesForIncident({

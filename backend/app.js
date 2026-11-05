@@ -30,6 +30,7 @@ app.use("/api/departments", require("./routes/departments"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/storage", require("./routes/storage"));
 app.use("/api/audit", require("./routes/audit"));
+app.use("/api/evaluations", require("./routes/evaluations"));
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, service: "gestor-incidencias-api" });
