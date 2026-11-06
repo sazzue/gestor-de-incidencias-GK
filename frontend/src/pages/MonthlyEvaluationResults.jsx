@@ -44,13 +44,22 @@ function MonthlyEvaluationResults() {
         {report.branches.length === 0 ? <div className="results-empty">No hay sucursales registradas para esta empresa.</div> : (
           <div className="results-table-wrap"><table className="results-table">
             <thead><tr><th>Sucursal</th><th>Gerente de la unidad</th><th>Estatus</th><th>Calificación</th></tr></thead>
-            <tbody>{report.branches.flatMap((branch) => branch.managers.length === 0
-              ? [<tr key={branch.id}><td>{branch.name}</td><td>Sin gerente elegible</td><td>—</td><td>—</td></tr>]
-              : branch.managers.map((manager) => <tr key={`${branch.id}-${manager.managerId}`}>
-                <td>{branch.name}</td><td>{manager.managerName}</td>
-                <td><span className={`response-state ${manager.status}`}>{manager.status === "respondida" ? "Respondió" : "Pendiente"}</span></td>
-                <td>{manager.score === null ? "Pendiente" : `${manager.score} / 100`}</td>
-              </tr>))}</tbody>
+            <tbody>{report.branches.map((branch) => <tr key={branch.id}>
+              <td>{branch.name}</td>
+              <td>{branch.managers.length === 0 ? "Sin gerente elegible" : <div className="branch-manager-list">
+                {branch.managers.map((manager) => <span key={manager.managerId}>{manager.managerName}</span>)}
+              </div>}</td>
+              <td>{branch.managers.length === 0 ? "—" : <div className="branch-manager-list">
+                {branch.managers.map((manager) => <span key={manager.managerId} className={`response-state ${manager.status}`}>
+                  {manager.status === "respondida" ? "Respondió" : "Pendiente"}
+                </span>)}
+              </div>}</td>
+              <td>{branch.managers.length === 0 ? "—" : <div className="branch-manager-list">
+                {branch.managers.map((manager) => <span key={manager.managerId}>
+                  {manager.score === null ? "Pendiente" : `${manager.score} / 100`}
+                </span>)}
+              </div>}</td>
+            </tr>)}</tbody>
           </table></div>
         )}
         <div className="results-summary results-summary-bottom">
@@ -82,6 +91,7 @@ function MonthlyEvaluationResults() {
         .results-table th { color: #bfdbfe; background: #172554; font-size: 12px; }
         .response-state { font-weight: 700; text-transform: capitalize; }
         .response-state.respondida { color: #86efac; } .response-state.pendiente { color: #fbbf24; }
+        .branch-manager-list { display: flex; flex-direction: column; gap: 6px; }
         .results-table td { color: #cbd5e1; }
         .results-table tbody tr:last-child td { border-bottom: 0; }
         .results-empty { padding: 24px; border: 1px dashed #475569; border-radius: 12px; color: #94a3b8; text-align: center; }
