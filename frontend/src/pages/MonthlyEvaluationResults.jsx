@@ -40,29 +40,25 @@ function MonthlyEvaluationResults() {
       {error && <p className="results-error" role="alert">{error}</p>}
       {loading && <p className="results-muted">Cargando resultados…</p>}
       {!loading && report && <>
-        <div className="results-summary">
-          <article><span>Puntos acumulados</span><strong>{report.totalPoints} / {report.possiblePoints}</strong></article>
-          <article><span>Logro mensual promedio</span><strong>{report.attainment}%</strong></article>
-          <article><span>Gerentes que respondieron</span><strong>{report.count} / {report.expectedCount}</strong></article>
-          <article className={report.targetReached ? "goal-met" : "goal-pending"}><span>Meta de 100 puntos</span><strong>{report.targetReached ? "Alcanzada" : "No alcanzada"}</strong></article>
-        </div>
-        <p className="results-note">El total suma los puntos recibidos y considera también las evaluaciones pendientes. Cada sucursal muestra los gerentes elegibles, su estado y puntaje.</p>
+        <p className="results-note">Se muestran las sucursales incluidas en la evaluación mensual, el gerente asignado, el estado de respuesta y su calificación.</p>
         {report.branches.length === 0 ? <div className="results-empty">No hay sucursales registradas para esta empresa.</div> : (
           <div className="results-table-wrap"><table className="results-table">
-            <thead><tr><th>Sucursal</th><th>Gerente elegible</th><th>Estado</th><th>Puntos</th></tr></thead>
-            {report.branches.map((branch) => <tbody key={branch.id}>
-              <tr className="branch-heading"><th colSpan="4">{branch.name} · {branch.status === "sin_gerente_elegible" ? "Sin gerente elegible" : branch.status === "respondida" ? "Respondida" : "Pendiente"}</th></tr>
-              {branch.managers.length === 0 ? <tr><td>{branch.name}</td><td>—</td><td>Sin gerente elegible</td><td>—</td></tr> : branch.managers.map((manager) => (
-                <tr key={manager.managerId}>
-                  <td>{branch.name}</td><td>{manager.managerName}</td>
-                  <td><span className={`response-state ${manager.status}`}>{manager.status === "respondida" ? "Respondió" : "Pendiente"}</span></td>
-                  <td>{manager.score === null ? "—" : `${manager.score} / 100`}</td>
-                </tr>
-              ))}
-              {branch.managers.length > 0 && <tr className="branch-total"><td colSpan="3">Total de sucursal ({branch.submittedCount}/{branch.expectedCount} respondidas)</td><td><strong>{branch.totalPoints} / {branch.possiblePoints}</strong></td></tr>}
-            </tbody>)}
+            <thead><tr><th>Sucursal</th><th>Gerente de la unidad</th><th>Estatus</th><th>Calificación</th></tr></thead>
+            <tbody>{report.branches.flatMap((branch) => branch.managers.length === 0
+              ? [<tr key={branch.id}><td>{branch.name}</td><td>Sin gerente elegible</td><td>—</td><td>—</td></tr>]
+              : branch.managers.map((manager) => <tr key={`${branch.id}-${manager.managerId}`}>
+                <td>{branch.name}</td><td>{manager.managerName}</td>
+                <td><span className={`response-state ${manager.status}`}>{manager.status === "respondida" ? "Respondió" : "Pendiente"}</span></td>
+                <td>{manager.score === null ? "Pendiente" : `${manager.score} / 100`}</td>
+              </tr>))}</tbody>
           </table></div>
         )}
+        <div className="results-summary results-summary-bottom">
+          <article><span>Total de puntos</span><strong>{report.totalPoints} / {report.possiblePoints}</strong></article>
+          <article><span>Logro mensual promedio</span><strong>{report.attainment}%</strong></article>
+          <article><span>Evaluaciones pendientes</span><strong>{Math.max(0, report.expectedCount - report.count)}</strong></article>
+          <article className={report.targetReached ? "goal-met" : "goal-pending"}><span>Meta de 100 puntos</span><strong>{report.targetReached ? "Alcanzada" : "No alcanzada"}</strong></article>
+        </div>
       </>}
       <style>{`
         .monthly-results { max-width: 1320px; margin: 0 auto; padding: 32px; color: #e2e8f0; }
@@ -73,6 +69,7 @@ function MonthlyEvaluationResults() {
         .monthly-results-head label { display: flex; align-items: center; gap: 9px; color: #cbd5e1; }
         .monthly-results input { padding: 9px 11px; border: 1px solid #334155; border-radius: 8px; background: #111827; color: white; }
         .results-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+        .results-summary-bottom { margin-top: 24px; }
         .results-summary article { display: flex; flex-direction: column; gap: 8px; padding: 18px; border: 1px solid #263449; border-radius: 12px; background: #111827; }
         .results-summary article span { color: #94a3b8; font-size: 13px; }
         .results-summary article strong { color: white; font-size: 22px; }
@@ -83,8 +80,6 @@ function MonthlyEvaluationResults() {
         .results-table { width: 100%; border-collapse: collapse; background: #111827; font-size: 13px; }
         .results-table th, .results-table td { padding: 12px; text-align: left; border-bottom: 1px solid #263449; white-space: nowrap; }
         .results-table th { color: #bfdbfe; background: #172554; font-size: 12px; }
-        .results-table .branch-heading th { padding-top: 16px; background: #1e293b; color: #fff; font-size: 14px; }
-        .results-table .branch-total td { background: rgba(30,41,59,.65); font-weight: 700; }
         .response-state { font-weight: 700; text-transform: capitalize; }
         .response-state.respondida { color: #86efac; } .response-state.pendiente { color: #fbbf24; }
         .results-table td { color: #cbd5e1; }

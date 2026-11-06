@@ -11,6 +11,8 @@ const weights = [50, 20, 15, 5, 5, 5];
 // Rating is the displayed option order: full, majority, partial, insufficient, not started.
 const bonusRates = [100, 75, 50, 0, 0];
 const achievementBands = ["100%", "90–99%", "80–89%", "50–79%", "Menos de 50%"];
+const excludedBranchNames = new Set(["oficina manzanares", "abinsa", "oficina roble"]);
+const normalizeBranchName = (value) => String(value || "").trim().toLocaleLowerCase("es-MX");
 const mexicoMonth = () => new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Mexico_City", year: "numeric", month: "2-digit",
 }).format(new Date());
@@ -31,22 +33,24 @@ const getAssignedBranches = async (user) => {
     ...(Array.isArray(user.branches) ? user.branches : []),
     ...(user.branch ? [user.branch] : []),
   ].map((branch) => String(branch?._id || branch)).filter(Boolean))];
-  const branches = assignedIds.length
+  const assignedBranches = assignedIds.length
     ? await Branch.find({
       _id: { $in: assignedIds },
       organization: user.organization || null,
     }).select("name").sort({ name: 1 }).lean()
     : [];
-  return { assignedIds, branches };
+  const branches = assignedBranches.filter((branch) => !excludedBranchNames.has(normalizeBranchName(branch.name)));
+  return { assignedIds, assignedBranches, branches };
 };
 
 router.get("/monthly/status", auth, managerOnly, async (req, res) => {
   const month = mexicoMonth();
-  const { assignedIds, branches } = await getAssignedBranches(req.user);
-  if (assignedIds.length === 0 || assignedIds.length > 2 || branches.length !== assignedIds.length) {
+  const { assignedIds, assignedBranches, branches } = await getAssignedBranches(req.user);
+  if (assignedIds.length === 0 || assignedIds.length > 2 || assignedBranches.length !== assignedIds.length || branches.length === 0) {
     return res.json({ month, eligible: false, branches: [], submitted: false, locked: lockedWindow() });
   }
-  const evaluations = await MonthlyEvaluation.find({ manager: req.user.id, month, branch: { $in: assignedIds } }).lean();
+  const eligibleBranchIds = branches.map((branch) => String(branch._id));
+  const evaluations = await MonthlyEvaluation.find({ manager: req.user.id, month, branch: { $in: eligibleBranchIds } }).lean();
   const submittedByBranch = new Map(evaluations.map((item) => [String(item.branch), item]));
   const branchStatus = branches.map((branch) => {
     const evaluation = submittedByBranch.get(String(branch._id));
@@ -64,11 +68,11 @@ router.get("/monthly/status", auth, managerOnly, async (req, res) => {
 
 router.post("/monthly", auth, managerOnly, async (req, res) => {
   const branchId = String(req.body.branchId || "");
-  const { assignedIds, branches } = await getAssignedBranches(req.user);
-  if (assignedIds.length === 0 || assignedIds.length > 2 || branches.length !== assignedIds.length) {
+  const { assignedIds, assignedBranches, branches } = await getAssignedBranches(req.user);
+  if (assignedIds.length === 0 || assignedIds.length > 2 || assignedBranches.length !== assignedIds.length || branches.length === 0) {
     return res.status(403).json({ msg: "La evaluacion solo aplica a gerentes con una o dos sucursales asignadas." });
   }
-  if (!assignedIds.includes(branchId)) {
+  if (!branches.some((branch) => String(branch._id) === branchId)) {
     return res.status(403).json({ msg: "Solo puedes evaluar una sucursal que tengas asignada." });
   }
   const answers = req.body.answers;
@@ -124,12 +128,13 @@ router.get("/monthly/results", auth, requirePermission("EVALUATIONS_RESULTS_VIEW
     return res.status(400).json({ msg: "Mes invalido. Usa el formato AAAA-MM." });
   }
   const organization = req.user.organization || null;
-  const [branchDocs, managerDocs, evaluations] = await Promise.all([
+  const [allBranchDocs, managerDocs, evaluations] = await Promise.all([
     Branch.find({ organization }).select("name").sort({ name: 1 }).lean(),
     User.find({ organization, role: "gerencia" }).select("nombre email branch branches").lean(),
     MonthlyEvaluation.find({ organization, month, scoringVersion: { $gte: 2 } }).lean(),
   ]);
-  const branchById = new Map(branchDocs.map((branch) => [String(branch._id), branch]));
+  const branchById = new Map(allBranchDocs.map((branch) => [String(branch._id), branch]));
+  const branchDocs = allBranchDocs.filter((branch) => !excludedBranchNames.has(normalizeBranchName(branch.name)));
   const evaluationByPair = new Map(evaluations.map((evaluation) => [
     `${String(evaluation.manager)}:${String(evaluation.branch)}`, evaluation,
   ]));
