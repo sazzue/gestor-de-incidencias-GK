@@ -77,6 +77,7 @@ const initializeDatabase = async () => {
     dropLegacyIndex(InventoryItem, "serialNumber_1"),
     dropLegacyIndex(SystemSettings, "key_1"),
     dropLegacyIndex(MonthlyEvaluation, "manager_1_month_1"),
+    dropLegacyIndex(MonthlyEvaluation, "manager_1_month_1_branch_1"),
   ]);
 
   await MonthlyEvaluation.createIndexes();

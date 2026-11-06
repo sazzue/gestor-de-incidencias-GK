@@ -19,5 +19,8 @@ const monthlyEvaluationSchema = new mongoose.Schema({
   scoringVersion: { type: Number, default: 2 },
 }, { timestamps: true });
 
-monthlyEvaluationSchema.index({ manager: 1, month: 1, branch: 1 }, { unique: true });
+monthlyEvaluationSchema.index(
+  { branch: 1, month: 1 },
+  { unique: true, partialFilterExpression: { scoringVersion: 3 } }
+);
 module.exports = mongoose.model("MonthlyEvaluation", monthlyEvaluationSchema);

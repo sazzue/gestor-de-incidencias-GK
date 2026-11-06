@@ -50,11 +50,16 @@ router.get("/monthly/status", auth, managerOnly, async (req, res) => {
     return res.json({ month, eligible: false, branches: [], submitted: false, locked: lockedWindow() });
   }
   const eligibleBranchIds = branches.map((branch) => String(branch._id));
-  const evaluations = await MonthlyEvaluation.find({ manager: req.user.id, month, branch: { $in: eligibleBranchIds } }).lean();
+  const evaluations = await MonthlyEvaluation.find({
+    organization: req.user.organization || null,
+    month,
+    branch: { $in: eligibleBranchIds },
+    scoringVersion: 3,
+  }).lean();
   const submittedByBranch = new Map(evaluations.map((item) => [String(item.branch), item]));
   const branchStatus = branches.map((branch) => {
     const evaluation = submittedByBranch.get(String(branch._id));
-    const submitted = Boolean(evaluation && evaluation.scoringVersion >= 2);
+    const submitted = Boolean(evaluation);
     return { id: String(branch._id), name: branch.name, submitted, score: submitted ? evaluation.score : null };
   });
   res.json({
@@ -102,22 +107,33 @@ router.post("/monthly", auth, managerOnly, async (req, res) => {
         };
       }),
       score,
-      scoringVersion: 2,
+      scoringVersion: 3,
     };
-    const priorSubmission = await MonthlyEvaluation.findOne({ manager: req.user.id, month: mexicoMonth(), branch: branchId });
-    if (priorSubmission && priorSubmission.scoringVersion >= 2) {
-      return res.status(409).json({ msg: "Ya enviaste la evaluacion de este mes para esta sucursal." });
+    const existingSubmission = await MonthlyEvaluation.findOne({
+      organization: req.user.organization || null,
+      month: values.month,
+      branch: branchId,
+      scoringVersion: 3,
+    });
+    if (existingSubmission) {
+      return res.status(409).json({ msg: "Esta sucursal ya tiene una evaluacion enviada para este mes." });
     }
     let evaluation;
-    if (priorSubmission) {
-      Object.assign(priorSubmission, values);
-      evaluation = await priorSubmission.save();
+    const legacySubmission = await MonthlyEvaluation.findOne({
+      organization: req.user.organization || null,
+      month: values.month,
+      branch: branchId,
+      scoringVersion: { $lt: 3 },
+    }).sort({ createdAt: -1 });
+    if (legacySubmission) {
+      Object.assign(legacySubmission, values);
+      evaluation = await legacySubmission.save();
     } else {
       evaluation = await MonthlyEvaluation.create(values);
     }
     res.status(201).json({ msg: "Evaluacion guardada.", score: evaluation.score });
   } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ msg: "Ya enviaste la evaluacion de este mes para esta sucursal." });
+    if (error.code === 11000) return res.status(409).json({ msg: "Esta sucursal ya tiene una evaluacion enviada para este mes." });
     throw error;
   }
 });
@@ -131,49 +147,46 @@ router.get("/monthly/results", auth, requirePermission("EVALUATIONS_RESULTS_VIEW
   const [allBranchDocs, managerDocs, evaluations] = await Promise.all([
     Branch.find({ organization }).select("name").sort({ name: 1 }).lean(),
     User.find({ organization, role: "gerencia" }).select("nombre email branch branches").lean(),
-    MonthlyEvaluation.find({ organization, month, scoringVersion: { $gte: 2 } }).lean(),
+    MonthlyEvaluation.find({ organization, month, scoringVersion: 3 }).sort({ createdAt: -1 }).lean(),
   ]);
   const branchById = new Map(allBranchDocs.map((branch) => [String(branch._id), branch]));
   const branchDocs = allBranchDocs.filter((branch) => !excludedBranchNames.has(normalizeBranchName(branch.name)));
-  const evaluationByPair = new Map(evaluations.map((evaluation) => [
-    `${String(evaluation.manager)}:${String(evaluation.branch)}`, evaluation,
-  ]));
+  const evaluationByBranch = new Map(evaluations.map((evaluation) => [String(evaluation.branch), evaluation]));
   const branches = branchDocs.map((branch) => {
     const branchId = String(branch._id);
-    const managers = managerDocs.flatMap((manager) => {
+    const managers = managerDocs.filter((manager) => {
       const ids = [...new Set([
         ...(Array.isArray(manager.branches) ? manager.branches : []),
         ...(manager.branch ? [manager.branch] : []),
       ].map(String))];
-      if (ids.length === 0 || ids.length > 2 || ids.some((id) => !branchById.has(id)) || !ids.includes(branchId)) return [];
-      const evaluation = evaluationByPair.get(`${String(manager._id)}:${branchId}`);
-      return [{
-        managerId: String(manager._id),
-        managerName: manager.nombre || manager.email,
-        status: evaluation ? "respondida" : "pendiente",
-        score: evaluation?.score ?? null,
-        evaluation: evaluation || null,
-      }];
+      return ids.length > 0 && ids.length <= 2 && !ids.some((id) => !branchById.has(id)) && ids.includes(branchId);
     });
-    const submitted = managers.filter((manager) => manager.status === "respondida").length;
-    const totalPoints = Math.round(managers.reduce((sum, manager) => sum + (manager.score || 0), 0) * 10) / 10;
-    const possiblePoints = managers.length * 100;
+    const evaluation = evaluationByBranch.get(branchId);
+    const responder = evaluation && managerDocs.find((manager) => String(manager._id) === String(evaluation.manager));
+    const managerName = responder
+      ? responder.nombre || responder.email
+      : managers.map((manager) => manager.nombre || manager.email).join(", ");
+    const expectedCount = managers.length > 0 ? 1 : 0;
+    const submittedCount = evaluation ? 1 : 0;
+    const totalPoints = evaluation?.score || 0;
+    const possiblePoints = expectedCount * 100;
     return {
       id: branchId,
       name: branch.name,
-      status: managers.length === 0 ? "sin_gerente_elegible" : submitted === managers.length ? "respondida" : "pendiente",
-      expectedCount: managers.length,
-      submittedCount: submitted,
+      managerName: managerName || "Sin gerente elegible",
+      status: expectedCount === 0 ? "sin_gerente_elegible" : evaluation ? "respondida" : "pendiente",
+      expectedCount,
+      submittedCount,
       totalPoints,
       possiblePoints,
       attainment: possiblePoints ? Math.round((totalPoints / possiblePoints) * 1000) / 10 : 0,
-      managers,
+      score: evaluation?.score ?? null,
     };
   });
-  const assignments = branches.flatMap((branch) => branch.managers);
-  const totalPoints = Math.round(assignments.reduce((sum, manager) => sum + (manager.score || 0), 0) * 10) / 10;
+  const assignments = branches.filter((branch) => branch.expectedCount > 0);
+  const totalPoints = Math.round(assignments.reduce((sum, branch) => sum + (branch.score || 0), 0) * 10) / 10;
   const possiblePoints = assignments.length * 100;
-  const submittedCount = assignments.filter((manager) => manager.status === "respondida").length;
+  const submittedCount = assignments.filter((branch) => branch.status === "respondida").length;
   const attainment = possiblePoints ? Math.round((totalPoints / possiblePoints) * 1000) / 10 : 0;
   res.json({
     month,
